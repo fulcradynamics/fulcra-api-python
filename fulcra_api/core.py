@@ -6,6 +6,7 @@ import time
 import pandas as pd
 from typing import List, Tuple
 import io
+import webbrowser
 try:
     from IPython.display import HTML, display
 except ImportError:     # ugly
