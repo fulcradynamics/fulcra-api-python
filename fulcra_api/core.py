@@ -27,6 +27,7 @@ class FulcraAPI:
     """
     The client class for calling Fulcra Data Service API functions.
     """
+
     fulcra_cached_access_token = None
     fulcra_cached_access_token_expiration = None
 
@@ -230,5 +231,21 @@ class FulcraAPI:
         resp = self.fulcra_api(
             self.fulcra_cached_access_token,
             f"/data/v0/{fulcra_userid}/calendars?{qparams}",
+        )
+        return json.loads(resp)
+
+    def apple_workouts(self, start_time: str, end_time: str) -> List[Dict]:
+        """
+        Retrieve the list of Apple workouts that occurred (at least partially) during 
+        the time range described by `start_time` (inclusive) to `end_time` (exclusive).
+
+        Requires an authorized access token.
+        """
+        params = {"start_time": start_time, "end_time": end_time}
+        qparams = urllib.parse.urlencode(params, doseq=True)
+        fulcra_userid = self.get_fulcra_userid()
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token,
+            f"/data/v0/{fulcra_userid}/apple_workouts?{qparams}",
         )
         return json.loads(resp)

@@ -33,3 +33,9 @@ def test_calendars(fulcra_client):
         start_time="2023-07-01 04:00:00.000Z", end_time="2023-07-10 04:00:00.000Z"
     )
     assert isinstance(events, List)
+
+def test_workouts(fulcra_client):
+    events = fulcra_client.apple_workouts(
+        start_time="2023-07-01 04:00:00.000Z", end_time="2023-07-03 04:00:00.000Z"
+    )
+    assert isinstance(events, List)
