@@ -236,7 +236,7 @@ class FulcraAPI:
 
     def apple_workouts(self, start_time: str, end_time: str) -> List[Dict]:
         """
-        Retrieve the list of Apple workouts that occurred (at least partially) during 
+        Retrieve the list of Apple workouts that occurred (at least partially) during
         the time range described by `start_time` (inclusive) to `end_time` (exclusive).
 
         Requires an authorized access token.
@@ -249,3 +249,103 @@ class FulcraAPI:
             f"/data/v0/{fulcra_userid}/apple_workouts?{qparams}",
         )
         return json.loads(resp)
+
+    def simple_events(
+        self, start_time: str, end_time: str, categories: Optional[List[str]] = None
+    ) -> List[Dict]:
+        """
+        Retrieve the events that occurred during the specified period of time,
+        optionally filtering by categories.
+
+        If included, the `categories` parameter only includes events from the specified
+        categories.
+
+        Requires an authorized access token.
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+        }
+        if categories is not None:
+            params["categories"] = categories
+        qparams = urllib.parse.urlencode(params, doseq=True)
+        fulcra_userid = self.get_fulcra_userid()
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token,
+            f"/data/v0/{fulcra_userid}/simple_events?{qparams}",
+        )
+        return json.loads(resp)
+
+    def metric_samples(
+        self, start_time: str, end_time: str, metric: str
+    ) -> List[Dict]:
+        """
+        Retrieve the raw samples related to the given metric that occurred for the
+        user during the specified period of time.
+
+        In cases where samples cover ranges and not points in time, a sample will
+        be returned if any part of its range intersects with the requested range.
+
+        As an example, if you have `start_date` as 14:00 and `end_date` at 15:00,
+        and there is a sample that covers 13:30-14:30, it will be included.
+
+        Requires an authorized access token.
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "metric": metric
+        }
+        qparams = urllib.parse.urlencode(params, doseq=True)
+        fulcra_userid = self.get_fulcra_userid()
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token,
+            f"/data/v0/{fulcra_userid}/metric_samples?{qparams}",
+        )
+        return json.loads(resp)
+
+    def apple_location_updates(
+        self, start_time: str, end_time: str
+    ) -> List[Dict]:
+        """
+        Retrieve the raw Apple location update samples for the specified
+        user during the specified period of time.
+
+        Requires an authorized access token.
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time
+        }
+        qparams = urllib.parse.urlencode(params, doseq=True)
+        fulcra_userid = self.get_fulcra_userid()
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token,
+            f"/data/v0/{fulcra_userid}/apple_location_updates?{qparams}",
+        )
+        return json.loads(resp)
+
+
+    def apple_location_visits(
+        self, start_time: str, end_time: str
+    ) -> List[Dict]:
+        """
+        Retrieve the raw Apple location visit samples for the specified
+        user during the specified period of time.
+
+        Requires an authorized access token.
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time
+        }
+        qparams = urllib.parse.urlencode(params, doseq=True)
+        fulcra_userid = self.get_fulcra_userid()
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token,
+            f"/data/v0/{fulcra_userid}/apple_location_visits?{qparams}",
+        )
+        return json.loads(resp)
+
+
+
