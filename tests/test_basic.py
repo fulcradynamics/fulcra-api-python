@@ -29,6 +29,10 @@ def test_time_series_grouped(fulcra_client):
 
 
 def test_calendars(fulcra_client):
+    cals = fulcra_client.calendars()
+    assert isinstance(cals, List)
+
+def test_calendar_events(fulcra_client):
     events = fulcra_client.calendar_events(
         start_time="2023-07-01 04:00:00.000Z", end_time="2023-07-10 04:00:00.000Z"
     )

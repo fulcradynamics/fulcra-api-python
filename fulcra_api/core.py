@@ -208,6 +208,20 @@ class FulcraAPI:
         )
         return pd.read_feather(io.BytesIO(resp)).set_index("time")
 
+    def calendars(self) -> List[Dict]:
+        """
+        Retrieve the list of calendars available in your data store.
+
+        Requires an authorized access token.
+        """
+        fulcra_userid = self.get_fulcra_userid()
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token,
+            f"/data/v0/{fulcra_userid}/calendars",
+        )
+        return json.loads(resp)
+
+
     def calendar_events(
         self, start_time: str, end_time: str, calendar_ids: Optional[List[str]] = None
     ) -> List[Dict]:
@@ -230,7 +244,7 @@ class FulcraAPI:
         fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
             self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/calendars?{qparams}",
+            f"/data/v0/{fulcra_userid}/calendar_events?{qparams}",
         )
         return json.loads(resp)
 
