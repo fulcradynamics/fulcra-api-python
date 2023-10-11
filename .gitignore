@@ -4,3 +4,4 @@ poetry.lock
 venv/
 dist/
 site/
+.env
