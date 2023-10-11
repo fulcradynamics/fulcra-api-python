@@ -25,25 +25,34 @@ FULCRA_AUTH0_SCOPE = "openid profile name email offline_access"
 
 class FulcraAPI:
     """
-    The client class for calling Fulcra Data Service API functions.
+    The main class for making Fulcra API functions.
+
+    This contains functions for authorizing a token, authenticating HTTP requests,
+    making calls, and loading data.
     """
 
     fulcra_cached_access_token = None
     fulcra_cached_access_token_expiration = None
 
-    def get_auth_connection(self, domain: str) -> http.client.HTTPSConnection:
+    def __get_auth_connection(self, domain: str) -> http.client.HTTPSConnection:
         """
-        Returns an https connection to the given server.
+        Opens an https connection to the given server.
+
+        Params:
+            domain: The domain name to connect to
+
+        Returns:
+            an open `HTTPSConnection` to the server.
         """
         return http.client.HTTPSConnection(domain)
 
-    def request_device_code(
+    def __request_device_code(
         self, domain: str, client_id: str, scope: str, audience: str
     ) -> Tuple[str, str, str]:
         """
         Requests a device code and complete verification URI from auth0.
         """
-        conn = self.get_auth_connection(domain)
+        conn = self.__get_auth_connection(domain)
         body = urllib.parse.urlencode(
             {"client_id": client_id, "audience": audience, "scope": scope}
         )
@@ -63,7 +72,7 @@ class FulcraAPI:
         )
 
     def get_token(self, device_code: str) -> Tuple[str, datetime.datetime]:
-        conn = self.get_auth_connection(FULCRA_AUTH0_DOMAIN)
+        conn = self.__get_auth_connection(FULCRA_AUTH0_DOMAIN)
         body = urllib.parse.urlencode(
             {
                 "client_id": FULCRA_AUTH0_CLIENT_ID,
@@ -93,7 +102,27 @@ class FulcraAPI:
         This uses the Device Authorization workflow, which requires the user
         to visit a link and confirm that the code shown on the screen matches.
 
+        This function will attempt to open the link in a new browwser tab (using
+        `webbrowser` module); it will also be either `print()`ed out (or `display()`ed
+        out if run inside Jupyter).
+
+        The function will wait until the user visits the page and authentiactes, or
+        until a specified time has passed.
+
         Raises an exception on failure.
+
+        Examples:
+
+        >>> fulcra.authorize()
+        Use your browser to log in to Fulcra.  If the tab does not open
+        automatically, visit this URL to authenticate:
+        https://fulcra.us.auth0.com/activate?user_code=SJZC-GRBW
+
+        When the aauthorization succeeds, the following will be displayed:
+
+        ```
+        Authorization succeeded.
+        ```
         """
         if (
             self.fulcra_cached_access_token is not None
@@ -105,7 +134,7 @@ class FulcraAPI:
             else:
                 print("Your access token is still valid.")
             return self.fulcra_cached_access_token
-        device_code, uri, code = self.request_device_code(
+        device_code, uri, code = self.__request_device_code(
             FULCRA_AUTH0_DOMAIN,
             FULCRA_AUTH0_CLIENT_ID,
             FULCRA_AUTH0_SCOPE,
@@ -151,7 +180,12 @@ class FulcraAPI:
         Make a call to the given url path (e.g. `/v0/data/time_series_grouped?...`)
         with the specified access token.
 
-        Returns the raw response data (as bytes).  Raises an exception on failure.
+        Params:
+            access_token: The access token to authenticate the request with
+            url_path: The path of the URL to use (e.g. `"/v0/data/..."`)
+
+        Returns:
+            The raw response data (as bytes).  Raises an exception on failure.
         """
         conn = http.client.HTTPSConnection("api.fulcradynamics.com")
         headers = {"Authorization": f"Bearer {access_token}"}
@@ -163,7 +197,10 @@ class FulcraAPI:
 
     def get_fulcra_userid(self) -> str:
         """
-        Returns the Fulcra UserID of the currently-authorized user.
+        Retrieve the currently authorized Fulcra UserID.
+
+        Returns:
+            the Fulcra UserID of the currently-authorized user.
         """
         if self.fulcra_cached_access_token is None:
             raise Exception("Authorization must occur before retrieving user ID.")
@@ -188,10 +225,67 @@ class FulcraAPI:
         seconds per sample.  This value can be smaller than 1.  The default
         value is 60 (one sample per minute).
 
-        When specified as strings, `start_time` and `end_time` must be in ISO8601
-        format.
-
         Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string
+            end_time: The end of the range (exclusive), as an ISO 8601 string
+            metrics: The names of the time-series metrics to include in the result
+            sample_rate: The length (in seconds) of each sample
+
+        Returns:
+            a pandas DataFrame containing the data.  For time ranges where data is
+                missing, the values will be `<NA>`.
+
+        Examples:
+            To retrieve a dataframe containing four different metrics
+            (`DistanceTraveledOnFoot`, `AppleWatchExerciseTime`,
+            `ActiveCaloriesBurned`, and `BasalCaloriesBurned`):
+
+            >>> df = fulcra.time_series_grouped(
+            ...     start_time = "2023-07-01 04:00:00.000Z",
+            ...     end_time = "2023-07-10 04:00:00.000Z",
+            ...     metrics=["DistanceTraveledOnFoot",
+            ...         "AppleWatchExerciseTime",
+            ...         "ActiveCaloriesBurned",
+            ...         "BasalCaloriesBurned"
+            ...     ]
+            ... )
+
+            The index of the DataFrame will be the time:
+
+            >>> df.index
+            DatetimeIndex(['2023-07-01 04:00:00+00:00',
+                           '2023-07-01 04:01:00+00:00',
+                           '2023-07-01 04:02:00+00:00',
+                           '2023-07-01 04:03:00+00:00',
+                           '2023-07-01 04:04:00+00:00',
+                           '2023-07-01 04:05:00+00:00',
+                           '2023-07-01 04:06:00+00:00',
+                           '2023-07-01 04:07:00+00:00',
+                           '2023-07-01 04:08:00+00:00',
+                           '2023-07-01 04:09:00+00:00',
+                           ...
+                           '2023-07-10 03:50:00+00:00',
+                           '2023-07-10 03:51:00+00:00',
+                           '2023-07-10 03:52:00+00:00',
+                           '2023-07-10 03:53:00+00:00',
+                           '2023-07-10 03:54:00+00:00',
+                           '2023-07-10 03:55:00+00:00',
+                           '2023-07-10 03:56:00+00:00',
+                           '2023-07-10 03:57:00+00:00',
+                           '2023-07-10 03:58:00+00:00',
+                        '2023-07-10 03:59:00+00:00'],
+                          dtype='datetime64[ns, UTC]', name='time', length=12960,
+                            freq=None)
+
+            Each metric requested will add at least one column to the dataframe:
+
+            >>> df.columns
+            Index(['distance_on_foot', 'apple_watch_exercise_time',
+                   'active_calories_burned', 'basal_calories_burned'],
+                    dtype='object')
+
         """
         qparams = urllib.parse.urlencode(
             {
@@ -213,6 +307,26 @@ class FulcraAPI:
         Retrieve the list of calendars available in your data store.
 
         Requires an authorized access token.
+
+        Returns:
+            A list of dicts, each of which represents a calendar.
+
+        Examples:
+            To retrieve all calendars from your data store:
+
+            >>> calendars = fulcra.calendars()
+            >>>
+
+            To inspect the details of a calendar:
+
+            >>> calendars[0]
+            {'calendar_id': '02b761da-46d0-4074-a9c8-406fd0de3adf', 'calendar_name':
+            'Birthdays', 'calendar_color':
+            '[0.5098039507865906,0.5843137502670288,0.686274528503418,1.0]',
+            'calendar_source_id': '03da9f61-7b58-4021-8f40-a93548258faf',
+            'calendar_source_name': 'Other', 'fulcra_source': 'apple_calendar'}
+
+
         """
         fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
@@ -227,12 +341,56 @@ class FulcraAPI:
     ) -> List[Dict]:
         """
         Retrieve the list of calendar events that occur (at least partially) during the
-        time range described by `start_time` (inclusive) to `end_time` (exclusive).
-
-        If included, the `calendar_ids` parameter limits the query to the specified
-        calendar IDs.
+        specified time range.
 
         Requires an authorized access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string.
+            end_time: The end of the range (exclusive), as an ISO 8601 string.
+            calendar_ids:
+                If included, the query results are limited to events that
+                are on the specified calendars.
+
+        Returns:
+            A list of dicts, each of which contains the data from a calendar event.
+
+        Examples:
+            To retrieve all calendar events that span a given range of time:
+
+            >>> cal_events = fulcra.calendar_events(
+            ...     start_time = "2023-09-24 07:00:00.000Z",
+            ...     end_time = "2023-09-25 07:00:00.000Z",
+            ...     calendar_ids=["01fb4138-db27-4792-867d-5cfbdc720165"]
+            ... )
+
+            To inspect the details of an event:
+            >>> cal_events[0]
+            {'calendar_event_id': 'c409a249-24cd-4c19-b763-3683cc21b9f8',
+            'calendar_id': '01fb4138-db27-4792-867d-5cfbdc720165', 'start_date':
+            '2023-09-24T20:10:00Z', 'end_date': '2023-09-24T21:10:00Z',
+            'allow_new_time_proposals': None, 'alarms':
+            ['19b7692e-7434-44be-a5ba-c8dfa338deb6'], 'availability': 'free',
+            'calendar_item_external_identifier':
+            '7kukuqrfedlm2f9tfbe684r6cqpk9mrk0aqdeoan7jdbr93e7963lagn9uq6pdsbac40',
+            'calendar_item_identifier': '22153B27-4BEE-480C-9627-F2EABC698103',
+            'event_identifier':
+            'EC9D6240-04A7-4869-9D2E-1A7648EA7732:7kukuqrfedlm2f9tfbe684r6cqpk9mrk0aqdeoan7jdbr93e7963lagn9uq6pdsbac40',
+            'creation_date': '2023-09-16T23:27:22Z', 'has_alarms': True,
+            'has_attendees': True, 'has_notes': True, 'has_recurrence_rules':
+            False, 'is_all_day': False, 'is_detached': False, 'last_modified_date':
+            '2023-09-16T23:27:26Z', 'location': 'PETCO Park', 'notes':
+            'This event was created from an email you received in Gmail.',
+            'occurrence_date': '2023-09-24T20:10:00Z', 'organizer':
+            '22381502-0af3-487a-820c-e22aa4cae201', 'recurrence_rules': None,
+            'status': 'confirmed', 'geolocation': None, 'time_zone':
+            'America/Los_Angeles (fixed)', 'title':
+            'St. Louis Cardinals at San Diego Padres', 'url': None,
+            'extras': {}, 'participants': [{'is_current_user': True,
+            'participant_role': 'required', 'participant_type': 'person',
+            'participant_status': 'accepted', 'url': 'mailto:cstone@gmail.com',
+            'contact_id': '00900185-b290-4f1c-860d-e4433024a943',
+            'name': 'cstone@gmail.com'}]}
         """
         params = {
             "start_time": start_time,
@@ -251,9 +409,34 @@ class FulcraAPI:
     def apple_workouts(self, start_time: str, end_time: str) -> List[Dict]:
         """
         Retrieve the list of Apple workouts that occurred (at least partially) during
-        the time range described by `start_time` (inclusive) to `end_time` (exclusive).
+        the specified time range.
 
         Requires an authorized access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string.
+            end_time: The end of the range (exclusive), as an ISO 8601 string.
+
+        Returns:
+            A list of dicts, each of which contains the data from a workout.
+
+        Examples:
+            To retrieve all workouts during a time period:
+
+            >>> workouts = fulcra.apple_workouts(
+            ...     start_time = "2023-09-21 07:00:00.000Z",
+            ...     end_time = "2023-09-22 07:00:00.000Z"
+            ... )
+
+            To inspect the details of a workout:
+
+            >>> workouts[0]
+            {'start_date': '2023-09-21T19:18:31.733000Z', 'end_date':
+            '2023-09-21T19:49:08.773000Z', 'has_undetermined_duration': False,
+            'apple_workout_id': '480b25fe-b229-41b9-bf13-7ccf5e2092ec', 'duration':
+            1837.0397539138794, 'extras': {'HKTimeZone': 'America/Los_Angeles',
+            'HKAverageMETs': '4.37848 kcal/hr·kg' ... }
+
         """
         params = {"start_time": start_time, "end_time": end_time}
         qparams = urllib.parse.urlencode(params, doseq=True)
@@ -275,6 +458,31 @@ class FulcraAPI:
         categories.
 
         Requires an authorized access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string.
+            end_time: The end of the range (exclusive), as an ISO 8601 string.
+            categories:
+                When present, the categories to filter on.  Only events
+                matching these categories will be returned.
+
+        Returns:
+            A list of dicts, each of which represents an event.
+
+        Examples:
+            To retrieve the stored events during a given range:
+
+            >>> simple_events = fulcra.simple_events(
+            ...     start_time="2022-05-01 04:00:00.000Z",
+            ...     end_time="2023-08-03 04:00:00.000Z"
+            ... )
+
+            To get the details of an event:
+            >>> simple_events[0]
+            {'event_body': 'relieved', 'category': 'mood', 'event_id':
+            '12680011-6668-4c8e-b4cd-3ca429445ac0', 'timestamp':
+            '2022-09-21T05:51:22Z'}
+
         """
         params = {
             "start_time": start_time,
@@ -304,6 +512,35 @@ class FulcraAPI:
         and there is a sample that covers 13:30-14:30, it will be included.
 
         Requires an authorized access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string.
+            end_time: The end of the range (exclusive), as an ISO 8601 string.
+            metric: The name of the metric to retrieve samples for.
+
+        Examples:
+
+            >>> samples = fulcra.metric_samples(
+            ...     start_time="2023-08-09 07:00:00.000Z",
+            ...     end_time="2023-08-10 07:00:00.000Z",
+            ...     metric="StepCount"
+            ... )
+
+            To inspect the first sample:
+
+            >>> samples[0]
+            {'start_date': '2023-08-10T06:05:10.726+00:00', 'end_date':
+            '2023-08-10T06:05:13.285+00:00', 'extras': None,
+            'has_undetermined_duration': False, 'unit': 'count', 'count': 1,
+            'uuid': '74983a94-8816-4b95-bbbd-d4108149261a', 'value': 8,
+            'source_properties': {'name': 'b c’s iPhone', 'version': '16.6',
+            'productType': 'iPhone12,8', 'operatingSystemVersion': [16, 6, 0],
+            'sourceBundleIdentifier':
+            'com.apple.health.F8872676-6D45-4981-8E14-C009D0AE5F27'},
+            'device_properties': {'name': 'iPhone', 'model':
+            'iPhone', 'manufacturer': 'Apple Inc.',
+            'hardwareVersion': 'iPhone12,8',
+            'softwareVersion': '16.6'}}
         """
         params = {
             "start_time": start_time,
@@ -321,11 +558,39 @@ class FulcraAPI:
     def apple_location_updates(
         self, start_time: str, end_time: str
     ) -> List[Dict]:
-        """
-        Retrieve the raw Apple location update samples for the specified
-        user during the specified period of time.
+        """Retrieve the raw Apple location update samples during the specified
+        period of time.
 
         Requires an authorized access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string.
+            end_time: The end of the range (exclusive), as an ISO 8601 string.
+
+        Returns:
+            A list of dicts, each of which contains the data from a location update.
+
+        Examples:
+            To retrieve all location updates within a specific hour:
+
+            >>> updates = fulcra.apple_location_updates(
+            ...     start_time="2023-09-24T20:00:00Z",
+            ...     end_time="2023-09-24T21:10:00Z"
+            ... )
+
+            To see the details of the first update:
+
+            >>> updates[0]
+            {'speed': -1, 'horizontal_accuracy_meters': 35, 'longitude_degrees':
+            -117.15661336566698, 'source_is_simulated_by_software': False,
+            'source_is_produced_by_accessory': False, 'latitude_degrees':
+            32.706505158026005, 'vertical_accuracy_meters': 3.0130748748779297,
+            'course_heading_accuracy_degrees': -1, 'course_heading_degrees': -1,
+            'ellipsoidal_altitude_meters': -6.280021667480469, 'floor': 0,
+            'speed_accuracy_meters': -1, 'altitude_meters': 29.17388153076172, 'uuid':
+            'e80feacc-54e9-414f-86cb-8d6ebd85ea41', 'timestamp':
+            '2023-09-24T20:39:28.056+00:00'}
+
         """
         params = {
             "start_time": start_time,
@@ -344,10 +609,36 @@ class FulcraAPI:
         self, start_time: str, end_time: str
     ) -> List[Dict]:
         """
-        Retrieve the raw Apple location visit samples for the specified
-        user during the specified period of time.
+        Retrieve the raw Apple location visit samples during the specified
+        period of time.
 
         Requires an authorized access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string.
+            end_time: The end of the range (exclusive), as an ISO 8601 string.
+
+        Returns:
+            A list of dicts, each of which contains the data from a location visit.
+
+        Examples:
+            To retrieve all location updates within a specific hour:
+
+            >>> visits = fulcra.apple_location_visits(
+            ...     start_time="2023-09-24T20:00:00Z",
+            ...     end_time="2023-09-24T21:10:00Z"
+            ... )
+
+            To see the details of the first update:
+
+            >>> visits[0]
+            {'longitude_degrees': -117.1224047932943, 'latitude_degrees':
+            32.75812770726706, 'arrival_date': '0001-01-01T00:00:00+00:00',
+            'departure_date': '2023-09-25T01:42:16.998+00:00',
+            'horizontal_accuracy_meters': 32.93262639589646, 'uuid':
+                '935971dd-0822-49ef-a74f-b09a24d68c3a'}
+
+
         """
         params = {
             "start_time": start_time,
