@@ -67,6 +67,10 @@ will work.  Here's an example that will retrieve the calendars from your data st
 calendars = fulcra.calendars()
 ```
 
+## Examples
+
+You can find some demo notebooks in the [Fulcra demos repository](https://github.com/fulcradynamics/demos).
+
 
 ## Bugs / Feature Requests
 
