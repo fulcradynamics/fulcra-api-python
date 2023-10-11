@@ -1,0 +1,1777 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="..">
+      
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.4.5">
+    
+    
+      
+        <title>The FulcraAPI class - fulcra-api Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.6a10b989.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&"object"==typeof palette.color)for(var key of Object.keys(palette.color))document.body.setAttribute("data-md-color-"+key,palette.color[key])</script>
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#fulcra_api.core.FulcraAPI" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="fulcra-api Documentation" class="md-header__button md-logo" aria-label="fulcra-api Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            fulcra-api Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              The FulcraAPI class
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="fulcra-api Documentation" class="md-nav__button md-logo" aria-label="fulcra-api Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    fulcra-api Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    The FulcraAPI class
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    The FulcraAPI class
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI" class="md-nav__link">
+    FulcraAPI
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.__get_auth_connection" class="md-nav__link">
+    __get_auth_connection()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.__request_device_code" class="md-nav__link">
+    __request_device_code()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.apple_location_updates" class="md-nav__link">
+    apple_location_updates()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.apple_location_visits" class="md-nav__link">
+    apple_location_visits()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.apple_workouts" class="md-nav__link">
+    apple_workouts()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.authorize" class="md-nav__link">
+    authorize()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.calendar_events" class="md-nav__link">
+    calendar_events()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.calendars" class="md-nav__link">
+    calendars()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.fulcra_api" class="md-nav__link">
+    fulcra_api()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.get_fulcra_userid" class="md-nav__link">
+    get_fulcra_userid()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.metric_samples" class="md-nav__link">
+    metric_samples()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.simple_events" class="md-nav__link">
+    simple_events()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.time_series_grouped" class="md-nav__link">
+    time_series_grouped()
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI" class="md-nav__link">
+    FulcraAPI
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.__get_auth_connection" class="md-nav__link">
+    __get_auth_connection()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.__request_device_code" class="md-nav__link">
+    __request_device_code()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.apple_location_updates" class="md-nav__link">
+    apple_location_updates()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.apple_location_visits" class="md-nav__link">
+    apple_location_visits()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.apple_workouts" class="md-nav__link">
+    apple_workouts()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.authorize" class="md-nav__link">
+    authorize()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.calendar_events" class="md-nav__link">
+    calendar_events()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.calendars" class="md-nav__link">
+    calendars()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.fulcra_api" class="md-nav__link">
+    fulcra_api()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.get_fulcra_userid" class="md-nav__link">
+    get_fulcra_userid()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.metric_samples" class="md-nav__link">
+    metric_samples()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.simple_events" class="md-nav__link">
+    simple_events()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.time_series_grouped" class="md-nav__link">
+    time_series_grouped()
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  <h1>The FulcraAPI class</h1>
+
+<div class="doc doc-object doc-class">
+
+
+
+<a id="fulcra_api.core.FulcraAPI"></a>
+  <div class="doc doc-contents first">
+
+  
+      <p>The main class for making Fulcra API functions.</p>
+<p>This contains functions for authorizing a token, authenticating HTTP requests,
+making calls, and loading data.</p>
+
+
+  
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.__get_auth_connection" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">__get_auth_connection</span><span class="p">(</span><span class="n">domain</span><span class="p">)</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Opens an https connection to the given server.</p>
+
+
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>domain</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The domain name to connect to</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code><span title="http.client.HTTPSConnection">HTTPSConnection</span></code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>an open <code>HTTPSConnection</code> to the server.</p>
+            </div>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.__request_device_code" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">__request_device_code</span><span class="p">(</span><span class="n">domain</span><span class="p">,</span> <span class="n">client_id</span><span class="p">,</span> <span class="n">scope</span><span class="p">,</span> <span class="n">audience</span><span class="p">)</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Requests a device code and complete verification URI from auth0.</p>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.apple_location_updates" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">apple_location_updates</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">)</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Retrieve the raw Apple location update samples during the specified
+period of time.</p>
+<p>Requires an authorized access token.</p>
+
+
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>start_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The start of the time range (inclusive), as an ISO 8601 string.</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>end_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The end of the range (exclusive), as an ISO 8601 string.</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code><span title="typing.List">List</span>[<span title="typing.Dict">Dict</span>]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>A list of dicts, each of which contains the data from a location update.</p>
+            </div>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+<p><strong>Examples:</strong></p>
+    <p>To retrieve all location updates within a specific hour:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">updates</span> <span class="o">=</span> <span class="n">fulcra</span><span class="o">.</span><span class="n">apple_location_updates</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">start_time</span><span class="o">=</span><span class="s2">&quot;2023-09-24T20:00:00Z&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">end_time</span><span class="o">=</span><span class="s2">&quot;2023-09-24T21:10:00Z&quot;</span>
+<span class="gp">... </span><span class="p">)</span>
+</code></pre></div>
+    <p>To see the details of the first update:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">updates</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="go">{&#39;speed&#39;: -1, &#39;horizontal_accuracy_meters&#39;: 35, &#39;longitude_degrees&#39;:</span>
+<span class="go">-117.15661336566698, &#39;source_is_simulated_by_software&#39;: False,</span>
+<span class="go">&#39;source_is_produced_by_accessory&#39;: False, &#39;latitude_degrees&#39;:</span>
+<span class="go">32.706505158026005, &#39;vertical_accuracy_meters&#39;: 3.0130748748779297,</span>
+<span class="go">&#39;course_heading_accuracy_degrees&#39;: -1, &#39;course_heading_degrees&#39;: -1,</span>
+<span class="go">&#39;ellipsoidal_altitude_meters&#39;: -6.280021667480469, &#39;floor&#39;: 0,</span>
+<span class="go">&#39;speed_accuracy_meters&#39;: -1, &#39;altitude_meters&#39;: 29.17388153076172, &#39;uuid&#39;:</span>
+<span class="go">&#39;e80feacc-54e9-414f-86cb-8d6ebd85ea41&#39;, &#39;timestamp&#39;:</span>
+<span class="go">&#39;2023-09-24T20:39:28.056+00:00&#39;}</span>
+</code></pre></div>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.apple_location_visits" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">apple_location_visits</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">)</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Retrieve the raw Apple location visit samples during the specified
+period of time.</p>
+<p>Requires an authorized access token.</p>
+
+
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>start_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The start of the time range (inclusive), as an ISO 8601 string.</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>end_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The end of the range (exclusive), as an ISO 8601 string.</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code><span title="typing.List">List</span>[<span title="typing.Dict">Dict</span>]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>A list of dicts, each of which contains the data from a location visit.</p>
+            </div>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+<p><strong>Examples:</strong></p>
+    <p>To retrieve all location updates within a specific hour:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">visits</span> <span class="o">=</span> <span class="n">fulcra</span><span class="o">.</span><span class="n">apple_location_visits</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">start_time</span><span class="o">=</span><span class="s2">&quot;2023-09-24T20:00:00Z&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">end_time</span><span class="o">=</span><span class="s2">&quot;2023-09-24T21:10:00Z&quot;</span>
+<span class="gp">... </span><span class="p">)</span>
+</code></pre></div>
+    <p>To see the details of the first update:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">visits</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="go">{&#39;longitude_degrees&#39;: -117.1224047932943, &#39;latitude_degrees&#39;:</span>
+<span class="go">32.75812770726706, &#39;arrival_date&#39;: &#39;0001-01-01T00:00:00+00:00&#39;,</span>
+<span class="go">&#39;departure_date&#39;: &#39;2023-09-25T01:42:16.998+00:00&#39;,</span>
+<span class="go">&#39;horizontal_accuracy_meters&#39;: 32.93262639589646, &#39;uuid&#39;:</span>
+<span class="go">    &#39;935971dd-0822-49ef-a74f-b09a24d68c3a&#39;}</span>
+</code></pre></div>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.apple_workouts" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">apple_workouts</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">)</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Retrieve the list of Apple workouts that occurred (at least partially) during
+the specified time range.</p>
+<p>Requires an authorized access token.</p>
+
+
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>start_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The start of the time range (inclusive), as an ISO 8601 string.</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>end_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The end of the range (exclusive), as an ISO 8601 string.</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code><span title="typing.List">List</span>[<span title="typing.Dict">Dict</span>]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>A list of dicts, each of which contains the data from a workout.</p>
+            </div>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+<p><strong>Examples:</strong></p>
+    <p>To retrieve all workouts during a time period:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">workouts</span> <span class="o">=</span> <span class="n">fulcra</span><span class="o">.</span><span class="n">apple_workouts</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">start_time</span> <span class="o">=</span> <span class="s2">&quot;2023-09-21 07:00:00.000Z&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">end_time</span> <span class="o">=</span> <span class="s2">&quot;2023-09-22 07:00:00.000Z&quot;</span>
+<span class="gp">... </span><span class="p">)</span>
+</code></pre></div>
+    <p>To inspect the details of a workout:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">workouts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="go">{&#39;start_date&#39;: &#39;2023-09-21T19:18:31.733000Z&#39;, &#39;end_date&#39;:</span>
+<span class="go">&#39;2023-09-21T19:49:08.773000Z&#39;, &#39;has_undetermined_duration&#39;: False,</span>
+<span class="go">&#39;apple_workout_id&#39;: &#39;480b25fe-b229-41b9-bf13-7ccf5e2092ec&#39;, &#39;duration&#39;:</span>
+<span class="go">1837.0397539138794, &#39;extras&#39;: {&#39;HKTimeZone&#39;: &#39;America/Los_Angeles&#39;,</span>
+<span class="go">&#39;HKAverageMETs&#39;: &#39;4.37848 kcal/hr·kg&#39; ... }</span>
+</code></pre></div>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.authorize" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">authorize</span><span class="p">()</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Request a device token, then prompt the user to authorize it.</p>
+<p>This uses the Device Authorization workflow, which requires the user
+to visit a link and confirm that the code shown on the screen matches.</p>
+<p>This function will attempt to open the link in a new browwser tab (using
+<code>webbrowser</code> module); it will also be either <code>print()</code>ed out (or <code>display()</code>ed
+out if run inside Jupyter).</p>
+<p>The function will wait until the user visits the page and authentiactes, or
+until a specified time has passed.</p>
+<p>Raises an exception on failure.</p>
+<p>Examples:</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>fulcra.authorize()
+Use your browser to log in to Fulcra.  If the tab does not open
+automatically, visit this URL to authenticate:
+https://fulcra.us.auth0.com/activate?user_code=SJZC-GRBW</p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p>When the aauthorization succeeds, the following will be displayed:</p>
+<pre><code>Authorization succeeded.
+</code></pre>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.calendar_events" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">calendar_events</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">calendar_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Retrieve the list of calendar events that occur (at least partially) during the
+specified time range.</p>
+<p>Requires an authorized access token.</p>
+
+
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>start_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The start of the time range (inclusive), as an ISO 8601 string.</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>end_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The end of the range (exclusive), as an ISO 8601 string.</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>calendar_ids</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[<span title="typing.List">List</span>[str]]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>If included, the query results are limited to events that
+are on the specified calendars.</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code><span title="typing.List">List</span>[<span title="typing.Dict">Dict</span>]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>A list of dicts, each of which contains the data from a calendar event.</p>
+            </div>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+<p><strong>Examples:</strong></p>
+    <p>To retrieve all calendar events that span a given range of time:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">cal_events</span> <span class="o">=</span> <span class="n">fulcra</span><span class="o">.</span><span class="n">calendar_events</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">start_time</span> <span class="o">=</span> <span class="s2">&quot;2023-09-24 07:00:00.000Z&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">end_time</span> <span class="o">=</span> <span class="s2">&quot;2023-09-25 07:00:00.000Z&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">calendar_ids</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;01fb4138-db27-4792-867d-5cfbdc720165&quot;</span><span class="p">]</span>
+<span class="gp">... </span><span class="p">)</span>
+</code></pre></div>
+    <p>To inspect the details of an event:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">cal_events</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="go">{&#39;calendar_event_id&#39;: &#39;c409a249-24cd-4c19-b763-3683cc21b9f8&#39;,</span>
+<span class="go">&#39;calendar_id&#39;: &#39;01fb4138-db27-4792-867d-5cfbdc720165&#39;, &#39;start_date&#39;:</span>
+<span class="go">&#39;2023-09-24T20:10:00Z&#39;, &#39;end_date&#39;: &#39;2023-09-24T21:10:00Z&#39;,</span>
+<span class="go">&#39;allow_new_time_proposals&#39;: None, &#39;alarms&#39;:</span>
+<span class="go">[&#39;19b7692e-7434-44be-a5ba-c8dfa338deb6&#39;], &#39;availability&#39;: &#39;free&#39;,</span>
+<span class="go">&#39;calendar_item_external_identifier&#39;:</span>
+<span class="go">&#39;7kukuqrfedlm2f9tfbe684r6cqpk9mrk0aqdeoan7jdbr93e7963lagn9uq6pdsbac40&#39;,</span>
+<span class="go">&#39;calendar_item_identifier&#39;: &#39;22153B27-4BEE-480C-9627-F2EABC698103&#39;,</span>
+<span class="go">&#39;event_identifier&#39;:</span>
+<span class="go">&#39;EC9D6240-04A7-4869-9D2E-1A7648EA7732:7kukuqrfedlm2f9tfbe684r6cqpk9mrk0aqdeoan7jdbr93e7963lagn9uq6pdsbac40&#39;,</span>
+<span class="go">&#39;creation_date&#39;: &#39;2023-09-16T23:27:22Z&#39;, &#39;has_alarms&#39;: True,</span>
+<span class="go">&#39;has_attendees&#39;: True, &#39;has_notes&#39;: True, &#39;has_recurrence_rules&#39;:</span>
+<span class="go">False, &#39;is_all_day&#39;: False, &#39;is_detached&#39;: False, &#39;last_modified_date&#39;:</span>
+<span class="go">&#39;2023-09-16T23:27:26Z&#39;, &#39;location&#39;: &#39;PETCO Park&#39;, &#39;notes&#39;:</span>
+<span class="go">&#39;This event was created from an email you received in Gmail.&#39;,</span>
+<span class="go">&#39;occurrence_date&#39;: &#39;2023-09-24T20:10:00Z&#39;, &#39;organizer&#39;:</span>
+<span class="go">&#39;22381502-0af3-487a-820c-e22aa4cae201&#39;, &#39;recurrence_rules&#39;: None,</span>
+<span class="go">&#39;status&#39;: &#39;confirmed&#39;, &#39;geolocation&#39;: None, &#39;time_zone&#39;:</span>
+<span class="go">&#39;America/Los_Angeles (fixed)&#39;, &#39;title&#39;:</span>
+<span class="go">&#39;St. Louis Cardinals at San Diego Padres&#39;, &#39;url&#39;: None,</span>
+<span class="go">&#39;extras&#39;: {}, &#39;participants&#39;: [{&#39;is_current_user&#39;: True,</span>
+<span class="go">&#39;participant_role&#39;: &#39;required&#39;, &#39;participant_type&#39;: &#39;person&#39;,</span>
+<span class="go">&#39;participant_status&#39;: &#39;accepted&#39;, &#39;url&#39;: &#39;mailto:cstone@gmail.com&#39;,</span>
+<span class="go">&#39;contact_id&#39;: &#39;00900185-b290-4f1c-860d-e4433024a943&#39;,</span>
+<span class="go">&#39;name&#39;: &#39;cstone@gmail.com&#39;}]}</span>
+</code></pre></div>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.calendars" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">calendars</span><span class="p">()</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Retrieve the list of calendars available in your data store.</p>
+<p>Requires an authorized access token.</p>
+
+
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code><span title="typing.List">List</span>[<span title="typing.Dict">Dict</span>]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>A list of dicts, each of which represents a calendar.</p>
+            </div>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+<p><strong>Examples:</strong></p>
+    <p>To retrieve all calendars from your data store:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">calendars</span> <span class="o">=</span> <span class="n">fulcra</span><span class="o">.</span><span class="n">calendars</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt;</span>
+</code></pre></div>
+    <p>To inspect the details of a calendar:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">calendars</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="go">{&#39;calendar_id&#39;: &#39;02b761da-46d0-4074-a9c8-406fd0de3adf&#39;, &#39;calendar_name&#39;:</span>
+<span class="go">&#39;Birthdays&#39;, &#39;calendar_color&#39;:</span>
+<span class="go">&#39;[0.5098039507865906,0.5843137502670288,0.686274528503418,1.0]&#39;,</span>
+<span class="go">&#39;calendar_source_id&#39;: &#39;03da9f61-7b58-4021-8f40-a93548258faf&#39;,</span>
+<span class="go">&#39;calendar_source_name&#39;: &#39;Other&#39;, &#39;fulcra_source&#39;: &#39;apple_calendar&#39;}</span>
+</code></pre></div>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.fulcra_api" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">fulcra_api</span><span class="p">(</span><span class="n">access_token</span><span class="p">,</span> <span class="n">url_path</span><span class="p">)</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Make a call to the given url path (e.g. <code>/v0/data/time_series_grouped?...</code>)
+with the specified access token.</p>
+
+
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>access_token</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The access token to authenticate the request with</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>url_path</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The path of the URL to use (e.g. <code>"/v0/data/..."</code>)</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code>bytes</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The raw response data (as bytes).  Raises an exception on failure.</p>
+            </div>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.get_fulcra_userid" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">get_fulcra_userid</span><span class="p">()</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Retrieve the currently authorized Fulcra UserID.</p>
+
+
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>the Fulcra UserID of the currently-authorized user.</p>
+            </div>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.metric_samples" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">metric_samples</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metric</span><span class="p">)</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Retrieve the raw samples related to the given metric that occurred for the
+user during the specified period of time.</p>
+<p>In cases where samples cover ranges and not points in time, a sample will
+be returned if any part of its range intersects with the requested range.</p>
+<p>As an example, if you have <code>start_date</code> as 14:00 and <code>end_date</code> at 15:00,
+and there is a sample that covers 13:30-14:30, it will be included.</p>
+<p>Requires an authorized access token.</p>
+
+
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>start_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The start of the time range (inclusive), as an ISO 8601 string.</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>end_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The end of the range (exclusive), as an ISO 8601 string.</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>metric</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The name of the metric to retrieve samples for.</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+      <p>Examples:</p>
+<pre><code>&gt;&gt;&gt; samples = fulcra.metric_samples(
+...     start_time="2023-08-09 07:00:00.000Z",
+...     end_time="2023-08-10 07:00:00.000Z",
+...     metric="StepCount"
+... )
+
+To inspect the first sample:
+
+&gt;&gt;&gt; samples[0]
+{'start_date': '2023-08-10T06:05:10.726+00:00', 'end_date':
+'2023-08-10T06:05:13.285+00:00', 'extras': None,
+'has_undetermined_duration': False, 'unit': 'count', 'count': 1,
+'uuid': '74983a94-8816-4b95-bbbd-d4108149261a', 'value': 8,
+'source_properties': {'name': 'b c’s iPhone', 'version': '16.6',
+'productType': 'iPhone12,8', 'operatingSystemVersion': [16, 6, 0],
+'sourceBundleIdentifier':
+'com.apple.health.F8872676-6D45-4981-8E14-C009D0AE5F27'},
+'device_properties': {'name': 'iPhone', 'model':
+'iPhone', 'manufacturer': 'Apple Inc.',
+'hardwareVersion': 'iPhone12,8',
+'softwareVersion': '16.6'}}
+</code></pre>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.simple_events" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">simple_events</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">categories</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Retrieve the events that occurred during the specified period of time,
+optionally filtering by categories.</p>
+<p>If included, the <code>categories</code> parameter only includes events from the specified
+categories.</p>
+<p>Requires an authorized access token.</p>
+
+
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>start_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The start of the time range (inclusive), as an ISO 8601 string.</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>end_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The end of the range (exclusive), as an ISO 8601 string.</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>categories</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[<span title="typing.List">List</span>[str]]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When present, the categories to filter on.  Only events
+matching these categories will be returned.</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code><span title="typing.List">List</span>[<span title="typing.Dict">Dict</span>]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>A list of dicts, each of which represents an event.</p>
+            </div>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+<p><strong>Examples:</strong></p>
+    <p>To retrieve the stored events during a given range:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">simple_events</span> <span class="o">=</span> <span class="n">fulcra</span><span class="o">.</span><span class="n">simple_events</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">start_time</span><span class="o">=</span><span class="s2">&quot;2022-05-01 04:00:00.000Z&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">end_time</span><span class="o">=</span><span class="s2">&quot;2023-08-03 04:00:00.000Z&quot;</span>
+<span class="gp">... </span><span class="p">)</span>
+</code></pre></div>
+    <p>To get the details of an event:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">simple_events</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="go">{&#39;event_body&#39;: &#39;relieved&#39;, &#39;category&#39;: &#39;mood&#39;, &#39;event_id&#39;:</span>
+<span class="go">&#39;12680011-6668-4c8e-b4cd-3ca429445ac0&#39;, &#39;timestamp&#39;:</span>
+<span class="go">&#39;2022-09-21T05:51:22Z&#39;}</span>
+</code></pre></div>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.time_series_grouped" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">time_series_grouped</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Retrieve a time-series data frame containing the specified set of
+Fulcra metrics from <code>start_time</code> (inclusive) until <code>end_time</code> (exclusive).</p>
+<p>If specified, the <code>sample_rate</code> parameter defines the number of
+seconds per sample.  This value can be smaller than 1.  The default
+value is 60 (one sample per minute).</p>
+<p>Requires a valid access token.</p>
+
+
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>start_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The start of the time range (inclusive), as an ISO 8601 string</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>end_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The end of the range (exclusive), as an ISO 8601 string</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>metrics</code></td>
+          <td>
+                <code><span title="typing.List">List</span>[str]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The names of the time-series metrics to include in the result</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>sample_rate</code></td>
+          <td>
+                <code>float</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The length (in seconds) of each sample</p>
+            </div>
+          </td>
+          <td>
+                <code>60</code>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>a pandas DataFrame containing the data.  For time ranges where data is
+missing, the values will be <code>&lt;NA&gt;</code>.</p>
+            </div>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+<p><strong>Examples:</strong></p>
+    <p>To retrieve a dataframe containing four different metrics
+(<code>DistanceTraveledOnFoot</code>, <code>AppleWatchExerciseTime</code>,
+<code>ActiveCaloriesBurned</code>, and <code>BasalCaloriesBurned</code>):</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">fulcra</span><span class="o">.</span><span class="n">time_series_grouped</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">start_time</span> <span class="o">=</span> <span class="s2">&quot;2023-07-01 04:00:00.000Z&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">end_time</span> <span class="o">=</span> <span class="s2">&quot;2023-07-10 04:00:00.000Z&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">metrics</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;DistanceTraveledOnFoot&quot;</span><span class="p">,</span>
+<span class="gp">... </span>        <span class="s2">&quot;AppleWatchExerciseTime&quot;</span><span class="p">,</span>
+<span class="gp">... </span>        <span class="s2">&quot;ActiveCaloriesBurned&quot;</span><span class="p">,</span>
+<span class="gp">... </span>        <span class="s2">&quot;BasalCaloriesBurned&quot;</span>
+<span class="gp">... </span>    <span class="p">]</span>
+<span class="gp">... </span><span class="p">)</span>
+</code></pre></div>
+    <p>The index of the DataFrame will be the time:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">df</span><span class="o">.</span><span class="n">index</span>
+<span class="go">DatetimeIndex([&#39;2023-07-01 04:00:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-01 04:01:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-01 04:02:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-01 04:03:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-01 04:04:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-01 04:05:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-01 04:06:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-01 04:07:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-01 04:08:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-01 04:09:00+00:00&#39;,</span>
+<span class="go">               ...</span>
+<span class="go">               &#39;2023-07-10 03:50:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-10 03:51:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-10 03:52:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-10 03:53:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-10 03:54:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-10 03:55:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-10 03:56:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-10 03:57:00+00:00&#39;,</span>
+<span class="go">               &#39;2023-07-10 03:58:00+00:00&#39;,</span>
+<span class="go">            &#39;2023-07-10 03:59:00+00:00&#39;],</span>
+<span class="go">              dtype=&#39;datetime64[ns, UTC]&#39;, name=&#39;time&#39;, length=12960,</span>
+<span class="go">                freq=None)</span>
+</code></pre></div>
+    <p>Each metric requested will add at least one column to the dataframe:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">df</span><span class="o">.</span><span class="n">columns</span>
+<span class="go">Index([&#39;distance_on_foot&#39;, &#39;apple_watch_exercise_time&#39;,</span>
+<span class="go">       &#39;active_calories_burned&#39;, &#39;basal_calories_burned&#39;],</span>
+<span class="go">        dtype=&#39;object&#39;)</span>
+</code></pre></div>
+
+  </div>
+
+</div>
+
+
+
+  </div>
+
+  </div>
+
+</div>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.f886a092.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.aecac24b.min.js"></script>
+      
+    
+  </body>
+</html>
