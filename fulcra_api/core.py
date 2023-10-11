@@ -34,7 +34,7 @@ class FulcraAPI:
     fulcra_cached_access_token = None
     fulcra_cached_access_token_expiration = None
 
-    def __get_auth_connection(self, domain: str) -> http.client.HTTPSConnection:
+    def _get_auth_connection(self, domain: str) -> http.client.HTTPSConnection:
         """
         Opens an https connection to the given server.
 
@@ -46,13 +46,13 @@ class FulcraAPI:
         """
         return http.client.HTTPSConnection(domain)
 
-    def __request_device_code(
+    def _request_device_code(
         self, domain: str, client_id: str, scope: str, audience: str
     ) -> Tuple[str, str, str]:
         """
         Requests a device code and complete verification URI from auth0.
         """
-        conn = self.__get_auth_connection(domain)
+        conn = self._get_auth_connection(domain)
         body = urllib.parse.urlencode(
             {"client_id": client_id, "audience": audience, "scope": scope}
         )
@@ -72,7 +72,7 @@ class FulcraAPI:
         )
 
     def get_token(self, device_code: str) -> Tuple[str, datetime.datetime]:
-        conn = self.__get_auth_connection(FULCRA_AUTH0_DOMAIN)
+        conn = self._get_auth_connection(FULCRA_AUTH0_DOMAIN)
         body = urllib.parse.urlencode(
             {
                 "client_id": FULCRA_AUTH0_CLIENT_ID,
@@ -134,7 +134,7 @@ class FulcraAPI:
             else:
                 print("Your access token is still valid.")
             return self.fulcra_cached_access_token
-        device_code, uri, code = self.__request_device_code(
+        device_code, uri, code = self._request_device_code(
             FULCRA_AUTH0_DOMAIN,
             FULCRA_AUTH0_CLIENT_ID,
             FULCRA_AUTH0_SCOPE,
