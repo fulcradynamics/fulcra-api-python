@@ -20,6 +20,8 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.group.docs.dependencies]
 mkdocs = "^1.5.3"
 sphinx = "^7.2.6"
+mkdocstrings = {extras = ["python"], version = "^0.23.0"}
+mkdocs-material = "^9.4.5"
 
 
 [tool.poetry.group.test.dependencies]

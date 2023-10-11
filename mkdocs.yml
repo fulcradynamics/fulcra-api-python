@@ -1,0 +1,19 @@
+site_name: "fulcra-api Documentation"
+
+theme: 'material'
+
+watch:
+  - fulcra_api/
+
+plugins:
+  - search
+  - mkdocstrings:
+      enable_inventory: true
+      handlers:
+        python:
+          paths: [.]
+
+
+nav:
+  - Home: index.md
+  - The FulcraAPI class: fulcraapi.md
