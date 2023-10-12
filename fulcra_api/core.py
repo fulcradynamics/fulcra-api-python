@@ -118,7 +118,7 @@ class FulcraAPI:
         automatically, visit this URL to authenticate:
         https://fulcra.us.auth0.com/activate?user_code=SJZC-GRBW
 
-        When the aauthorization succeeds, the following will be displayed:
+        When the authorization succeeds, the following will be displayed:
 
         ```
         Authorization succeeded.
