@@ -216,6 +216,7 @@ class FulcraAPI:
         end_time: str,
         metrics: List[str],
         sample_rate: float = 60,
+        replace_nulls: Optional[bool] = False
     ):
         """
         Retrieve a time-series data frame containing the specified set of
@@ -232,6 +233,7 @@ class FulcraAPI:
             end_time: The end of the range (exclusive), as an ISO 8601 string
             metrics: The names of the time-series metrics to include in the result
             sample_rate: The length (in seconds) of each sample
+            replace_nulls: When true, replace all NA/null/None values with 0.
 
         Returns:
             a pandas DataFrame containing the data.  For time ranges where data is
@@ -294,6 +296,7 @@ class FulcraAPI:
                 "metrics": metrics,
                 "output": "arrow",
                 "samprate": sample_rate,
+                "replace_nulls": replace_nulls
             },
             doseq=True,
         )
