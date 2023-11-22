@@ -1437,7 +1437,7 @@ matching these categories will be returned.</p>
 
 
 <h3 id="fulcra_api.core.FulcraAPI.time_series_grouped" class="doc doc-heading">
-          <code class="highlight language-python"><span class="n">time_series_grouped</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span></code>
+          <code class="highlight language-python"><span class="n">time_series_grouped</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">replace_nulls</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
 </h3>
 
@@ -1518,6 +1518,20 @@ value is 60 (one sample per minute).</p>
           </td>
           <td>
                 <code>60</code>
+          </td>
+        </tr>
+        <tr>
+          <td><code>replace_nulls</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[bool]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When true, replace all NA/null/None values with 0.</p>
+            </div>
+          </td>
+          <td>
+                <code>False</code>
           </td>
         </tr>
     </tbody>
