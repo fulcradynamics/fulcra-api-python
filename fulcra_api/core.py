@@ -296,7 +296,7 @@ class FulcraAPI:
                 "metrics": metrics,
                 "output": "arrow",
                 "samprate": sample_rate,
-                "replace_nulls": replace_nulls
+                "replace_nulls": int(replace_nulls == True)
             },
             doseq=True,
         )
