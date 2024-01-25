@@ -314,8 +314,22 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.location_at_time" class="md-nav__link">
+    location_at_time()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fulcra_api.core.FulcraAPI.metric_samples" class="md-nav__link">
     metric_samples()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.metric_time_series" class="md-nav__link">
+    metric_time_series()
   </a>
   
 </li>
@@ -430,8 +444,22 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.location_at_time" class="md-nav__link">
+    location_at_time()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fulcra_api.core.FulcraAPI.metric_samples" class="md-nav__link">
     metric_samples()
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.metric_time_series" class="md-nav__link">
+    metric_time_series()
   </a>
   
 </li>
@@ -1206,6 +1234,123 @@ with the specified access token.</p>
 
 
 
+<h3 id="fulcra_api.core.FulcraAPI.location_at_time" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">location_at_time</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">window_size</span><span class="o">=</span><span class="mi">14400</span><span class="p">,</span> <span class="n">include_after</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Gets the user's location at the specified time.  If no sample is
+available for the exact time, searches for the closest sample up to
+<code>window_size</code> seconds back.  If <code>include_after</code> is true, then also
+searches <code>window_size</code> seconds forward.</p>
+
+
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The point in time to get the user's location for.</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>window_size</code></td>
+          <td>
+                <code>int</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The size (in seconds) to look back (and optionally forward) for samples</p>
+            </div>
+          </td>
+          <td>
+                <code>14400</code>
+          </td>
+        </tr>
+        <tr>
+          <td><code>include_after</code></td>
+          <td>
+                <code>bool</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When true, a sample that occurs after the requested time may be returned if it is the closest one.</p>
+            </div>
+          </td>
+          <td>
+                <code>False</code>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code><span title="typing.List">List</span>[<span title="typing.Dict">Dict</span>]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>A list of dicts; the first dict is the best location sample.</p>
+            </div>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+      <p>Examples:</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>location = fulcra.location_at_time(
+...     time = "2024-01-24 00:00:00-08:00",
+... )</p>
+<p>location
+[{'speed': 0, 'horizontal_accuracy_meters': 4.848857421534995, 'longitude_degrees': -117.15709954484828, 'latitude_degrees': 32.707083bb994486, 'vertical_accuracy_meters': 3.2114044806616686, 'course_heading_accuracy_degrees': 180, 'course_heading_degrees': 87.05299950647989, 'ellipsoidal_altitude_meters': 32.700060645118356, 'floor': 0, 'speed_accuracy_meters': 0.9654413396512306, 'altitude_meters': 6.15396384336054, 'uuid': '59b2d63b-9b0b-436f-a66f-01129e1b33dd', 'timestamp': '2024-01-24T00:01:45.941+00:00', 'location_source': 'apple_location_update'}]</p>
+</blockquote>
+</blockquote>
+</blockquote>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
 <h3 id="fulcra_api.core.FulcraAPI.metric_samples" class="doc doc-heading">
           <code class="highlight language-python"><span class="n">metric_samples</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metric</span><span class="p">)</span></code>
 
@@ -1302,6 +1447,183 @@ To inspect the first sample:
 'hardwareVersion': 'iPhone12,8',
 'softwareVersion': '16.6'}}
 </code></pre>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.metric_time_series" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">metric_time_series</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metric</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">replace_nulls</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Retrieve time-series data from a single Fulcra metric, covering the
+time starting at <code>start_time</code> (inclusive) until <code>end_time</code>
+(exclusive).</p>
+<p>If specified, the <code>sample_rate</code> parameter defines the number of
+seconds per sample.  This value can be smaller than 1.  The default
+value is 60 (one sample per minute).</p>
+<p>Requires a valid access token.</p>
+
+
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>start_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The start of the time range (inclusive), as an ISO 8601 string</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>end_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The end of the range (exclusive), as an ISO 8601 string</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>metric</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The name of the time-series metric to retrieve</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>sample_rate</code></td>
+          <td>
+                <code>float</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The length (in seconds) of each sample</p>
+            </div>
+          </td>
+          <td>
+                <code>60</code>
+          </td>
+        </tr>
+        <tr>
+          <td><code>replace_nulls</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[bool]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When true, replace all NA/null/None values with 0</p>
+            </div>
+          </td>
+          <td>
+                <code>False</code>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>a pandas DataFrame containing the data.  For time ranges where data is
+missing, the values will be <code>&lt;NA&gt;</code>.</p>
+            </div>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+<p><strong>Examples:</strong></p>
+    <p>To retrieve a dataframe containing the <code>StepCount</code> metric:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">fulcra</span><span class="o">.</span><span class="n">metric_time_series</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">start_time</span> <span class="o">=</span> <span class="s2">&quot;2024-01-24 00:00:00-08:00&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">end_time</span> <span class="o">=</span> <span class="s2">&quot;2024-01-25 00:00:00-08:00&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">sample_rate</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">metric</span> <span class="o">=</span> <span class="s2">&quot;StepCount&quot;</span>
+<span class="gp">... </span><span class="p">)</span>
+</code></pre></div>
+      <p>The index of the DataFrame will be the time:</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>df.index
+DatetimeIndex(['2024-01-24 08:00:00+00:00', '2024-01-24 08:00:01+00:00',
+               '2024-01-24 08:00:02+00:00', '2024-01-24 08:00:03+00:00',
+               '2024-01-24 08:00:04+00:00', '2024-01-24 08:00:05+00:00',
+               '2024-01-24 08:00:06+00:00', '2024-01-24 08:00:07+00:00',
+               '2024-01-24 08:00:08+00:00', '2024-01-24 08:00:09+00:00',
+               ...
+               '2024-01-25 07:59:50+00:00', '2024-01-25 07:59:51+00:00',
+               '2024-01-25 07:59:52+00:00', '2024-01-25 07:59:53+00:00',
+               '2024-01-25 07:59:54+00:00', '2024-01-25 07:59:55+00:00',
+               '2024-01-25 07:59:56+00:00', '2024-01-25 07:59:57+00:00',
+               '2024-01-25 07:59:58+00:00', '2024-01-25 07:59:59+00:00'],
+              dtype='datetime64[us, UTC]', name='time', length=86400, freq=None)</p>
+</blockquote>
+</blockquote>
+</blockquote>
+<p>The non-index column(s) in the dataframe will be related to the metric.</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>df.columns
+Index(['step_count'], dtype='object')</p>
+</blockquote>
+</blockquote>
+</blockquote>
 
   </div>
 
@@ -1527,7 +1849,7 @@ value is 60 (one sample per minute).</p>
           </td>
           <td>
             <div class="doc-md-description">
-              <p>When true, replace all NA/null/None values with 0.</p>
+              <p>When true, replace all NA/null/None values with 0</p>
             </div>
           </td>
           <td>
