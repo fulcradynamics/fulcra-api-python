@@ -71,7 +71,7 @@ class FulcraAPI:
             data["user_code"],
         )
 
-    def get_token(self, device_code: str) -> Tuple[str, datetime.datetime]:
+    def get_token(self, device_code: str) -> Tuple[Optional[str], Optional[datetime.datetime]]:
         conn = self._get_auth_connection(FULCRA_AUTH0_DOMAIN)
         body = urllib.parse.urlencode(
             {
@@ -192,7 +192,7 @@ class FulcraAPI:
         conn.request("GET", url_path, headers=headers)
         response = conn.getresponse()
         if response.status != 200:
-            raise Exception(f"request failed: {response.read()}")
+            raise Exception(f"request failed: {response.read().decode('utf-8')}")
         return response.read()
 
     def get_fulcra_userid(self) -> str:
