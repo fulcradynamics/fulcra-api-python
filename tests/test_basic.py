@@ -75,4 +75,21 @@ def test_apple_location_visits(fulcra_client):
     )
     assert isinstance(visits, List)
 
+def test_metric_time_series(fulcra_client):
+    df = fulcra_client.metric_time_series(
+        start_time = "2024-01-24 00:00:00-08:00",
+        end_time = "2024-01-25 00:00:00-08:00",
+        sample_rate = 1,
+        metric = "StepCount"
+    )
+    assert df.shape == (86400, 1)
+    assert df['step_count'].sum() > -1.0
+
+def test_location_at_time(fulcra_client):
+    loc = fulcra_client.location_at_time(
+        time = "2024-01-24 00:00:00-08:00",
+    )
+    assert type(loc) == list
+    assert len(loc) < 2
+
 

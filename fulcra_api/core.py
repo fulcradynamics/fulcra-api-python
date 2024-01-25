@@ -233,7 +233,7 @@ class FulcraAPI:
             end_time: The end of the range (exclusive), as an ISO 8601 string
             metrics: The names of the time-series metrics to include in the result
             sample_rate: The length (in seconds) of each sample
-            replace_nulls: When true, replace all NA/null/None values with 0.
+            replace_nulls: When true, replace all NA/null/None values with 0
 
         Returns:
             a pandas DataFrame containing the data.  For time ranges where data is
@@ -656,4 +656,124 @@ class FulcraAPI:
         return json.loads(resp)
 
 
+    def metric_time_series(
+        self,
+        start_time: str,
+        end_time: str,
+        metric: str,
+        sample_rate: float = 60,
+        replace_nulls: Optional[bool] = False
+    ):
+        """
+        Retrieve time-series data from a single Fulcra metric, covering the
+        time starting at `start_time` (inclusive) until `end_time`
+        (exclusive).
+
+        If specified, the `sample_rate` parameter defines the number of
+        seconds per sample.  This value can be smaller than 1.  The default
+        value is 60 (one sample per minute).
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string
+            end_time: The end of the range (exclusive), as an ISO 8601 string
+            metric: The name of the time-series metric to retrieve
+            sample_rate: The length (in seconds) of each sample
+            replace_nulls: When true, replace all NA/null/None values with 0
+
+        Returns:
+            a pandas DataFrame containing the data.  For time ranges where data is
+                missing, the values will be `<NA>`.
+
+        Examples:
+            To retrieve a dataframe containing the `StepCount` metric:
+
+            >>> df = fulcra.metric_time_series(
+            ...     start_time = "2024-01-24 00:00:00-08:00",
+            ...     end_time = "2024-01-25 00:00:00-08:00",
+            ...     sample_rate = 1,
+            ...     metric = "StepCount"
+            ... )
+
+        The index of the DataFrame will be the time:
+
+        >>> df.index
+        DatetimeIndex(['2024-01-24 08:00:00+00:00', '2024-01-24 08:00:01+00:00',
+                       '2024-01-24 08:00:02+00:00', '2024-01-24 08:00:03+00:00',
+                       '2024-01-24 08:00:04+00:00', '2024-01-24 08:00:05+00:00',
+                       '2024-01-24 08:00:06+00:00', '2024-01-24 08:00:07+00:00',
+                       '2024-01-24 08:00:08+00:00', '2024-01-24 08:00:09+00:00',
+                       ...
+                       '2024-01-25 07:59:50+00:00', '2024-01-25 07:59:51+00:00',
+                       '2024-01-25 07:59:52+00:00', '2024-01-25 07:59:53+00:00',
+                       '2024-01-25 07:59:54+00:00', '2024-01-25 07:59:55+00:00',
+                       '2024-01-25 07:59:56+00:00', '2024-01-25 07:59:57+00:00',
+                       '2024-01-25 07:59:58+00:00', '2024-01-25 07:59:59+00:00'],
+                      dtype='datetime64[us, UTC]', name='time', length=86400, freq=None)
+
+        The non-index column(s) in the dataframe will be related to the metric.
+
+        >>> df.columns
+        Index(['step_count'], dtype='object')
+        """
+        qparams = urllib.parse.urlencode(
+            {
+                "start_time": start_time,
+                "end_time": end_time,
+                "metric": metric,
+                "output": "arrow",
+                "samprate": sample_rate,
+                "replace_nulls": int(replace_nulls == True)
+            },
+            doseq=True,
+        )
+        fulcra_userid = self.get_fulcra_userid()
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token, f"/data/v0/{fulcra_userid}/metric_time_series?{qparams}"
+        )
+        return pd.read_feather(io.BytesIO(resp)).set_index("time")
+
+
+    def location_at_time(
+        self,
+        time: str,
+        window_size: int = 14400,
+        include_after: bool = False
+    ) -> List[Dict]:
+        """
+        Gets the user's location at the specified time.  If no sample is
+        available for the exact time, searches for the closest sample up to
+        `window_size` seconds back.  If `include_after` is true, then also
+        searches `window_size` seconds forward.
+
+        Params:
+            time: The point in time to get the user's location for.
+            window_size: The size (in seconds) to look back (and optionally forward) for samples
+            include_after: When true, a sample that occurs after the requested time may be returned if it is the closest one.
+
+        Returns:
+            A list of dicts; the first dict is the best location sample.
+
+        Examples:
+
+        >>> location = fulcra.location_at_time(
+        ...     time = "2024-01-24 00:00:00-08:00",
+        ... )
+
+        >>> location
+        [{'speed': 0, 'horizontal_accuracy_meters': 4.848857421534995, 'longitude_degrees': -117.15709954484828, 'latitude_degrees': 32.707083bb994486, 'vertical_accuracy_meters': 3.2114044806616686, 'course_heading_accuracy_degrees': 180, 'course_heading_degrees': 87.05299950647989, 'ellipsoidal_altitude_meters': 32.700060645118356, 'floor': 0, 'speed_accuracy_meters': 0.9654413396512306, 'altitude_meters': 6.15396384336054, 'uuid': '59b2d63b-9b0b-436f-a66f-01129e1b33dd', 'timestamp': '2024-01-24T00:01:45.941+00:00', 'location_source': 'apple_location_update'}]
+        """
+        params = {
+            "time": time,
+            "window_size": window_size,
+            "include_after": include_after
+        }
+        qparams = urllib.parse.urlencode(params, doseq=True)
+        fulcra_userid = self.get_fulcra_userid()
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token,
+            f"/data/v0/{fulcra_userid}/location_at_time?{qparams}",
+        )
+        return json.loads(resp)
 
