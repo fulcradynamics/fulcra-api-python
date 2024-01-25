@@ -1,4 +1,5 @@
 .*.sw?
+.sw?
 __pycache__
 poetry.lock
 venv/
