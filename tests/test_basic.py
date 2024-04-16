@@ -93,3 +93,7 @@ def test_location_at_time(fulcra_client):
     assert len(loc) < 2
 
 
+def test_metrics_catalog(fulcra_client):
+    metrics = fulcra_client.metrics_catalog()
+    assert type(metrics) == list
+    assert len(metrics) > 5
