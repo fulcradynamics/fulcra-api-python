@@ -777,3 +777,28 @@ class FulcraAPI:
         )
         return json.loads(resp)
 
+
+    def metrics_catalog(
+        self
+    ) -> List[Dict]:
+        """
+        Gets the list of time-series metrics that are available for this user.
+        These metrics can be passed to the `metric_time_series` and 
+        `time_series_grouped` functions.
+
+        Returns:
+            The metrics, including descriptions.
+
+        Examples:
+
+		>>> metrics = fulcra_client.metrics_catalog()
+		>>> metrics[0]
+		{'name': 'AFibBurden', 'description': "A discrete measure of the percentage of time that the user's heart shows signs\n    of atrial fibrillation (AFib) during a given monitoring period.", 'unit': 'percent', 'is_time_series': True, 'metric_kind': 'discrete', 'value_column': 'afib_burden'}
+		>>> metrics[1]
+		{'name': 'ActiveCaloriesBurned', 'description': 'A cumulative measure of the amount of active energy the user has burned.', 'unit': 'cal', 'is_time_series': True, 'metric_kind': 'cumulative', 'value_column': 'active_calories_burned'}
+        """
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token,
+            "/data/v0/metrics_catalog"
+        )
+        return json.loads(resp)
