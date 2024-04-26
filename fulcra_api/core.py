@@ -133,7 +133,7 @@ class FulcraAPI:
                 display(HTML("<p>Your access token is still valid.</p>"))
             else:
                 print("Your access token is still valid.")
-            return self.fulcra_cached_access_token
+            return
         device_code, uri, code = self._request_device_code(
             FULCRA_AUTH0_DOMAIN,
             FULCRA_AUTH0_CLIENT_ID,
