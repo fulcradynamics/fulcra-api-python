@@ -602,7 +602,7 @@ making calls, and loading data.</p>
 
 
 <h3 id="fulcra_api.core.FulcraAPI.apple_location_updates" class="doc doc-heading">
-          <code class="highlight language-python"><span class="n">apple_location_updates</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">)</span></code>
+          <code class="highlight language-python"><span class="n">apple_location_updates</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -652,6 +652,20 @@ period of time.</p>
           </td>
           <td>
               <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>fulcra_userid</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[str]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When present, specifies the Fulcra user ID to request data for.</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
           </td>
         </tr>
     </tbody>
@@ -713,7 +727,7 @@ period of time.</p>
 
 
 <h3 id="fulcra_api.core.FulcraAPI.apple_location_visits" class="doc doc-heading">
-          <code class="highlight language-python"><span class="n">apple_location_visits</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">)</span></code>
+          <code class="highlight language-python"><span class="n">apple_location_visits</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -763,6 +777,20 @@ period of time.</p>
           </td>
           <td>
               <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>fulcra_userid</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[str]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When present, specifies the Fulcra user ID to request data for.</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
           </td>
         </tr>
     </tbody>
@@ -820,7 +848,7 @@ period of time.</p>
 
 
 <h3 id="fulcra_api.core.FulcraAPI.apple_workouts" class="doc doc-heading">
-          <code class="highlight language-python"><span class="n">apple_workouts</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">)</span></code>
+          <code class="highlight language-python"><span class="n">apple_workouts</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -870,6 +898,20 @@ the specified time range.</p>
           </td>
           <td>
               <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>fulcra_userid</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[str]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When present, specifies the Fulcra user ID to request data for.</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
           </td>
         </tr>
     </tbody>
@@ -968,7 +1010,7 @@ https://fulcra.us.auth0.com/activate?user_code=SJZC-GRBW</p>
 
 
 <h3 id="fulcra_api.core.FulcraAPI.calendar_events" class="doc doc-heading">
-          <code class="highlight language-python"><span class="n">calendar_events</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">calendar_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+          <code class="highlight language-python"><span class="n">calendar_events</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">calendar_ids</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -977,6 +1019,8 @@ https://fulcra.us.auth0.com/activate?user_code=SJZC-GRBW</p>
   
       <p>Retrieve the list of calendar events that occur (at least partially) during the
 specified time range.</p>
+<p>To request events from another user's store, pass their user
+ID as the <code>fulcra_userid</code> parameter.</p>
 <p>Requires an authorized access token.</p>
 
 
@@ -1029,6 +1073,20 @@ specified time range.</p>
             <div class="doc-md-description">
               <p>If included, the query results are limited to events that
 are on the specified calendars.</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
+          </td>
+        </tr>
+        <tr>
+          <td><code>fulcra_userid</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[str]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When present, specifies the Fulcra user ID to request data for.</p>
             </div>
           </td>
           <td>
@@ -1111,7 +1169,7 @@ are on the specified calendars.</p>
 
 
 <h3 id="fulcra_api.core.FulcraAPI.calendars" class="doc doc-heading">
-          <code class="highlight language-python"><span class="n">calendars</span><span class="p">()</span></code>
+          <code class="highlight language-python"><span class="n">calendars</span><span class="p">(</span><span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -1119,7 +1177,39 @@ are on the specified calendars.</p>
   <div class="doc doc-contents ">
   
       <p>Retrieve the list of calendars available in your data store.</p>
+<p>To request the calendars from another user's store, pass their user
+ID as the <code>fulcra_userid</code> parameter.</p>
 <p>Requires an authorized access token.</p>
+
+
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>fulcra_userid</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[str]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When present, specifies the Fulcra user ID to request data for.</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
+          </td>
+        </tr>
+    </tbody>
+  </table>
 
 
 
@@ -1302,7 +1392,7 @@ with the specified access token.</p>
 
 
 <h3 id="fulcra_api.core.FulcraAPI.location_at_time" class="doc doc-heading">
-          <code class="highlight language-python"><span class="n">location_at_time</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">window_size</span><span class="o">=</span><span class="mi">14400</span><span class="p">,</span> <span class="n">include_after</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+          <code class="highlight language-python"><span class="n">location_at_time</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">window_size</span><span class="o">=</span><span class="mi">14400</span><span class="p">,</span> <span class="n">include_after</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -1369,6 +1459,20 @@ searches <code>window_size</code> seconds forward.</p>
                 <code>False</code>
           </td>
         </tr>
+        <tr>
+          <td><code>fulcra_userid</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[str]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When present, specifies the Fulcra user ID to request data for.</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
+          </td>
+        </tr>
     </tbody>
   </table>
 
@@ -1418,7 +1522,7 @@ searches <code>window_size</code> seconds forward.</p>
 
 
 <h3 id="fulcra_api.core.FulcraAPI.metric_samples" class="doc doc-heading">
-          <code class="highlight language-python"><span class="n">metric_samples</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metric</span><span class="p">)</span></code>
+          <code class="highlight language-python"><span class="n">metric_samples</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metric</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -1488,6 +1592,20 @@ and there is a sample that covers 13:30-14:30, it will be included.</p>
               <em>required</em>
           </td>
         </tr>
+        <tr>
+          <td><code>fulcra_userid</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[str]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When present, specifies the Fulcra user ID to request data for.</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
+          </td>
+        </tr>
     </tbody>
   </table>
       <p>Examples:</p>
@@ -1524,7 +1642,7 @@ To inspect the first sample:
 
 
 <h3 id="fulcra_api.core.FulcraAPI.metric_time_series" class="doc doc-heading">
-          <code class="highlight language-python"><span class="n">metric_time_series</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metric</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">replace_nulls</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+          <code class="highlight language-python"><span class="n">metric_time_series</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metric</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">replace_nulls</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -1622,6 +1740,20 @@ value is 60 (one sample per minute).</p>
                 <code>False</code>
           </td>
         </tr>
+        <tr>
+          <td><code>fulcra_userid</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[str]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When present, specifies the Fulcra user ID to request data for.</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
+          </td>
+        </tr>
     </tbody>
   </table>
 
@@ -1708,7 +1840,7 @@ Index(['step_count'], dtype='object')</p>
   <div class="doc doc-contents ">
   
       <pre><code>Gets the list of time-series metrics that are available for this user.
-These metrics can be passed to the `metric_time_series` and 
+These metrics can be passed to the `metric_time_series` and
 `time_series_grouped` functions.
 
 Returns:
@@ -1734,7 +1866,7 @@ Examples:
 
 
 <h3 id="fulcra_api.core.FulcraAPI.simple_events" class="doc doc-heading">
-          <code class="highlight language-python"><span class="n">simple_events</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">categories</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+          <code class="highlight language-python"><span class="n">simple_events</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">categories</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -1803,6 +1935,20 @@ matching these categories will be returned.</p>
                 <code>None</code>
           </td>
         </tr>
+        <tr>
+          <td><code>fulcra_userid</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[str]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When present, specifies the Fulcra user ID to request data for.</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
+          </td>
+        </tr>
     </tbody>
   </table>
 
@@ -1856,7 +2002,7 @@ matching these categories will be returned.</p>
 
 
 <h3 id="fulcra_api.core.FulcraAPI.time_series_grouped" class="doc doc-heading">
-          <code class="highlight language-python"><span class="n">time_series_grouped</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">replace_nulls</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+          <code class="highlight language-python"><span class="n">time_series_grouped</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">replace_nulls</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -1951,6 +2097,20 @@ value is 60 (one sample per minute).</p>
           </td>
           <td>
                 <code>False</code>
+          </td>
+        </tr>
+        <tr>
+          <td><code>fulcra_userid</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[str]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When present, specifies the Fulcra user ID to request data for.</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
           </td>
         </tr>
     </tbody>
