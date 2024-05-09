@@ -71,7 +71,9 @@ class FulcraAPI:
             data["user_code"],
         )
 
-    def get_token(self, device_code: str) -> Tuple[Optional[str], Optional[datetime.datetime]]:
+    def get_token(
+        self, device_code: str
+    ) -> Tuple[Optional[str], Optional[datetime.datetime]]:
         conn = self._get_auth_connection(FULCRA_AUTH0_DOMAIN)
         body = urllib.parse.urlencode(
             {
@@ -216,7 +218,8 @@ class FulcraAPI:
         end_time: str,
         metrics: List[str],
         sample_rate: float = 60,
-        replace_nulls: Optional[bool] = False
+        replace_nulls: Optional[bool] = False,
+        fulcra_userid: Optional[str] = None,
     ):
         """
         Retrieve a time-series data frame containing the specified set of
@@ -234,6 +237,7 @@ class FulcraAPI:
             metrics: The names of the time-series metrics to include in the result
             sample_rate: The length (in seconds) of each sample
             replace_nulls: When true, replace all NA/null/None values with 0
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
         Returns:
             a pandas DataFrame containing the data.  For time ranges where data is
@@ -289,27 +293,36 @@ class FulcraAPI:
                     dtype='object')
 
         """
-        qparams = urllib.parse.urlencode(
-            {
-                "start_time": start_time,
-                "end_time": end_time,
-                "metrics": metrics,
-                "output": "arrow",
-                "samprate": sample_rate,
-                "replace_nulls": int(replace_nulls == True)
-            },
-            doseq=True,
-        )
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "metrics": metrics,
+            "output": "arrow",
+            "samprate": sample_rate,
+            "replace_nulls": int(replace_nulls == True),
+        }
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+        qparams = urllib.parse.urlencode(params, doseq=True)
         resp = self.fulcra_api(
             self.fulcra_cached_access_token, "/data/v0/time_series_grouped?" + qparams
         )
         return pd.read_feather(io.BytesIO(resp)).set_index("time")
 
-    def calendars(self) -> List[Dict]:
+    def calendars(
+        self,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
         """
         Retrieve the list of calendars available in your data store.
 
+        To request the calendars from another user's store, pass their user
+        ID as the `fulcra_userid` parameter.
+
         Requires an authorized access token.
+
+        Params:
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
         Returns:
             A list of dicts, each of which represents a calendar.
@@ -331,20 +344,27 @@ class FulcraAPI:
 
 
         """
-        fulcra_userid = self.get_fulcra_userid()
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
             self.fulcra_cached_access_token,
             f"/data/v0/{fulcra_userid}/calendars",
         )
         return json.loads(resp)
 
-
     def calendar_events(
-        self, start_time: str, end_time: str, calendar_ids: Optional[List[str]] = None
+        self,
+        start_time: str,
+        end_time: str,
+        calendar_ids: Optional[List[str]] = None,
+        fulcra_userid: Optional[str] = None,
     ) -> List[Dict]:
         """
         Retrieve the list of calendar events that occur (at least partially) during the
         specified time range.
+
+        To request events from another user's store, pass their user
+        ID as the `fulcra_userid` parameter.
 
         Requires an authorized access token.
 
@@ -354,6 +374,7 @@ class FulcraAPI:
             calendar_ids:
                 If included, the query results are limited to events that
                 are on the specified calendars.
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
         Returns:
             A list of dicts, each of which contains the data from a calendar event.
@@ -402,14 +423,20 @@ class FulcraAPI:
         if calendar_ids is not None:
             params["calendar_ids"] = calendar_ids
         qparams = urllib.parse.urlencode(params, doseq=True)
-        fulcra_userid = self.get_fulcra_userid()
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
             self.fulcra_cached_access_token,
             f"/data/v0/{fulcra_userid}/calendar_events?{qparams}",
         )
         return json.loads(resp)
 
-    def apple_workouts(self, start_time: str, end_time: str) -> List[Dict]:
+    def apple_workouts(
+        self,
+        start_time: str,
+        end_time: str,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
         """
         Retrieve the list of Apple workouts that occurred (at least partially) during
         the specified time range.
@@ -419,6 +446,7 @@ class FulcraAPI:
         Params:
             start_time: The start of the time range (inclusive), as an ISO 8601 string.
             end_time: The end of the range (exclusive), as an ISO 8601 string.
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
         Returns:
             A list of dicts, each of which contains the data from a workout.
@@ -443,7 +471,8 @@ class FulcraAPI:
         """
         params = {"start_time": start_time, "end_time": end_time}
         qparams = urllib.parse.urlencode(params, doseq=True)
-        fulcra_userid = self.get_fulcra_userid()
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
             self.fulcra_cached_access_token,
             f"/data/v0/{fulcra_userid}/apple_workouts?{qparams}",
@@ -451,7 +480,11 @@ class FulcraAPI:
         return json.loads(resp)
 
     def simple_events(
-        self, start_time: str, end_time: str, categories: Optional[List[str]] = None
+        self,
+        start_time: str,
+        end_time: str,
+        categories: Optional[List[str]] = None,
+        fulcra_userid: Optional[str] = None,
     ) -> List[Dict]:
         """
         Retrieve the events that occurred during the specified period of time,
@@ -468,6 +501,7 @@ class FulcraAPI:
             categories:
                 When present, the categories to filter on.  Only events
                 matching these categories will be returned.
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
         Returns:
             A list of dicts, each of which represents an event.
@@ -494,7 +528,8 @@ class FulcraAPI:
         if categories is not None:
             params["categories"] = categories
         qparams = urllib.parse.urlencode(params, doseq=True)
-        fulcra_userid = self.get_fulcra_userid()
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
             self.fulcra_cached_access_token,
             f"/data/v0/{fulcra_userid}/simple_events?{qparams}",
@@ -502,7 +537,11 @@ class FulcraAPI:
         return json.loads(resp)
 
     def metric_samples(
-        self, start_time: str, end_time: str, metric: str
+        self,
+        start_time: str,
+        end_time: str,
+        metric: str,
+        fulcra_userid: Optional[str] = None,
     ) -> List[Dict]:
         """
         Retrieve the raw samples related to the given metric that occurred for the
@@ -520,6 +559,7 @@ class FulcraAPI:
             start_time: The start of the time range (inclusive), as an ISO 8601 string.
             end_time: The end of the range (exclusive), as an ISO 8601 string.
             metric: The name of the metric to retrieve samples for.
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
         Examples:
 
@@ -545,13 +585,10 @@ class FulcraAPI:
             'hardwareVersion': 'iPhone12,8',
             'softwareVersion': '16.6'}}
         """
-        params = {
-            "start_time": start_time,
-            "end_time": end_time,
-            "metric": metric
-        }
+        params = {"start_time": start_time, "end_time": end_time, "metric": metric}
         qparams = urllib.parse.urlencode(params, doseq=True)
-        fulcra_userid = self.get_fulcra_userid()
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
             self.fulcra_cached_access_token,
             f"/data/v0/{fulcra_userid}/metric_samples?{qparams}",
@@ -559,7 +596,10 @@ class FulcraAPI:
         return json.loads(resp)
 
     def apple_location_updates(
-        self, start_time: str, end_time: str
+        self,
+        start_time: str,
+        end_time: str,
+        fulcra_userid: Optional[str] = None,
     ) -> List[Dict]:
         """Retrieve the raw Apple location update samples during the specified
         period of time.
@@ -569,6 +609,7 @@ class FulcraAPI:
         Params:
             start_time: The start of the time range (inclusive), as an ISO 8601 string.
             end_time: The end of the range (exclusive), as an ISO 8601 string.
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
         Returns:
             A list of dicts, each of which contains the data from a location update.
@@ -595,21 +636,21 @@ class FulcraAPI:
             '2023-09-24T20:39:28.056+00:00'}
 
         """
-        params = {
-            "start_time": start_time,
-            "end_time": end_time
-        }
+        params = {"start_time": start_time, "end_time": end_time}
         qparams = urllib.parse.urlencode(params, doseq=True)
-        fulcra_userid = self.get_fulcra_userid()
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
             self.fulcra_cached_access_token,
             f"/data/v0/{fulcra_userid}/apple_location_updates?{qparams}",
         )
         return json.loads(resp)
 
-
     def apple_location_visits(
-        self, start_time: str, end_time: str
+        self,
+        start_time: str,
+        end_time: str,
+        fulcra_userid: Optional[str] = None,
     ) -> List[Dict]:
         """
         Retrieve the raw Apple location visit samples during the specified
@@ -620,6 +661,7 @@ class FulcraAPI:
         Params:
             start_time: The start of the time range (inclusive), as an ISO 8601 string.
             end_time: The end of the range (exclusive), as an ISO 8601 string.
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
         Returns:
             A list of dicts, each of which contains the data from a location visit.
@@ -643,18 +685,15 @@ class FulcraAPI:
 
 
         """
-        params = {
-            "start_time": start_time,
-            "end_time": end_time
-        }
+        params = {"start_time": start_time, "end_time": end_time}
         qparams = urllib.parse.urlencode(params, doseq=True)
-        fulcra_userid = self.get_fulcra_userid()
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
             self.fulcra_cached_access_token,
             f"/data/v0/{fulcra_userid}/apple_location_visits?{qparams}",
         )
         return json.loads(resp)
-
 
     def metric_time_series(
         self,
@@ -662,7 +701,8 @@ class FulcraAPI:
         end_time: str,
         metric: str,
         sample_rate: float = 60,
-        replace_nulls: Optional[bool] = False
+        replace_nulls: Optional[bool] = False,
+        fulcra_userid: Optional[str] = None,
     ):
         """
         Retrieve time-series data from a single Fulcra metric, covering the
@@ -681,6 +721,7 @@ class FulcraAPI:
             metric: The name of the time-series metric to retrieve
             sample_rate: The length (in seconds) of each sample
             replace_nulls: When true, replace all NA/null/None values with 0
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
         Returns:
             a pandas DataFrame containing the data.  For time ranges where data is
@@ -724,22 +765,24 @@ class FulcraAPI:
                 "metric": metric,
                 "output": "arrow",
                 "samprate": sample_rate,
-                "replace_nulls": int(replace_nulls == True)
+                "replace_nulls": int(replace_nulls == True),
             },
             doseq=True,
         )
-        fulcra_userid = self.get_fulcra_userid()
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
-            self.fulcra_cached_access_token, f"/data/v0/{fulcra_userid}/metric_time_series?{qparams}"
+            self.fulcra_cached_access_token,
+            f"/data/v0/{fulcra_userid}/metric_time_series?{qparams}",
         )
         return pd.read_feather(io.BytesIO(resp)).set_index("time")
-
 
     def location_at_time(
         self,
         time: str,
         window_size: int = 14400,
-        include_after: bool = False
+        include_after: bool = False,
+        fulcra_userid: Optional[str] = None,
     ) -> List[Dict]:
         """
         Gets the user's location at the specified time.  If no sample is
@@ -751,6 +794,7 @@ class FulcraAPI:
             time: The point in time to get the user's location for.
             window_size: The size (in seconds) to look back (and optionally forward) for samples
             include_after: When true, a sample that occurs after the requested time may be returned if it is the closest one.
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
         Returns:
             A list of dicts; the first dict is the best location sample.
@@ -767,23 +811,23 @@ class FulcraAPI:
         params = {
             "time": time,
             "window_size": window_size,
-            "include_after": include_after
+            "include_after": include_after,
         }
         qparams = urllib.parse.urlencode(params, doseq=True)
-        fulcra_userid = self.get_fulcra_userid()
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
             self.fulcra_cached_access_token,
             f"/data/v0/{fulcra_userid}/location_at_time?{qparams}",
         )
         return json.loads(resp)
 
-
     def metrics_catalog(
-        self
+        self,
     ) -> List[Dict]:
         """
         Gets the list of time-series metrics that are available for this user.
-        These metrics can be passed to the `metric_time_series` and 
+        These metrics can be passed to the `metric_time_series` and
         `time_series_grouped` functions.
 
         Returns:
@@ -791,14 +835,13 @@ class FulcraAPI:
 
         Examples:
 
-		>>> metrics = fulcra_client.metrics_catalog()
-		>>> metrics[0]
-		{'name': 'AFibBurden', 'description': "A discrete measure of the percentage of time that the user's heart shows signs\n    of atrial fibrillation (AFib) during a given monitoring period.", 'unit': 'percent', 'is_time_series': True, 'metric_kind': 'discrete', 'value_column': 'afib_burden'}
-		>>> metrics[1]
-		{'name': 'ActiveCaloriesBurned', 'description': 'A cumulative measure of the amount of active energy the user has burned.', 'unit': 'cal', 'is_time_series': True, 'metric_kind': 'cumulative', 'value_column': 'active_calories_burned'}
+                >>> metrics = fulcra_client.metrics_catalog()
+                >>> metrics[0]
+                {'name': 'AFibBurden', 'description': "A discrete measure of the percentage of time that the user's heart shows signs\n    of atrial fibrillation (AFib) during a given monitoring period.", 'unit': 'percent', 'is_time_series': True, 'metric_kind': 'discrete', 'value_column': 'afib_burden'}
+                >>> metrics[1]
+                {'name': 'ActiveCaloriesBurned', 'description': 'A cumulative measure of the amount of active energy the user has burned.', 'unit': 'cal', 'is_time_series': True, 'metric_kind': 'cumulative', 'value_column': 'active_calories_burned'}
         """
         resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            "/data/v0/metrics_catalog"
+            self.fulcra_cached_access_token, "/data/v0/metrics_catalog"
         )
         return json.loads(resp)
