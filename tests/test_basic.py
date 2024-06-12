@@ -217,6 +217,26 @@ def test_metric_time_series(fulcra_client):
         assert True
 
 
+def test_location_time_series(fulcra_client):
+    locations = fulcra_client.location_time_series(
+        start_time = "2024-06-06T19:00:00-07:00",
+        end_time = "2024-06-06T20:00:00-07:00",
+        reverse_geocode = True
+    )
+    assert(type(locations)) == list
+    assert len(locations) == 4
+    try:
+        locations = fulcra_client.location_time_series(
+            start_time = "2024-06-06T19:00:00-07:00",
+            end_time = "2024-06-06T20:00:00-07:00",
+            reverse_geocode = True,
+            fulcra_userid="13371337-1337-1337-81e7-a102ab7d3ff8",
+        )
+        assert False
+    except Exception:
+        assert True
+
+
 def test_location_at_time(fulcra_client):
     loc = fulcra_client.location_at_time(
         time="2024-01-24 00:00:00-08:00",

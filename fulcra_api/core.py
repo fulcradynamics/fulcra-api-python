@@ -777,11 +777,78 @@ class FulcraAPI:
         )
         return pd.read_feather(io.BytesIO(resp)).set_index("time")
 
+    def location_time_series(
+        self,
+        start_time: str,
+        end_time: str,
+        change_meters: Optional[float] = None,
+        sample_rate: int = 900,
+        look_back: int = 14400,
+        reverse_geocode: bool = False,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieve a time series of locations that the user was at.  This uses
+        the most precise underlying data sources available at the given time.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string
+            end_time: The end of the range (exclusive), as an ISO 8601 string
+            change_meters: when specified, subsequent samples that are fewer than this many meters away will not be included.
+            sample_rate: The length (in seconds) of each sample
+            look_back: The maximum number of seconds in the past to look back to find a value for a sample.
+            reverse_geocode: When true, Fulcra will attempt to reverse geocode the locations and include the details in the results.
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
+
+        Returns:
+            A list of samples; each sample represents a location sample.
+
+        Examples:
+			>>> locations = fulcra.location_time_series(
+			...     start_time = "2024-06-06T19:00:00-07:00",
+			...     end_time = "2024-06-06T20:00:00-07:00",
+			...     reverse_geocode = True
+			... )
+			>>> print(pd.DataFrame(locations))
+							  slice_time        lat        long                           time  distance_change_m                                            address                                   location_details
+			0  2024-06-07T02:00:00+00:00  32.706814 -117.156455   2024-06-07T01:50:10.92+00:00                NaN  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
+			1  2024-06-07T02:15:00+00:00  32.706722 -117.156576  2024-06-07T02:03:56.903+00:00          15.281598  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
+			2  2024-06-07T02:30:00+00:00  32.706699 -117.156583  2024-06-07T02:22:07.571+00:00           2.588992  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
+			3  2024-06-07T02:45:00+00:00  32.706699 -117.156583  2024-06-07T02:22:07.571+00:00           0.000000  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "end_time": end_time,
+            "sample_rate": sample_rate,
+            "look_back": look_back,
+            "reverse_geocode": reverse_geocode,
+        }
+        if change_meters is not None:
+            params["change_meters"] = change_meters
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
+        qparams = urllib.parse.urlencode(params, doseq=True)
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token,
+            f"/data/v0/{fulcra_userid}/location_time_series?{qparams}",
+        )
+        return json.loads(resp)
+
+
+
+
+
     def location_at_time(
         self,
         time: str,
         window_size: int = 14400,
         include_after: bool = False,
+        reverse_geocode: bool = False,
         fulcra_userid: Optional[str] = None,
     ) -> List[Dict]:
         """
@@ -794,6 +861,7 @@ class FulcraAPI:
             time: The point in time to get the user's location for.
             window_size: The size (in seconds) to look back (and optionally forward) for samples
             include_after: When true, a sample that occurs after the requested time may be returned if it is the closest one.
+            reverse_geocode: When true, Fulcra will attempt to reverse geocode the location and include the details in the results.
             fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
         Returns:
@@ -812,6 +880,7 @@ class FulcraAPI:
             "time": time,
             "window_size": window_size,
             "include_after": include_after,
+            "reverse_geocode": reverse_geocode,
         }
         qparams = urllib.parse.urlencode(params, doseq=True)
         if fulcra_userid is None:
