@@ -343,6 +343,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.location_time_series" class="md-nav__link">
+    <span class="md-ellipsis">
+      location_time_series
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fulcra_api.core.FulcraAPI.metric_samples" class="md-nav__link">
     <span class="md-ellipsis">
       metric_samples
@@ -504,6 +513,15 @@
   <a href="#fulcra_api.core.FulcraAPI.location_at_time" class="md-nav__link">
     <span class="md-ellipsis">
       location_at_time
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.location_time_series" class="md-nav__link">
+    <span class="md-ellipsis">
+      location_time_series
     </span>
   </a>
   
@@ -1392,7 +1410,7 @@ with the specified access token.</p>
 
 
 <h3 id="fulcra_api.core.FulcraAPI.location_at_time" class="doc doc-heading">
-          <code class="highlight language-python"><span class="n">location_at_time</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">window_size</span><span class="o">=</span><span class="mi">14400</span><span class="p">,</span> <span class="n">include_after</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+          <code class="highlight language-python"><span class="n">location_at_time</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">window_size</span><span class="o">=</span><span class="mi">14400</span><span class="p">,</span> <span class="n">include_after</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">reverse_geocode</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -1460,6 +1478,20 @@ searches <code>window_size</code> seconds forward.</p>
           </td>
         </tr>
         <tr>
+          <td><code>reverse_geocode</code></td>
+          <td>
+                <code>bool</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When true, Fulcra will attempt to reverse geocode the location and include the details in the results.</p>
+            </div>
+          </td>
+          <td>
+                <code>False</code>
+          </td>
+        </tr>
+        <tr>
           <td><code>fulcra_userid</code></td>
           <td>
                 <code><span title="typing.Optional">Optional</span>[str]</code>
@@ -1511,6 +1543,181 @@ searches <code>window_size</code> seconds forward.</p>
 </blockquote>
 </blockquote>
 </blockquote>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.location_time_series" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">location_time_series</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">change_meters</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="mi">900</span><span class="p">,</span> <span class="n">look_back</span><span class="o">=</span><span class="mi">14400</span><span class="p">,</span> <span class="n">reverse_geocode</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Retrieve a time series of locations that the user was at.  This uses
+the most precise underlying data sources available at the given time.</p>
+<p>Requires a valid access token.</p>
+
+
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>start_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The start of the time range (inclusive), as an ISO 8601 string</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>end_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The end of the range (exclusive), as an ISO 8601 string</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>change_meters</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[float]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>when specified, subsequent samples that are fewer than this many meters away will not be included.</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
+          </td>
+        </tr>
+        <tr>
+          <td><code>sample_rate</code></td>
+          <td>
+                <code>int</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The length (in seconds) of each sample</p>
+            </div>
+          </td>
+          <td>
+                <code>900</code>
+          </td>
+        </tr>
+        <tr>
+          <td><code>look_back</code></td>
+          <td>
+                <code>int</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The maximum number of seconds in the past to look back to find a value for a sample.</p>
+            </div>
+          </td>
+          <td>
+                <code>14400</code>
+          </td>
+        </tr>
+        <tr>
+          <td><code>reverse_geocode</code></td>
+          <td>
+                <code>bool</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When true, Fulcra will attempt to reverse geocode the locations and include the details in the results.</p>
+            </div>
+          </td>
+          <td>
+                <code>False</code>
+          </td>
+        </tr>
+        <tr>
+          <td><code>fulcra_userid</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[str]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When present, specifies the Fulcra user ID to request data for.</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code><span title="typing.List">List</span>[<span title="typing.Dict">Dict</span>]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>A list of samples; each sample represents a location sample.</p>
+            </div>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+<p><strong>Examples:</strong></p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">locations</span> <span class="o">=</span> <span class="n">fulcra</span><span class="o">.</span><span class="n">location_time_series</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">start_time</span> <span class="o">=</span> <span class="s2">&quot;2024-06-06T19:00:00-07:00&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">end_time</span> <span class="o">=</span> <span class="s2">&quot;2024-06-06T20:00:00-07:00&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">reverse_geocode</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">locations</span><span class="p">))</span>
+<span class="go">                                  slice_time        lat        long                           time  distance_change_m                                            address                                   location_details</span>
+<span class="go">0  2024-06-07T02:00:00+00:00  32.706814 -117.156455   2024-06-07T01:50:10.92+00:00                NaN  Petco Park, 100 Park Boulevard, San Diego, CA ...  {&#39;annotations&#39;: {&#39;DMS&#39;: {&#39;lat&#39;: &#39;32° 42&#39; 25.87...</span>
+<span class="go">1  2024-06-07T02:15:00+00:00  32.706722 -117.156576  2024-06-07T02:03:56.903+00:00          15.281598  Petco Park, 100 Park Boulevard, San Diego, CA ...  {&#39;annotations&#39;: {&#39;DMS&#39;: {&#39;lat&#39;: &#39;32° 42&#39; 25.87...</span>
+<span class="go">2  2024-06-07T02:30:00+00:00  32.706699 -117.156583  2024-06-07T02:22:07.571+00:00           2.588992  Petco Park, 100 Park Boulevard, San Diego, CA ...  {&#39;annotations&#39;: {&#39;DMS&#39;: {&#39;lat&#39;: &#39;32° 42&#39; 25.87...</span>
+<span class="go">3  2024-06-07T02:45:00+00:00  32.706699 -117.156583  2024-06-07T02:22:07.571+00:00           0.000000  Petco Park, 100 Park Boulevard, San Diego, CA ...  {&#39;annotations&#39;: {&#39;DMS&#39;: {&#39;lat&#39;: &#39;32° 42&#39; 25.87...</span>
+</code></pre></div>
 
   </div>
 
