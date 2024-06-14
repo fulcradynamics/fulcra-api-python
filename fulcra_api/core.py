@@ -703,7 +703,8 @@ class FulcraAPI:
         sample_rate: float = 60,
         replace_nulls: Optional[bool] = False,
         fulcra_userid: Optional[str] = None,
-    ):
+        calculations: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
         """
         Retrieve time-series data from a single Fulcra metric, covering the
         time starting at `start_time` (inclusive) until `end_time`
@@ -722,6 +723,14 @@ class FulcraAPI:
             sample_rate: The length (in seconds) of each sample
             replace_nulls: When true, replace all NA/null/None values with 0
             fulcra_userid: When present, specifies the Fulcra user ID to request data for.
+            calculations: When present, specifies additional calculations to perform for each time slice.  The current values are:
+                - `max`: The maximum value for each time window
+                - `min`: The minimum value for each time window
+                - `delta`: The delta between the maximum and minimum value for each time window
+                - `mean`: The mean value for each time window
+                - `uniques`: The list of unique values for each time window
+                - `allpoints`: The list of all values for each time window
+                - `rollingmean`: The rolling mean value for each time window.  This mean is calculated relative to the beginning of the requested sample
 
         Returns:
             a pandas DataFrame containing the data.  For time ranges where data is
@@ -758,15 +767,19 @@ class FulcraAPI:
         >>> df.columns
         Index(['step_count'], dtype='object')
         """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "metric": metric,
+            "output": "arrow",
+            "samprate": sample_rate,
+            "replace_nulls": int(replace_nulls == True),
+        }
+        if calculations is not None:
+            params["calculations"] = calculations
+
         qparams = urllib.parse.urlencode(
-            {
-                "start_time": start_time,
-                "end_time": end_time,
-                "metric": metric,
-                "output": "arrow",
-                "samprate": sample_rate,
-                "replace_nulls": int(replace_nulls == True),
-            },
+            params,
             doseq=True,
         )
         if fulcra_userid is None:
@@ -806,17 +819,17 @@ class FulcraAPI:
             A list of samples; each sample represents a location sample.
 
         Examples:
-			>>> locations = fulcra.location_time_series(
-			...     start_time = "2024-06-06T19:00:00-07:00",
-			...     end_time = "2024-06-06T20:00:00-07:00",
-			...     reverse_geocode = True
-			... )
-			>>> print(pd.DataFrame(locations))
-							  slice_time        lat        long                           time  distance_change_m                                            address                                   location_details
-			0  2024-06-07T02:00:00+00:00  32.706814 -117.156455   2024-06-07T01:50:10.92+00:00                NaN  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
-			1  2024-06-07T02:15:00+00:00  32.706722 -117.156576  2024-06-07T02:03:56.903+00:00          15.281598  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
-			2  2024-06-07T02:30:00+00:00  32.706699 -117.156583  2024-06-07T02:22:07.571+00:00           2.588992  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
-			3  2024-06-07T02:45:00+00:00  32.706699 -117.156583  2024-06-07T02:22:07.571+00:00           0.000000  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
+                        >>> locations = fulcra.location_time_series(
+                        ...     start_time = "2024-06-06T19:00:00-07:00",
+                        ...     end_time = "2024-06-06T20:00:00-07:00",
+                        ...     reverse_geocode = True
+                        ... )
+                        >>> print(pd.DataFrame(locations))
+                                                          slice_time        lat        long                           time  distance_change_m                                            address                                   location_details
+                        0  2024-06-07T02:00:00+00:00  32.706814 -117.156455   2024-06-07T01:50:10.92+00:00                NaN  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
+                        1  2024-06-07T02:15:00+00:00  32.706722 -117.156576  2024-06-07T02:03:56.903+00:00          15.281598  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
+                        2  2024-06-07T02:30:00+00:00  32.706699 -117.156583  2024-06-07T02:22:07.571+00:00           2.588992  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
+                        3  2024-06-07T02:45:00+00:00  32.706699 -117.156583  2024-06-07T02:22:07.571+00:00           0.000000  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
         """
         params = {
             "start_time": start_time,
@@ -838,10 +851,6 @@ class FulcraAPI:
             f"/data/v0/{fulcra_userid}/location_time_series?{qparams}",
         )
         return json.loads(resp)
-
-
-
-
 
     def location_at_time(
         self,
