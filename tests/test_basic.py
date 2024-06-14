@@ -186,6 +186,17 @@ def test_apple_location_visits(fulcra_client):
         assert True
 
 
+def test_metric_time_series_calculations(fulcra_client):
+    df = fulcra_client.metric_time_series(
+        start_time="2024-01-24 00:00:00-08:00",
+        end_time="2024-01-25 00:00:00-08:00",
+        sample_rate=1,
+        metric="HeartRate",
+        calculations=["max"]
+    )
+    assert "max_heart_rate" in df
+
+
 def test_metric_time_series(fulcra_client):
     df = fulcra_client.metric_time_series(
         start_time="2024-01-24 00:00:00-08:00",
