@@ -1849,7 +1849,7 @@ To inspect the first sample:
 
 
 <h3 id="fulcra_api.core.FulcraAPI.metric_time_series" class="doc doc-heading">
-          <code class="highlight language-python"><span class="n">metric_time_series</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metric</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">replace_nulls</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+          <code class="highlight language-python"><span class="n">metric_time_series</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metric</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">replace_nulls</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">calculations</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -1961,6 +1961,27 @@ value is 60 (one sample per minute).</p>
                 <code>None</code>
           </td>
         </tr>
+        <tr>
+          <td><code>calculations</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[list[str]]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When present, specifies additional calculations to perform for each time slice.  The current values are:
+- <code>max</code>: The maximum value for each time window
+- <code>min</code>: The minimum value for each time window
+- <code>delta</code>: The delta between the maximum and minimum value for each time window
+- <code>mean</code>: The mean value for each time window
+- <code>uniques</code>: The list of unique values for each time window
+- <code>allpoints</code>: The list of all values for each time window
+- <code>rollingmean</code>: The rolling mean value for each time window.  This mean is calculated relative to the beginning of the requested sample</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
+          </td>
+        </tr>
     </tbody>
   </table>
 
@@ -1977,6 +1998,7 @@ value is 60 (one sample per minute).</p>
     <tbody>
         <tr>
           <td>
+                <code><span title="pandas.DataFrame">DataFrame</span></code>
           </td>
           <td>
             <div class="doc-md-description">
