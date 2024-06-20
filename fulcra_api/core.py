@@ -834,7 +834,6 @@ class FulcraAPI:
         params = {
             "start_time": start_time,
             "end_time": end_time,
-            "end_time": end_time,
             "sample_rate": sample_rate,
             "look_back": look_back,
             "reverse_geocode": reverse_geocode,
@@ -844,8 +843,6 @@ class FulcraAPI:
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
         qparams = urllib.parse.urlencode(params, doseq=True)
-        if fulcra_userid is None:
-            fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
             self.fulcra_cached_access_token,
             f"/data/v0/{fulcra_userid}/location_time_series?{qparams}",
@@ -923,3 +920,44 @@ class FulcraAPI:
             self.fulcra_cached_access_token, "/data/v0/metrics_catalog"
         )
         return json.loads(resp)
+
+    def custom_input_events(
+        self,
+        start_time: str,
+        end_time: str,
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves events from Fulcra custom inputs, along with any metadata,
+        for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string
+            end_time: The end of the range (exclusive), as an ISO 8601 string
+            source: When specified, the full name of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of events; each event is represnted by a dict.
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+        }
+        if source is not None:
+            params["source"] = source
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+        qparams = urllib.parse.urlencode(params, doseq=True)
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token,
+            f"/data/v1alpha1/type/CustomInputEvent?{qparams}",
+        )
+        return json.loads(resp)
+
+
+        
+
