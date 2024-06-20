@@ -316,6 +316,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.custom_input_events" class="md-nav__link">
+    <span class="md-ellipsis">
+      custom_input_events
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fulcra_api.core.FulcraAPI.fulcra_api" class="md-nav__link">
     <span class="md-ellipsis">
       fulcra_api
@@ -486,6 +495,15 @@
   <a href="#fulcra_api.core.FulcraAPI.calendars" class="md-nav__link">
     <span class="md-ellipsis">
       calendars
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.custom_input_events" class="md-nav__link">
+    <span class="md-ellipsis">
+      custom_input_events
     </span>
   </a>
   
@@ -1268,6 +1286,123 @@ ID as the <code>fulcra_userid</code> parameter.</p>
 <span class="go">&#39;calendar_source_id&#39;: &#39;03da9f61-7b58-4021-8f40-a93548258faf&#39;,</span>
 <span class="go">&#39;calendar_source_name&#39;: &#39;Other&#39;, &#39;fulcra_source&#39;: &#39;apple_calendar&#39;}</span>
 </code></pre></div>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.custom_input_events" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">custom_input_events</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Retrieves events from Fulcra custom inputs, along with any metadata,
+for the requested time ranges.</p>
+<p>Requires a valid access token.</p>
+
+
+
+  <p><strong>Parameters:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Description</th>
+        <th>Default</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td><code>start_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The start of the time range (inclusive), as an ISO 8601 string</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>end_time</code></td>
+          <td>
+                <code>str</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>The end of the range (exclusive), as an ISO 8601 string</p>
+            </div>
+          </td>
+          <td>
+              <em>required</em>
+          </td>
+        </tr>
+        <tr>
+          <td><code>source</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[str]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When specified, the full name of the source to query records from</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
+          </td>
+        </tr>
+        <tr>
+          <td><code>fulcra_userid</code></td>
+          <td>
+                <code><span title="typing.Optional">Optional</span>[str]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>When present, specifies the Fulcra user ID to request data for</p>
+            </div>
+          </td>
+          <td>
+                <code>None</code>
+          </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+  <p><strong>Returns:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+        <tr>
+          <td>
+                <code><span title="typing.List">List</span>[<span title="typing.Dict">Dict</span>]</code>
+          </td>
+          <td>
+            <div class="doc-md-description">
+              <p>A list of events; each event is represnted by a dict.</p>
+            </div>
+          </td>
+        </tr>
+    </tbody>
+  </table>
 
   </div>
 
