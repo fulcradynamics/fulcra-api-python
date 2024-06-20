@@ -192,7 +192,7 @@ def test_metric_time_series_calculations(fulcra_client):
         end_time="2024-01-25 00:00:00-08:00",
         sample_rate=1,
         metric="HeartRate",
-        calculations=["max"]
+        calculations=["max"],
     )
     assert "max_heart_rate" in df
 
@@ -230,17 +230,17 @@ def test_metric_time_series(fulcra_client):
 
 def test_location_time_series(fulcra_client):
     locations = fulcra_client.location_time_series(
-        start_time = "2024-06-06T19:00:00-07:00",
-        end_time = "2024-06-06T20:00:00-07:00",
-        reverse_geocode = True
+        start_time="2024-06-06T19:00:00-07:00",
+        end_time="2024-06-06T20:00:00-07:00",
+        reverse_geocode=True,
     )
-    assert(type(locations)) == list
+    assert (type(locations)) == list
     assert len(locations) == 4
     try:
         locations = fulcra_client.location_time_series(
-            start_time = "2024-06-06T19:00:00-07:00",
-            end_time = "2024-06-06T20:00:00-07:00",
-            reverse_geocode = True,
+            start_time="2024-06-06T19:00:00-07:00",
+            end_time="2024-06-06T20:00:00-07:00",
+            reverse_geocode=True,
             fulcra_userid="13371337-1337-1337-81e7-a102ab7d3ff8",
         )
         assert False
@@ -268,6 +268,11 @@ def test_location_at_time(fulcra_client):
         assert False
     except Exception:
         assert True
+
+
+def test_custom_inputs(fulcra_client):
+    loc = fulcra_client.custom_input_events("2024-06-01T00:00Z", "2024-06-10T00:00Z")
+    assert type(loc) == list
 
 
 def test_metrics_catalog(fulcra_client):
