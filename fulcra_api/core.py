@@ -957,7 +957,3 @@ class FulcraAPI:
             f"/data/v1alpha1/type/CustomInputEvent?{qparams}",
         )
         return json.loads(resp)
-
-
-        
-
