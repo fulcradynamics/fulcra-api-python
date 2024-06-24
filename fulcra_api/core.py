@@ -5,7 +5,7 @@ import base64
 import datetime
 import time
 import pandas as pd
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Union
 import io
 import webbrowser
 
@@ -214,8 +214,8 @@ class FulcraAPI:
 
     def time_series_grouped(
         self,
-        start_time: str,
-        end_time: str,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
         metrics: List[str],
         sample_rate: float = 60,
         replace_nulls: Optional[bool] = False,
@@ -232,8 +232,8 @@ class FulcraAPI:
         Requires a valid access token.
 
         Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string
-            end_time: The end of the range (exclusive), as an ISO 8601 string
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
             metrics: The names of the time-series metrics to include in the result
             sample_rate: The length (in seconds) of each sample
             replace_nulls: When true, replace all NA/null/None values with 0
@@ -354,8 +354,8 @@ class FulcraAPI:
 
     def calendar_events(
         self,
-        start_time: str,
-        end_time: str,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
         calendar_ids: Optional[List[str]] = None,
         fulcra_userid: Optional[str] = None,
     ) -> List[Dict]:
@@ -369,8 +369,8 @@ class FulcraAPI:
         Requires an authorized access token.
 
         Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string.
-            end_time: The end of the range (exclusive), as an ISO 8601 string.
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
             calendar_ids:
                 If included, the query results are limited to events that
                 are on the specified calendars.
@@ -433,8 +433,8 @@ class FulcraAPI:
 
     def apple_workouts(
         self,
-        start_time: str,
-        end_time: str,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
         fulcra_userid: Optional[str] = None,
     ) -> List[Dict]:
         """
@@ -444,8 +444,8 @@ class FulcraAPI:
         Requires an authorized access token.
 
         Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string.
-            end_time: The end of the range (exclusive), as an ISO 8601 string.
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
             fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
         Returns:
@@ -481,8 +481,8 @@ class FulcraAPI:
 
     def simple_events(
         self,
-        start_time: str,
-        end_time: str,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
         categories: Optional[List[str]] = None,
         fulcra_userid: Optional[str] = None,
     ) -> List[Dict]:
@@ -496,8 +496,8 @@ class FulcraAPI:
         Requires an authorized access token.
 
         Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string.
-            end_time: The end of the range (exclusive), as an ISO 8601 string.
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
             categories:
                 When present, the categories to filter on.  Only events
                 matching these categories will be returned.
@@ -538,8 +538,8 @@ class FulcraAPI:
 
     def metric_samples(
         self,
-        start_time: str,
-        end_time: str,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
         metric: str,
         fulcra_userid: Optional[str] = None,
     ) -> List[Dict]:
@@ -556,8 +556,8 @@ class FulcraAPI:
         Requires an authorized access token.
 
         Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string.
-            end_time: The end of the range (exclusive), as an ISO 8601 string.
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
             metric: The name of the metric to retrieve samples for.
             fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
@@ -597,8 +597,8 @@ class FulcraAPI:
 
     def apple_location_updates(
         self,
-        start_time: str,
-        end_time: str,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
         fulcra_userid: Optional[str] = None,
     ) -> List[Dict]:
         """Retrieve the raw Apple location update samples during the specified
@@ -607,8 +607,8 @@ class FulcraAPI:
         Requires an authorized access token.
 
         Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string.
-            end_time: The end of the range (exclusive), as an ISO 8601 string.
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
             fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
         Returns:
@@ -648,8 +648,8 @@ class FulcraAPI:
 
     def apple_location_visits(
         self,
-        start_time: str,
-        end_time: str,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
         fulcra_userid: Optional[str] = None,
     ) -> List[Dict]:
         """
@@ -659,8 +659,8 @@ class FulcraAPI:
         Requires an authorized access token.
 
         Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string.
-            end_time: The end of the range (exclusive), as an ISO 8601 string.
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
             fulcra_userid: When present, specifies the Fulcra user ID to request data for.
 
         Returns:
@@ -697,8 +697,8 @@ class FulcraAPI:
 
     def metric_time_series(
         self,
-        start_time: str,
-        end_time: str,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
         metric: str,
         sample_rate: float = 60,
         replace_nulls: Optional[bool] = False,
@@ -717,8 +717,8 @@ class FulcraAPI:
         Requires a valid access token.
 
         Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string
-            end_time: The end of the range (exclusive), as an ISO 8601 string
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
             metric: The name of the time-series metric to retrieve
             sample_rate: The length (in seconds) of each sample
             replace_nulls: When true, replace all NA/null/None values with 0
@@ -792,8 +792,8 @@ class FulcraAPI:
 
     def location_time_series(
         self,
-        start_time: str,
-        end_time: str,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
         change_meters: Optional[float] = None,
         sample_rate: int = 900,
         look_back: int = 14400,
@@ -807,8 +807,8 @@ class FulcraAPI:
         Requires a valid access token.
 
         Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string
-            end_time: The end of the range (exclusive), as an ISO 8601 string
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
             change_meters: when specified, subsequent samples that are fewer than this many meters away will not be included.
             sample_rate: The length (in seconds) of each sample
             look_back: The maximum number of seconds in the past to look back to find a value for a sample.
@@ -851,7 +851,7 @@ class FulcraAPI:
 
     def location_at_time(
         self,
-        time: str,
+        time: Union[str, datetime.datetime],
         window_size: int = 14400,
         include_after: bool = False,
         reverse_geocode: bool = False,
@@ -923,8 +923,8 @@ class FulcraAPI:
 
     def custom_input_events(
         self,
-        start_time: str,
-        end_time: str,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
         source: Optional[str] = None,
         fulcra_userid: Optional[str] = None,
     ) -> List[Dict]:
@@ -935,8 +935,8 @@ class FulcraAPI:
         Requires a valid access token.
 
         Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string
-            end_time: The end of the range (exclusive), as an ISO 8601 string
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
             source: When specified, the full name of the source to query records from
             fulcra_userid: When present, specifies the Fulcra user ID to request data for
 
