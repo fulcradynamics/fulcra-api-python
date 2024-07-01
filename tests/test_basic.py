@@ -29,8 +29,8 @@ def test_time_series_grouped(fulcra_client):
     assert df.shape[0] == 60
 
     df = fulcra_client.time_series_grouped(
-        start_time=datetime.fromisoformat("2023-07-04 17:00:00.000Z"),
-        end_time=datetime.fromisoformat("2023-07-04 18:00:00.000Z"),
+        start_time=datetime.fromisoformat("2023-07-04 17:00:00.000+00:00"),
+        end_time=datetime.fromisoformat("2023-07-04 18:00:00.000+00:00"),
         metrics=[
             "DistanceTraveledOnFoot",
         ],
@@ -77,20 +77,20 @@ def test_calendar_events(fulcra_client):
         assert True
 
     events = fulcra_client.calendar_events(
-        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"),
-        end_time=datetime.fromisoformat("2023-07-10 04:00:00.000Z"),
+        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"),
+        end_time=datetime.fromisoformat("2023-07-10 04:00:00.000+00:00"),
     )
     assert isinstance(events, List)
     events = fulcra_client.calendar_events(
-        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"),
-        end_time=datetime.fromisoformat("2023-07-10 04:00:00.000Z"),
+        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"),
+        end_time=datetime.fromisoformat("2023-07-10 04:00:00.000+00:00"),
         fulcra_userid=fulcra_client.get_fulcra_userid(),
     )
     assert isinstance(events, List)
     try:
         events = fulcra_client.calendar_events(
-            start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"),
-            end_time=datetime.fromisoformat("2023-07-10 04:00:00.000Z"),
+            start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"),
+            end_time=datetime.fromisoformat("2023-07-10 04:00:00.000+00:00"),
             fulcra_userid="13371337-1337-1337-81e7-a102ab7d3ff8",
         )
         assert False
@@ -121,19 +121,19 @@ def test_workouts(fulcra_client):
         assert True
 
     workouts = fulcra_client.apple_workouts(
-        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"), end_time=datetime.fromisoformat("2023-07-03 04:00:00.000Z")
+        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"), end_time=datetime.fromisoformat("2023-07-03 04:00:00.000+00:00")
     )
     assert isinstance(workouts, List)
     workouts = fulcra_client.apple_workouts(
-        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"),
-        end_time=datetime.fromisoformat("2023-07-03 04:00:00.000Z"),
+        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"),
+        end_time=datetime.fromisoformat("2023-07-03 04:00:00.000+00:00"),
         fulcra_userid=fulcra_client.get_fulcra_userid(),
     )
     assert isinstance(workouts, List)
     try:
         workouts = fulcra_client.apple_workouts(
-            start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"),
-            end_time=datetime.fromisoformat("2023-07-03 04:00:00.000Z"),
+            start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"),
+            end_time=datetime.fromisoformat("2023-07-03 04:00:00.000+00:00"),
             fulcra_userid="13371337-1337-1337-81e7-a102ab7d3ff8",
         )
         assert False
@@ -171,19 +171,19 @@ def test_simple_events(fulcra_client):
     assert isinstance(filtered_events, List)
 
     events = fulcra_client.simple_events(
-        start_time=datetime.fromisoformat("2022-05-01 04:00:00.000Z"), end_time=datetime.fromisoformat("2023-08-03 04:00:00.000Z")
+        start_time=datetime.fromisoformat("2022-05-01 04:00:00.000+00:00"), end_time=datetime.fromisoformat("2023-08-03 04:00:00.000+00:00")
     )
     assert isinstance(events, List)
     events = fulcra_client.simple_events(
-        start_time=datetime.fromisoformat("2022-05-01 04:00:00.000Z"),
-        end_time=datetime.fromisoformat("2023-08-03 04:00:00.000Z"),
+        start_time=datetime.fromisoformat("2022-05-01 04:00:00.000+00:00"),
+        end_time=datetime.fromisoformat("2023-08-03 04:00:00.000+00:00"),
         fulcra_userid=fulcra_client.get_fulcra_userid(),
     )
     assert isinstance(events, List)
     try:
         events = fulcra_client.simple_events(
-            start_time=datetime.fromisoformat("2022-05-01 04:00:00.000Z"),
-            end_time=datetime.fromisoformat("2023-08-03 04:00:00.000Z"),
+            start_time=datetime.fromisoformat("2022-05-01 04:00:00.000+00:00"),
+            end_time=datetime.fromisoformat("2023-08-03 04:00:00.000+00:00"),
             fulcra_userid="13371337-1337-1337-81e7-a102ab7d3ff8",
         )
         assert False
@@ -191,8 +191,8 @@ def test_simple_events(fulcra_client):
         assert True
 
     filtered_events = fulcra_client.simple_events(
-        start_time=datetime.fromisoformat("2022-05-01 04:00:00.000Z"),
-        end_time=datetime.fromisoformat("2023-08-03 04:00:00.000Z"),
+        start_time=datetime.fromisoformat("2022-05-01 04:00:00.000+00:00"),
+        end_time=datetime.fromisoformat("2023-08-03 04:00:00.000+00:00"),
         categories=["testxyz", "nothing"],
     )
     assert isinstance(filtered_events, List)
@@ -225,22 +225,22 @@ def test_metric_samples(fulcra_client):
         assert True
 
     samples = fulcra_client.metric_samples(
-        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"),
-        end_time=datetime.fromisoformat("2023-07-03 04:00:00.000Z"),
+        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"),
+        end_time=datetime.fromisoformat("2023-07-03 04:00:00.000+00:00"),
         metric="StepCount",
     )
     assert isinstance(samples, List)
     samples = fulcra_client.metric_samples(
-        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"),
-        end_time=datetime.fromisoformat("2023-07-03 04:00:00.000Z"),
+        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"),
+        end_time=datetime.fromisoformat("2023-07-03 04:00:00.000+00:00"),
         metric="StepCount",
         fulcra_userid=fulcra_client.get_fulcra_userid(),
     )
     assert isinstance(samples, List)
     try:
         samples = fulcra_client.metric_samples(
-            start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"),
-            end_time=datetime.fromisoformat("2023-07-03 04:00:00.000Z"),
+            start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"),
+            end_time=datetime.fromisoformat("2023-07-03 04:00:00.000+00:00"),
             metric="StepCount",
             fulcra_userid="13371337-1337-1337-81e7-a102ab7d3ff8",
         )
@@ -271,19 +271,19 @@ def test_apple_location_updates(fulcra_client):
         assert True
 
     updates = fulcra_client.apple_location_updates(
-        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"), end_time=datetime.fromisoformat("2023-07-03 04:00:00.000Z")
+        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"), end_time=datetime.fromisoformat("2023-07-03 04:00:00.000+00:00")
     )
     assert isinstance(updates, List)
     updates = fulcra_client.apple_location_updates(
-        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"),
-        end_time=datetime.fromisoformat("2023-07-03 04:00:00.000Z"),
+        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"),
+        end_time=datetime.fromisoformat("2023-07-03 04:00:00.000+00:00"),
         fulcra_userid=fulcra_client.get_fulcra_userid(),
     )
     assert isinstance(updates, List)
     try:
         updates = fulcra_client.apple_location_updates(
-            start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"),
-            end_time=datetime.fromisoformat("2023-07-03 04:00:00.000Z"),
+            start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"),
+            end_time=datetime.fromisoformat("2023-07-03 04:00:00.000+00:00"),
             fulcra_userid="13371337-1337-1337-81e7-a102ab7d3ff8",
         )
         assert False
@@ -314,19 +314,19 @@ def test_apple_location_visits(fulcra_client):
         assert True
 
     visits = fulcra_client.apple_location_visits(
-        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"), end_time=datetime.fromisoformat("2023-07-03 04:00:00.000Z")
+        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"), end_time=datetime.fromisoformat("2023-07-03 04:00:00.000+00:00")
     )
     assert isinstance(visits, List)
     visits = fulcra_client.apple_location_visits(
-        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"),
-        end_time=datetime.fromisoformat("2023-07-03 04:00:00.000Z"),
+        start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"),
+        end_time=datetime.fromisoformat("2023-07-03 04:00:00.000+00:00"),
         fulcra_userid=fulcra_client.get_fulcra_userid(),
     )
     assert isinstance(visits, List)
     try:
         visits = fulcra_client.apple_location_visits(
-            start_time=datetime.fromisoformat("2023-07-01 04:00:00.000Z"),
-            end_time=datetime.fromisoformat("2023-07-03 04:00:00.000Z"),
+            start_time=datetime.fromisoformat("2023-07-01 04:00:00.000+00:00"),
+            end_time=datetime.fromisoformat("2023-07-03 04:00:00.000+00:00"),
             fulcra_userid="13371337-1337-1337-81e7-a102ab7d3ff8",
         )
         assert False
@@ -504,7 +504,7 @@ def test_custom_inputs(fulcra_client):
     loc = fulcra_client.custom_input_events("2024-06-01T00:00Z", "2024-06-10T00:00Z")
     assert type(loc) == list
 
-    loc = fulcra_client.custom_input_events(datetime.fromisoformat("2024-06-01T00:00Z"), datetime.fromisoformat("2024-06-10T00:00Z"))
+    loc = fulcra_client.custom_input_events(datetime.fromisoformat("2024-06-01T00:00+00:00"), datetime.fromisoformat("2024-06-10T00:00+00:00"))
     assert type(loc) == list
 
 
