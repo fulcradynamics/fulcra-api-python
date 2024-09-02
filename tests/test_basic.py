@@ -512,4 +512,4 @@ def test_metrics_catalog(fulcra_client):
 
 def test_get_shared_datasets(fulcra_client):
     shared_datasets = fulcra_client.get_shared_datasets()
-    assert (shared_datasets) is list
+    assert type(shared_datasets) is list
