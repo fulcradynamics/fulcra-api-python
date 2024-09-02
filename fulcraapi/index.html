@@ -343,6 +343,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.get_shared_datasets" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_shared_datasets
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fulcra_api.core.FulcraAPI.location_at_time" class="md-nav__link">
     <span class="md-ellipsis">
       location_at_time
@@ -522,6 +531,15 @@
   <a href="#fulcra_api.core.FulcraAPI.get_fulcra_userid" class="md-nav__link">
     <span class="md-ellipsis">
       get_fulcra_userid
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.get_shared_datasets" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_shared_datasets
     </span>
   </a>
   
@@ -1534,6 +1552,30 @@ with the specified access token.</p>
         </tr>
     </tbody>
   </table>
+
+  </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+
+<h3 id="fulcra_api.core.FulcraAPI.get_shared_datasets" class="doc doc-heading">
+          <code class="highlight language-python"><span class="n">get_shared_datasets</span><span class="p">()</span></code>
+
+</h3>
+
+
+  <div class="doc doc-contents ">
+  
+      <p>Retrieves datasets that have been shared with the currently authenticated user</p>
+<p>Examples:</p>
+<pre><code>    &gt;&gt;&gt; datasets = fulcra_client.get_shared_datasets()
+    &gt;&gt;&gt; datasets[0]
+    {'permission_id': 'cf362f80-ef41-4c08-b5e3-b18bd3d1524b', 'created_at': '2024-08-21T17:52:10.658596Z', 'time_start': None, 'time_end': None, 'fulcra_userid': 'a24a9667-c2c6-4bbf-9a0f-4Bej0afcb521', 'fulcra_user_name': 'John Doe', 'fulcra_user_picture': 'https://lh3.googleusercontent.com/a/ACg8ocL-ggGYjOFq23Dfbf5GohDXbk01AoGmL0gCSbooVBXDgWeTLJk=s47-d', 'datashare_name': 'Provisioned for data analysis'}
+</code></pre>
 
   </div>
 
