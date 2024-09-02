@@ -957,3 +957,18 @@ class FulcraAPI:
             f"/data/v1alpha1/type/CustomInputEvent?{qparams}",
         )
         return json.loads(resp)
+
+    def get_shared_datasets(self) -> List[Dict]:
+        """
+        Retrieves datasets that have been shared with the currently authenticated user
+
+        Examples:
+
+                >>> datasets = fulcra_client.get_shared_datasets()
+                >>> datasets[0]
+                {'permission_id': 'cf362f80-ef41-4c08-b5e3-b18bd3d1524b', 'created_at': '2024-08-21T17:52:10.658596Z', 'time_start': None, 'time_end': None, 'fulcra_userid': 'a24a9667-c2c6-4bbf-9a0f-4Bej0afcb521', 'fulcra_user_name': 'John Doe', 'fulcra_user_picture': 'https://lh3.googleusercontent.com/a/ACg8ocL-ggGYjOFq23Dfbf5GohDXbk01AoGmL0gCSbooVBXDgWeTLJk=s47-d', 'datashare_name': 'Provisioned for data analysis'}
+        """
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token, "/user/v1alpha1/datasets"
+        )
+        return json.loads(resp)
