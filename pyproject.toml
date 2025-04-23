@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "fulcra-api"
-version = "0.1.19"
+version = "0.1.20"
 description = ""
 authors = ["Brandon Creighton <brandon@fulcradynamics.com>"]
 readme = "README.md"
@@ -9,8 +9,7 @@ packages = [{include = "fulcra_api"}]
 [tool.poetry.dependencies]
 python = "^3.9"
 pandas = "> 1.5, < 3"
-pyarrow = "^14.0.0"
-numpy = "< 2.0"
+pyarrow = "^19.0.1"
 
 
 [build-system]
