@@ -33,6 +33,7 @@ class FulcraAPI:
 
     fulcra_cached_access_token = None
     fulcra_cached_access_token_expiration = None
+    fulcra_cached_refresh_token = None
 
     def _get_auth_connection(self, domain: str) -> http.client.HTTPSConnection:
         """
@@ -71,31 +72,47 @@ class FulcraAPI:
             data["user_code"],
         )
 
-    def get_token(
-        self, device_code: str
-    ) -> Tuple[Optional[str], Optional[datetime.datetime]]:
+    def _fetch_token_from_auth_server(
+        self, payload: Dict
+    ) -> Tuple[Optional[str], Optional[datetime.datetime], Optional[str]]:
+        """
+        Internal helper to fetch tokens from the Auth0 /oauth/token endpoint.
+        """
         conn = self._get_auth_connection(FULCRA_AUTH0_DOMAIN)
-        body = urllib.parse.urlencode(
-            {
-                "client_id": FULCRA_AUTH0_CLIENT_ID,
-                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-                "device_code": device_code,
-            }
-        )
+        body = urllib.parse.urlencode(payload)
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
         }
         conn.request("POST", "/oauth/token", body, headers)
         response = conn.getresponse()
         if response.status != 200:
-            return (None, None)
+            return (None, None, None)
         data = json.loads(response.read())
         if "access_token" not in data:
-            return (None, None)
+            return (None, None, None)
+        
+        access_token = data["access_token"]
         expires_in = datetime.datetime.now() + datetime.timedelta(
             seconds=float(data["expires_in"])
         )
-        return (data["access_token"], expires_in)
+        refresh_token = data.get("refresh_token")
+
+        return (access_token, expires_in, refresh_token)
+
+    def get_token(
+        self, device_code: str
+    ) -> Tuple[Optional[str], Optional[datetime.datetime]]:
+        """
+        Polls for an access token using a device code.
+        Used by the device authorization flow.
+        """
+        payload = {
+            "client_id": FULCRA_AUTH0_CLIENT_ID,
+            "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+            "device_code": device_code,
+        }
+        access_token, expiration_date, _ = self._fetch_token_from_auth_server(payload)
+        return access_token, expiration_date
 
     def authorize(self):
         """
@@ -172,10 +189,120 @@ class FulcraAPI:
                     print("Authorization succeeded.")
                 self.fulcra_cached_access_token = token
                 self.fulcra_cached_access_token_expiration = expiration_date
+                self.fulcra_cached_refresh_token = None
                 return
         self.fulcra_cached_access_token = None
         self.fulcra_cached_access_token_expiration = None
+        self.fulcra_cached_refresh_token = None
         raise Exception("Authorization failed.  Re-run these cells.")
+
+    def get_authorization_code_url(
+        self, redirect_uri: str, state: Optional[str] = None
+    ) -> str:
+        """
+        Generates the URL to redirect the user to for the Authorization Code Grant flow.
+
+        The calling application (e.g., a web service) should redirect the user
+        to this URL. After the user authenticates and authorizes the application,
+        Auth0 will redirect the user back to the specified `redirect_uri` with
+        an authorization `code` (and `state` if provided) in the query parameters.
+
+        Params:
+            redirect_uri: The URL where the user will be redirected after authorization.
+                          This must be registered in your Auth0 application settings.
+            state: An opaque value used to maintain state between the request and
+                   the callback. It's also used to prevent CSRF attacks.
+
+        Returns:
+            The authorization URL.
+        """
+        params = {
+            "client_id": FULCRA_AUTH0_CLIENT_ID,
+            "audience": FULCRA_AUTH0_AUDIENCE,
+            "scope": FULCRA_AUTH0_SCOPE,
+            "response_type": "code",
+            "redirect_uri": redirect_uri,
+        }
+        if state:
+            params["state"] = state
+        
+        return f"https://{FULCRA_AUTH0_DOMAIN}/authorize?{urllib.parse.urlencode(params)}"
+
+    def authorize_with_authorization_code(self, code: str, redirect_uri: str):
+        """
+        Exchanges an authorization code for an access token, refresh token,
+        and ID token.
+
+        This method should be called after the user has been redirected back
+        to your application's `redirect_uri` with an authorization `code`.
+
+        Params:
+            code: The authorization code received from Auth0.
+            redirect_uri: The same `redirect_uri` that was used when requesting
+                          the authorization code.
+
+        Raises:
+            Exception: If the token exchange fails.
+        """
+        payload = {
+            "grant_type": "authorization_code",
+            "client_id": FULCRA_AUTH0_CLIENT_ID,
+            "code": code,
+            "redirect_uri": redirect_uri,
+        }
+        
+        access_token, expiration_date, refresh_token = self._fetch_token_from_auth_server(payload)
+
+        if access_token and expiration_date:
+            self.fulcra_cached_access_token = access_token
+            self.fulcra_cached_access_token_expiration = expiration_date
+            self.fulcra_cached_refresh_token = refresh_token
+            if is_notebook:
+                display(HTML("Authorization succeeded using authorization code."))
+            else:
+                print("Authorization succeeded using authorization code.")
+        else:
+            self.fulcra_cached_access_token = None
+            self.fulcra_cached_access_token_expiration = None
+            self.fulcra_cached_refresh_token = None
+            raise Exception("Failed to exchange authorization code for token.")
+
+    def refresh_access_token(self) -> bool:
+        """
+        Refreshes the access token using the stored refresh token.
+
+        Returns:
+            True if the token was successfully refreshed, False otherwise.
+        
+        Raises:
+            Exception: If no refresh token is available.
+        """
+        if not self.fulcra_cached_refresh_token:
+            raise Exception("No refresh token available to refresh the access token.")
+
+        payload = {
+            "grant_type": "refresh_token",
+            "client_id": FULCRA_AUTH0_CLIENT_ID,
+            "refresh_token": self.fulcra_cached_refresh_token,
+            "scope": FULCRA_AUTH0_SCOPE,
+        }
+
+        access_token, expiration_date, new_refresh_token = self._fetch_token_from_auth_server(payload)
+
+        if access_token and expiration_date:
+            self.fulcra_cached_access_token = access_token
+            self.fulcra_cached_access_token_expiration = expiration_date
+            # Auth0 may return a new refresh token (if refresh token rotation is enabled)
+            if new_refresh_token:
+                self.fulcra_cached_refresh_token = new_refresh_token
+            if is_notebook:
+                display(HTML("Access token refreshed successfully."))
+            else:
+                print("Access token refreshed successfully.")
+            return True
+        else:
+            print("Failed to refresh access token.")
+            return False
 
     def fulcra_api(self, access_token: str, url_path: str) -> bytes:
         """
