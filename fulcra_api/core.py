@@ -17,10 +17,10 @@ except ImportError:  # ugly
     is_notebook = False
     pass
 
-FULCRA_AUTH0_DOMAIN = "fulcra.us.auth0.com"
-FULCRA_AUTH0_CLIENT_ID = "48p3VbMnr5kMuJAUe9gJ9vjmdWLdnqZt"
-FULCRA_AUTH0_AUDIENCE = "https://api.fulcradynamics.com/"
-FULCRA_AUTH0_SCOPE = "openid profile name email offline_access"
+FULCRA_OIDC_DOMAIN = "fulcra.us.auth0.com"
+FULCRA_OIDC_CLIENT_ID = "48p3VbMnr5kMuJAUe9gJ9vjmdWLdnqZt"
+FULCRA_OIDC_AUDIENCE = "https://api.fulcradynamics.com/" # Typically, the API audience URL
+FULCRA_OIDC_SCOPE = "openid profile name email offline_access"
 
 
 class FulcraAPI:
@@ -34,6 +34,31 @@ class FulcraAPI:
     fulcra_cached_access_token = None
     fulcra_cached_access_token_expiration = None
     fulcra_cached_refresh_token = None
+
+    def __init__(
+        self,
+        oidc_domain: Optional[str] = None,
+        oidc_client_id: Optional[str] = None,
+        oidc_scope: Optional[str] = None,
+        oidc_audience: Optional[str] = None,
+    ):
+        """
+        Initializes the FulcraAPI client.
+
+        Params:
+            oidc_domain: Optional. The OIDC provider domain to use for authentication.
+                         Defaults to FULCRA_OIDC_DOMAIN.
+            oidc_client_id: Optional. The OIDC client ID to use.
+                            Defaults to FULCRA_OIDC_CLIENT_ID.
+            oidc_scope: Optional. The OAuth scopes to request.
+                        Defaults to FULCRA_OIDC_SCOPE.
+            oidc_audience: Optional. The OIDC audience for the token.
+                           Defaults to FULCRA_OIDC_AUDIENCE.
+        """
+        self.oidc_domain = oidc_domain or FULCRA_OIDC_DOMAIN
+        self.oidc_client_id = oidc_client_id or FULCRA_OIDC_CLIENT_ID
+        self.oidc_scope = oidc_scope or FULCRA_OIDC_SCOPE
+        self.oidc_audience = oidc_audience or FULCRA_OIDC_AUDIENCE
 
     def _get_auth_connection(self, domain: str) -> http.client.HTTPSConnection:
         """
@@ -76,9 +101,9 @@ class FulcraAPI:
         self, payload: Dict
     ) -> Tuple[Optional[str], Optional[datetime.datetime], Optional[str]]:
         """
-        Internal helper to fetch tokens from the Auth0 /oauth/token endpoint.
+        Internal helper to fetch tokens from the OIDC provider's /oauth/token endpoint.
         """
-        conn = self._get_auth_connection(FULCRA_AUTH0_DOMAIN)
+        conn = self._get_auth_connection(self.oidc_domain)
         body = urllib.parse.urlencode(payload)
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
@@ -107,7 +132,7 @@ class FulcraAPI:
         Used by the device authorization flow.
         """
         payload = {
-            "client_id": FULCRA_AUTH0_CLIENT_ID,
+            "client_id": self.oidc_client_id,
             "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
             "device_code": device_code,
         }
@@ -154,10 +179,10 @@ class FulcraAPI:
                 print("Your access token is still valid.")
             return
         device_code, uri, code = self._request_device_code(
-            FULCRA_AUTH0_DOMAIN,
-            FULCRA_AUTH0_CLIENT_ID,
-            FULCRA_AUTH0_SCOPE,
-            FULCRA_AUTH0_AUDIENCE,
+            self.oidc_domain,
+            self.oidc_client_id,
+            self.oidc_scope,
+            self.oidc_audience,
         )
         webbrowser.open_new_tab(uri)
         if is_notebook:
@@ -217,16 +242,16 @@ class FulcraAPI:
             The authorization URL.
         """
         params = {
-            "client_id": FULCRA_AUTH0_CLIENT_ID,
-            "audience": FULCRA_AUTH0_AUDIENCE,
-            "scope": FULCRA_AUTH0_SCOPE,
+            "client_id": self.oidc_client_id,
+            "audience": self.oidc_audience,
+            "scope": self.oidc_scope,
             "response_type": "code",
             "redirect_uri": redirect_uri,
         }
         if state:
             params["state"] = state
         
-        return f"https://{FULCRA_AUTH0_DOMAIN}/authorize?{urllib.parse.urlencode(params)}"
+        return f"https://{self.oidc_domain}/authorize?{urllib.parse.urlencode(params)}"
 
     def authorize_with_authorization_code(self, code: str, redirect_uri: str):
         """
@@ -246,7 +271,7 @@ class FulcraAPI:
         """
         payload = {
             "grant_type": "authorization_code",
-            "client_id": FULCRA_AUTH0_CLIENT_ID,
+            "client_id": self.oidc_client_id,
             "code": code,
             "redirect_uri": redirect_uri,
         }
@@ -282,9 +307,9 @@ class FulcraAPI:
 
         payload = {
             "grant_type": "refresh_token",
-            "client_id": FULCRA_AUTH0_CLIENT_ID,
+            "client_id": self.oidc_client_id,
             "refresh_token": self.fulcra_cached_refresh_token,
-            "scope": FULCRA_AUTH0_SCOPE,
+            "scope": self.oidc_scope, # Request same scopes or subset
         }
 
         access_token, expiration_date, new_refresh_token = self._fetch_token_from_auth_server(payload)
