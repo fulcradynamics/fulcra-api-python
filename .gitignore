@@ -1,4 +1,5 @@
 .*.sw?
+.aider*
 .sw?
 __pycache__
 poetry.lock
