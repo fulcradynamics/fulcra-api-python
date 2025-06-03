@@ -10,23 +10,23 @@ def client() -> FulcraAPI:
     return FulcraAPI()
 
 def test_get_authorization_code_url_basic(client: FulcraAPI):
-    redirect_uri = "https://myapp.com/callback"
+    redirect_uri = "https://testing.fulcradynamics.com/callback"
     url_str = client.get_authorization_code_url(redirect_uri=redirect_uri)
     
-    assert url_str.startswith(f"https://{client.oidc_domain}/authorize?") # Uses instance domain
+    assert url_str.startswith(f"https://{client.oidc_domain}/authorize?")
     
     parsed_url = urllib.parse.urlparse(url_str)
     query_params = urllib.parse.parse_qs(parsed_url.query)
     
-    assert query_params["client_id"] == [client.oidc_client_id] # Uses instance client_id
-    assert query_params["audience"] == [client.oidc_audience]   # Uses instance audience
-    assert query_params["scope"] == [client.oidc_scope]       # Uses instance scope
+    assert query_params["client_id"] == [client.oidc_client_id]
+    assert query_params["audience"] == [client.oidc_audience]
+    assert query_params["scope"] == [client.oidc_scope]
     assert query_params["response_type"] == ["code"]
     assert query_params["redirect_uri"] == [redirect_uri]
     assert "state" not in query_params
 
 def test_get_authorization_code_url_with_state(client: FulcraAPI):
-    redirect_uri = "https://myapp.com/callback"
+    redirect_uri = "https://testing.fulcradynamics.com/callback"
     state = "randomstate123"
     url_str = client.get_authorization_code_url(redirect_uri=redirect_uri, state=state)
     
@@ -40,7 +40,7 @@ def test_get_authorization_code_url_with_state(client: FulcraAPI):
 @patch('fulcra_api.core.FulcraAPI._fetch_token_from_auth_server')
 def test_authorize_with_authorization_code_success(mock_fetch_token, client: FulcraAPI):
     code = "auth_code_123"
-    redirect_uri = "https://myapp.com/callback"
+    redirect_uri = "https://testing.fulcradynamics.com/callback"
     
     mock_access_token = "mock_access_token_val"
     mock_refresh_token = "mock_refresh_token_val"
@@ -64,7 +64,7 @@ def test_authorize_with_authorization_code_success(mock_fetch_token, client: Ful
 @patch('fulcra_api.core.FulcraAPI._fetch_token_from_auth_server')
 def test_authorize_with_authorization_code_failure(mock_fetch_token, client: FulcraAPI):
     code = "auth_code_123"
-    redirect_uri = "https://myapp.com/callback"
+    redirect_uri = "https://testing.fulcradynamics.com/callback"
     
     mock_fetch_token.return_value = (None, None, None)
     

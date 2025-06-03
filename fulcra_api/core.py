@@ -19,7 +19,7 @@ except ImportError:  # ugly
 
 FULCRA_OIDC_DOMAIN = "fulcra.us.auth0.com"
 FULCRA_OIDC_CLIENT_ID = "48p3VbMnr5kMuJAUe9gJ9vjmdWLdnqZt"
-FULCRA_OIDC_AUDIENCE = "https://api.fulcradynamics.com/" # Typically, the API audience URL
+FULCRA_OIDC_AUDIENCE = "https://api.fulcradynamics.com/"
 FULCRA_OIDC_SCOPE = "openid profile name email offline_access"
 
 
@@ -309,7 +309,7 @@ class FulcraAPI:
             "grant_type": "refresh_token",
             "client_id": self.oidc_client_id,
             "refresh_token": self.fulcra_cached_refresh_token,
-            "scope": self.oidc_scope, # Request same scopes or subset
+            "scope": self.oidc_scope,
         }
 
         access_token, expiration_date, new_refresh_token = self._fetch_token_from_auth_server(payload)
