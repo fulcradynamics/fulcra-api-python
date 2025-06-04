@@ -256,6 +256,12 @@ class FulcraAPI:
     def set_cached_access_token(self, token: str):
         self.fulcra_cached_access_token = token
 
+    def set_cached_access_token_expiration(self, expiration: datetime.datetime):
+        self.fulcra_cached_access_token_expiration = expiration
+
+    def set_cached_refresh_token(self, token: str):
+        self.fulcra_cached_refresh_token = token
+
     def get_cached_access_token(self) -> str | None:
         return self.fulcra_cached_access_token
 
