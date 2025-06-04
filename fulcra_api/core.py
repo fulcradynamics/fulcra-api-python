@@ -253,6 +253,18 @@ class FulcraAPI:
         
         return f"https://{self.oidc_domain}/authorize?{urllib.parse.urlencode(params)}"
 
+    def set_cached_access_token(self, token: str):
+        self.fulcra_cached_access_token = token
+
+    def get_cached_access_token(self) -> str | None:
+        return self.fulcra_cached_access_token
+
+    def get_cached_refresh_token(self) -> str | None:
+        return self.fulcra_cached_refresh_token
+
+    def get_cached_access_token_expiration(self) -> datetime.datetime | None:
+        return self.fulcra_cached_access_token_expiration
+
     def authorize_with_authorization_code(self, code: str, redirect_uri: str):
         """
         Exchanges an authorization code for an access token, refresh token,
