@@ -41,6 +41,9 @@ class FulcraAPI:
         oidc_client_id: Optional[str] = None,
         oidc_scope: Optional[str] = None,
         oidc_audience: Optional[str] = None,
+        access_token: Optional[str] = None,
+        access_token_expiration: Optional[datetime.datetime] = None,
+        refresh_token: Optional[str] = None,
     ):
         """
         Initializes the FulcraAPI client.
@@ -54,11 +57,22 @@ class FulcraAPI:
                         Defaults to FULCRA_OIDC_SCOPE.
             oidc_audience: Optional. The OIDC audience for the token.
                            Defaults to FULCRA_OIDC_AUDIENCE.
+            access_token: Optional. An existing access token to use.
+            access_token_expiration: Optional. The expiration datetime for the
+                                     provided access_token.
+            refresh_token: Optional. An existing refresh token to use.
         """
         self.oidc_domain = oidc_domain or FULCRA_OIDC_DOMAIN
         self.oidc_client_id = oidc_client_id or FULCRA_OIDC_CLIENT_ID
         self.oidc_scope = oidc_scope or FULCRA_OIDC_SCOPE
         self.oidc_audience = oidc_audience or FULCRA_OIDC_AUDIENCE
+
+        if access_token:
+            self.fulcra_cached_access_token = access_token
+        if access_token_expiration:
+            self.fulcra_cached_access_token_expiration = access_token_expiration
+        if refresh_token:
+            self.fulcra_cached_refresh_token = refresh_token
 
     def _get_auth_connection(self, domain: str) -> http.client.HTTPSConnection:
         """
