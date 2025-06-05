@@ -1156,3 +1156,61 @@ class FulcraAPI:
             self.fulcra_cached_access_token, "/user/v1alpha1/datasets"
         )
         return json.loads(resp)
+
+    def sleep_cycles(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        cycle_gap: Optional[str] = None,
+        stages: Optional[List[int]] = None,
+        gap_stages: Optional[List[int]] = None,
+        clip_to_range: Optional[bool] = True,
+        fulcra_userid: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """
+        Return sleep cycles summarized from sleep stages.
+
+        Processes raw sleep data samples into sleep cycles by finding gaps in the
+        sleep sample data within a specified time interval.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The starting timestamp in ISO8601 format (inclusive).
+            end_time: The ending timestamp in ISO8601 format (exclusive).
+            cycle_gap: Optional. Minimum time interval separating distinct cycles (e.g., "PT2H" for 2 hours).
+                       Defaults to server-side default if not provided.
+            stages: Optional. Sleep stages to include. Defaults to all stages if not provided.
+            gap_stages: Optional. Sleep stages to consider as gaps in sleep cycles.
+                        Defaults to server-side default if not provided.
+            clip_to_range: Optional. Whether to clip the data to the requested date range.
+                           Defaults to True. This is always done when requesting data for
+                           a user other than the authenticated user.
+            fulcra_userid: Optional. When present, specifies the Fulcra user ID to request data for.
+
+        Returns:
+            A pandas DataFrame containing the sleep cycle data.
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "output": "arrow",
+        }
+        if cycle_gap is not None:
+            params["cycle_gap"] = cycle_gap
+        if stages is not None:
+            params["stages"] = stages
+        if gap_stages is not None:
+            params["gap_stages"] = gap_stages
+        if clip_to_range is not None:
+            params["clip_to_range"] = clip_to_range
+
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
+
+        qparams = urllib.parse.urlencode(params, doseq=True)
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token,
+            f"/data/v0/{fulcra_userid}/sleep_cycles?{qparams}",
+        )
+        return pd.read_feather(io.BytesIO(resp))

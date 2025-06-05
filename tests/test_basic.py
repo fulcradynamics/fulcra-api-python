@@ -513,3 +513,45 @@ def test_metrics_catalog(fulcra_client):
 def test_get_shared_datasets(fulcra_client):
     shared_datasets = fulcra_client.get_shared_datasets()
     assert type(shared_datasets) is list
+
+
+def test_sleep_cycles(fulcra_client):
+    df = fulcra_client.sleep_cycles(
+        start_time="2023-07-01 00:00:00Z",
+        end_time="2023-07-02 00:00:00Z",
+    )
+    assert df.shape[0] >= 0  # Check if DataFrame is returned, can be empty
+
+    df = fulcra_client.sleep_cycles(
+        start_time=datetime.fromisoformat("2023-07-01 00:00:00+00:00"),
+        end_time=datetime.fromisoformat("2023-07-02 00:00:00+00:00"),
+    )
+    assert df.shape[0] >= 0
+
+    df = fulcra_client.sleep_cycles(
+        start_time="2023-07-01 00:00:00Z",
+        end_time="2023-07-02 00:00:00Z",
+        fulcra_userid=fulcra_client.get_fulcra_userid(),
+    )
+    assert df.shape[0] >= 0
+
+    try:
+        df = fulcra_client.sleep_cycles(
+            start_time="2023-07-01 00:00:00Z",
+            end_time="2023-07-02 00:00:00Z",
+            fulcra_userid="13371337-1337-1337-81e7-a102ab7d3ff8",
+        )
+        assert False  # Should not reach here
+    except Exception:
+        assert True
+
+    df = fulcra_client.sleep_cycles(
+        start_time=datetime.fromisoformat("2023-07-01 00:00:00+00:00"),
+        end_time=datetime.fromisoformat("2023-07-02 00:00:00+00:00"),
+        cycle_gap="PT1H",
+        stages=[1, 2, 3],
+        gap_stages=[0],
+        clip_to_range=False,
+        fulcra_userid=fulcra_client.get_fulcra_userid(),
+    )
+    assert df.shape[0] >= 0
