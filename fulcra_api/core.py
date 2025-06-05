@@ -404,7 +404,7 @@ class FulcraAPI:
         sample_rate: float = 60,
         replace_nulls: Optional[bool] = False,
         fulcra_userid: Optional[str] = None,
-    ):
+    ) -> pd.DataFrame:
         """
         Retrieve a time-series data frame containing the specified set of
         Fulcra metrics from `start_time` (inclusive) until `end_time` (exclusive).
