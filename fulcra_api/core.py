@@ -779,6 +779,43 @@ class FulcraAPI:
         )
         return json.loads(resp)
 
+    def gmaps_location_updates(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        fulcra_source_id: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Return Google Maps geo-location update samples for a user.
+
+        Retrieve the raw Google Maps location update samples for the specified
+        user during the specified period of time.
+
+        Requires an authorized access token.
+
+        Params:
+            start_time: The starting timestamp in ISO 8601 format (inclusive).
+            end_time: The ending timestamp in ISO 8601 format (exclusive).
+            fulcra_source_id: Optional. When present, specifies the Fulcra source ID to filter results.
+            fulcra_userid: Optional. When present, specifies the Fulcra user ID to request data for.
+
+        Returns:
+            A list of dicts, each of which contains the data from a Google Maps location update.
+        """
+        params = {"start_time": start_time, "end_time": end_time}
+        if fulcra_source_id is not None:
+            params["fulcra_source_id"] = fulcra_source_id
+        
+        qparams = urllib.parse.urlencode(params, doseq=True)
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token,
+            f"/data/v0/{fulcra_userid}/gmaps_location_updates?{qparams}",
+        )
+        return json.loads(resp)
+
     def apple_location_updates(
         self,
         start_time: Union[str, datetime.datetime],
@@ -1285,5 +1322,83 @@ class FulcraAPI:
         resp = self.fulcra_api(
             self.fulcra_cached_access_token,
             f"/data/v0/{fulcra_userid}/sleep_stages?{qparams}",
+        )
+        return pd.read_feather(io.BytesIO(resp))
+
+    def sleep_agg(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        cycle_gap: Optional[str] = None,
+        stages: Optional[List[int]] = None,
+        gap_stages: Optional[List[int]] = None,
+        clip_to_range: Optional[bool] = True,
+        mode: Optional[str] = "end",
+        period: Optional[str] = "1d",
+        agg_functions: Optional[List[str]] = None,
+        tz: Optional[str] = "UTC",
+        fulcra_userid: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """
+        Return sleep cycles aggregated by a specified period.
+
+        Processes raw sleep data samples into aggregated sleep stage durations per period.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The starting timestamp in ISO8601 format (inclusive).
+            end_time: The ending timestamp in ISO8601 format (exclusive).
+            cycle_gap: Optional. Minimum time interval separating distinct cycles (e.g., "PT2H" for 2 hours).
+                       Defaults to server-side default if not provided.
+            stages: Optional. Sleep stages to include. Defaults to all stages if not provided.
+            gap_stages: Optional. Sleep stages to consider as gaps in sleep cycles.
+                        Defaults to server-side default if not provided.
+            clip_to_range: Optional. Whether to clip the data to the requested date range.
+                           Defaults to True. This is always done when requesting data for
+                           a user other than the authenticated user.
+            mode: Optional. Whether to use the cycle start or cycle end to assign cycles to periods,
+                  or to split sleep stage intervals at period boundaries. Defaults to "end".
+            period: Optional. The period start and interval represented with the polars string language
+                    (see https://docs.pola.rs/api/python/dev/reference/expressions/api/polars.Expr.dt.truncate.html).
+                    Defaults to "1d".
+            agg_functions: Optional. Aggregations to return. Defaults to ["sum"] if not provided.
+            tz: Optional. IANA time zone to return results in. Defaults to "UTC".
+            fulcra_userid: Optional. When present, specifies the Fulcra user ID to request data for.
+
+        Returns:
+            A pandas DataFrame containing the aggregated sleep data.
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "output": "arrow",
+        }
+        if cycle_gap is not None:
+            params["cycle_gap"] = cycle_gap
+        if stages is not None:
+            params["stages"] = stages
+        if gap_stages is not None:
+            params["gap_stages"] = gap_stages
+        if clip_to_range is not None:
+            params["clip_to_range"] = clip_to_range
+        if mode is not None:
+            params["mode"] = mode
+        if period is not None:
+            params["period"] = period
+        if agg_functions is not None:
+            params["agg_functions"] = agg_functions
+        else:
+            params["agg_functions"] = ["sum"] # Default as per OpenAPI if not provided
+        if tz is not None:
+            params["tz"] = tz
+
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
+
+        qparams = urllib.parse.urlencode(params, doseq=True)
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token,
+            f"/data/v0/{fulcra_userid}/sleep_agg?{qparams}",
         )
         return pd.read_feather(io.BytesIO(resp))
