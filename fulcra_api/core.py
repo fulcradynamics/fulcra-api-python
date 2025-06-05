@@ -1214,3 +1214,76 @@ class FulcraAPI:
             f"/data/v0/{fulcra_userid}/sleep_cycles?{qparams}",
         )
         return pd.read_feather(io.BytesIO(resp))
+
+    def sleep_stages(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        cycle_gap: Optional[str] = None,
+        stages: Optional[List[int]] = None,
+        gap_stages: Optional[List[int]] = None,
+        merge_overlapping: Optional[bool] = True,
+        merge_contiguous: Optional[bool] = True,
+        clip_to_range: Optional[bool] = True,
+        fulcra_userid: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """
+        Return sleep stages derived from raw fulcra metric samples.
+
+        Processes raw sleep data samples into non-conflicting sleep stages and
+        assigns a cycle index by finding gaps in the sleep sample data within a
+        specified time interval.
+
+        If more than one sleep data source is present, sleep stage is determined
+        based on the priority of the stage (in bed and unknown are deprioritized)
+        and the start time of the sample (latest takes precedence).
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The starting timestamp in ISO8601 format (inclusive).
+            end_time: The ending timestamp in ISO8601 format (exclusive).
+            cycle_gap: Optional. Minimum time interval separating distinct cycles (e.g., "PT2H" for 2 hours).
+                       Defaults to server-side default if not provided.
+            stages: Optional. Sleep stages to include. Defaults to all stages if not provided.
+            gap_stages: Optional. Sleep stages to consider as gaps in sleep cycles.
+                        Defaults to server-side default if not provided.
+            merge_overlapping: Optional. Whether to merge overlapping stages based on priority and start time.
+                               Defaults to True.
+            merge_contiguous: Optional. Whether to merge contiguous samples with the same sleep stage.
+                              Defaults to True.
+            clip_to_range: Optional. Whether to clip the data to the requested date range.
+                           Defaults to True. This is always done when requesting data for
+                           a user other than the authenticated user.
+            fulcra_userid: Optional. When present, specifies the Fulcra user ID to request data for.
+
+        Returns:
+            A pandas DataFrame containing the sleep stage data.
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "output": "arrow",
+        }
+        if cycle_gap is not None:
+            params["cycle_gap"] = cycle_gap
+        if stages is not None:
+            params["stages"] = stages
+        if gap_stages is not None:
+            params["gap_stages"] = gap_stages
+        if merge_overlapping is not None:
+            params["merge_overlapping"] = merge_overlapping
+        if merge_contiguous is not None:
+            params["merge_contiguous"] = merge_contiguous
+        if clip_to_range is not None:
+            params["clip_to_range"] = clip_to_range
+
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
+
+        qparams = urllib.parse.urlencode(params, doseq=True)
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token,
+            f"/data/v0/{fulcra_userid}/sleep_stages?{qparams}",
+        )
+        return pd.read_feather(io.BytesIO(resp))
