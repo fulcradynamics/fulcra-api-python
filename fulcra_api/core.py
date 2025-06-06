@@ -1194,6 +1194,25 @@ class FulcraAPI:
         )
         return json.loads(resp)
 
+    def get_user_info(self) -> Dict:
+        """
+        Return information about the authenticated Fulcra User.
+
+        Returns information about the authenticated Fulcra User, including their
+        preferences such as time zone, calendar ids, etc.
+
+        Returns:
+            A dict containing user information.
+
+        Examples:
+
+                >>> user_info = fulcra_client.get_user_info()
+                >>> user_info
+                {'userid': 'a24a9667-c2c6-4bbf-9a0f-4Bej0afcb521', 'created': '2024-08-20T19:51:09.123456Z', 'preferences': {'timezone': 'America/Los_Angeles'}}
+        """
+        resp = self.fulcra_api(self.fulcra_cached_access_token, "/user/v1alpha1/info")
+        return json.loads(resp)
+
     def sleep_cycles(
         self,
         start_time: Union[str, datetime.datetime],

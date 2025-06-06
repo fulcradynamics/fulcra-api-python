@@ -353,6 +353,35 @@ def test_metric_time_series_calculations(fulcra_client):
     assert "max_heart_rate" in df
 
 
+def test_metric_time_series_with_calculations(fulcra_client):
+    df = fulcra_client.metric_time_series(
+        start_time="2024-01-24 00:00:00-08:00",
+        end_time="2024-01-25 00:00:00-08:00",
+        sample_rate=3600,
+        metric="HeartRate",
+        calculations=["min", "max", "mean", "delta", "uniques", "allpoints", "rollingmean"],
+    )
+    print(df.columns)
+    assert "min_heart_rate" in df
+    assert "max_heart_rate" in df
+    assert "mean_heart_rate" in df
+    assert "delta_heart_rate" in df
+    assert "uniq_heart_rate" in df
+    assert "all_heart_rate" in df
+    assert "rollingmean_heart_rate" in df
+
+    df = fulcra_client.metric_time_series(
+        start_time=datetime.fromisoformat("2024-01-24 00:00:00-08:00"),
+        end_time=datetime.fromisoformat("2024-01-25 00:00:00-08:00"),
+        sample_rate=3600,
+        metric="HeartRate",
+        calculations=["min", "max"],
+    )
+    assert "min_heart_rate" in df
+    assert "max_heart_rate" in df
+    assert "mean_heart_rate" not in df
+
+
 def test_metric_time_series(fulcra_client):
     df = fulcra_client.metric_time_series(
         start_time="2024-01-24 00:00:00-08:00",
@@ -513,6 +542,15 @@ def test_metrics_catalog(fulcra_client):
 def test_get_shared_datasets(fulcra_client):
     shared_datasets = fulcra_client.get_shared_datasets()
     assert type(shared_datasets) is list
+
+
+def test_get_user_info(fulcra_client):
+    user_info = fulcra_client.get_user_info()
+    assert isinstance(user_info, dict)
+    assert "userid" in user_info
+    assert "created" in user_info
+    assert "preferences" in user_info
+    assert user_info["userid"] == fulcra_client.get_fulcra_userid()
 
 
 def test_sleep_cycles(fulcra_client):
