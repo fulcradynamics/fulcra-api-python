@@ -397,6 +397,15 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.get_user_info" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_user_info
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fulcra_api.core.FulcraAPI.gmaps_location_updates" class="md-nav__link">
     <span class="md-ellipsis">
       gmaps_location_updates
@@ -666,6 +675,15 @@
   <a href="#fulcra_api.core.FulcraAPI.get_token" class="md-nav__link">
     <span class="md-ellipsis">
       get_token
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.get_user_info" class="md-nav__link">
+    <span class="md-ellipsis">
+      get_user_info
     </span>
   </a>
   
@@ -2118,6 +2136,54 @@ an authorization <code>code</code> (and <code>state</code> if provided) in the q
 
         <p>Polls for an access token using a device code.
 Used by the device authorization flow.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fulcra_api.core.FulcraAPI.get_user_info" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">get_user_info</span><span class="p">()</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Return information about the authenticated Fulcra User.</p>
+<p>Returns information about the authenticated Fulcra User, including their
+preferences such as time zone, calendar ids, etc.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Dict">Dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A dict containing user information.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        <p>Examples:</p>
+<pre><code>    &gt;&gt;&gt; user_info = fulcra_client.get_user_info()
+    &gt;&gt;&gt; user_info
+    {'userid': 'a24a9667-c2c6-4bbf-9a0f-4Bej0afcb521', 'created': '2024-08-20T19:51:09.123456Z', 'preferences': {'timezone': 'America/Los_Angeles'}}
+</code></pre>
 
 
     </div>
