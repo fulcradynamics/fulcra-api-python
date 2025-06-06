@@ -7,4 +7,4 @@ For a guide to installation, getting started, and an API reference, view the [do
 
 ## Bugs / Feature Requests
 
-Please report any bugs or feature requests using GitHub issues.
+Please report any bugs or feature requests using [GitHub issues](https://github.com/fulcradynamics/fulcra-api-python).
