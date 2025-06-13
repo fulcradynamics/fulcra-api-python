@@ -1,13 +1,14 @@
-import http.client
-import urllib.parse
-import json
 import base64
 import datetime
-import time
-import pandas as pd
-from typing import List, Tuple, Dict, Optional, Union
+import http.client
 import io
+import json
+import time
+import urllib.parse
 import webbrowser
+from typing import Dict, List, Optional, Tuple, Union
+
+import pandas as pd
 
 try:
     from IPython.display import HTML, display
@@ -487,7 +488,7 @@ class FulcraAPI:
             "metrics": metrics,
             "output": "arrow",
             "samprate": sample_rate,
-            "replace_nulls": int(replace_nulls == True),
+            "replace_nulls": int(replace_nulls),
         }
         if fulcra_userid is not None:
             params["fulcra_userid"] = fulcra_userid
@@ -998,7 +999,7 @@ class FulcraAPI:
             "metric": metric,
             "output": "arrow",
             "samprate": sample_rate,
-            "replace_nulls": int(replace_nulls == True),
+            "replace_nulls": int(replace_nulls),
         }
         if calculations is not None:
             params["calculations"] = calculations

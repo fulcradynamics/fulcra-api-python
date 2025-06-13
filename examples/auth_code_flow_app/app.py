@@ -1,6 +1,6 @@
-from flask import Flask, redirect, request, url_for, session, render_template_string
+from flask import Flask, redirect, render_template_string, request, session, url_for
+
 from fulcra_api.core import FulcraAPI
-import json  # For pretty printing the metrics catalog
 
 # Configuration
 # IMPORTANT: This redirect URI must be added to your Auth0 application's

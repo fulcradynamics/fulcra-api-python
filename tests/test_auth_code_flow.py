@@ -1,14 +1,10 @@
-import pytest
-from fulcra_api.core import (
-    FulcraAPI,
-    FULCRA_OIDC_DOMAIN,
-    FULCRA_OIDC_CLIENT_ID,
-    FULCRA_OIDC_AUDIENCE,
-    FULCRA_OIDC_SCOPE,
-)
-import urllib.parse
 import datetime
+import urllib.parse
 from unittest.mock import patch
+
+import pytest
+
+from fulcra_api.core import FulcraAPI
 
 
 @pytest.fixture
