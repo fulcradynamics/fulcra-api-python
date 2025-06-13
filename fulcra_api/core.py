@@ -668,63 +668,6 @@ class FulcraAPI:
         )
         return json.loads(resp)
 
-    def simple_events(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        categories: Optional[List[str]] = None,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieve the events that occurred during the specified period of time,
-        optionally filtering by categories.
-
-        If included, the `categories` parameter only includes events from the specified
-        categories.
-
-        Requires an authorized access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
-            categories:
-                When present, the categories to filter on.  Only events
-                matching these categories will be returned.
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
-
-        Returns:
-            A list of dicts, each of which represents an event.
-
-        Examples:
-            To retrieve the stored events during a given range:
-
-            >>> simple_events = fulcra.simple_events(
-            ...     start_time="2022-05-01 04:00:00.000Z",
-            ...     end_time="2023-08-03 04:00:00.000Z"
-            ... )
-
-            To get the details of an event:
-            >>> simple_events[0]
-            {'event_body': 'relieved', 'category': 'mood', 'event_id':
-            '12680011-6668-4c8e-b4cd-3ca429445ac0', 'timestamp':
-            '2022-09-21T05:51:22Z'}
-
-        """
-        params = {
-            "start_time": start_time,
-            "end_time": end_time,
-        }
-        if categories is not None:
-            params["categories"] = categories
-        qparams = urllib.parse.urlencode(params, doseq=True)
-        if fulcra_userid is None:
-            fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/simple_events?{qparams}",
-        )
-        return json.loads(resp)
-
     def metric_samples(
         self,
         start_time: Union[str, datetime.datetime],
