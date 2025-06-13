@@ -359,7 +359,15 @@ def test_metric_time_series_with_calculations(fulcra_client):
         end_time="2024-01-25 00:00:00-08:00",
         sample_rate=3600,
         metric="HeartRate",
-        calculations=["min", "max", "mean", "delta", "uniques", "allpoints", "rollingmean"],
+        calculations=[
+            "min",
+            "max",
+            "mean",
+            "delta",
+            "uniques",
+            "allpoints",
+            "rollingmean",
+        ],
     )
     print(df.columns)
     assert "min_heart_rate" in df

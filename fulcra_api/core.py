@@ -129,7 +129,7 @@ class FulcraAPI:
         data = json.loads(response.read())
         if "access_token" not in data:
             return (None, None, None)
-        
+
         access_token = data["access_token"]
         expires_in = datetime.datetime.now() + datetime.timedelta(
             seconds=float(data["expires_in"])
@@ -264,7 +264,7 @@ class FulcraAPI:
         }
         if state:
             params["state"] = state
-        
+
         return f"https://{self.oidc_domain}/authorize?{urllib.parse.urlencode(params)}"
 
     def set_cached_access_token(self, token: str):
@@ -307,8 +307,10 @@ class FulcraAPI:
             "code": code,
             "redirect_uri": redirect_uri,
         }
-        
-        access_token, expiration_date, refresh_token = self._fetch_token_from_auth_server(payload)
+
+        access_token, expiration_date, refresh_token = (
+            self._fetch_token_from_auth_server(payload)
+        )
 
         if access_token and expiration_date:
             self.fulcra_cached_access_token = access_token
@@ -330,7 +332,7 @@ class FulcraAPI:
 
         Returns:
             True if the token was successfully refreshed, False otherwise.
-        
+
         Raises:
             Exception: If no refresh token is available.
         """
@@ -344,7 +346,9 @@ class FulcraAPI:
             "scope": self.oidc_scope,
         }
 
-        access_token, expiration_date, new_refresh_token = self._fetch_token_from_auth_server(payload)
+        access_token, expiration_date, new_refresh_token = (
+            self._fetch_token_from_auth_server(payload)
+        )
 
         if access_token and expiration_date:
             self.fulcra_cached_access_token = access_token
@@ -806,7 +810,7 @@ class FulcraAPI:
         params = {"start_time": start_time, "end_time": end_time}
         if fulcra_source_id is not None:
             params["fulcra_source_id"] = fulcra_source_id
-        
+
         qparams = urllib.parse.urlencode(params, doseq=True)
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
@@ -1408,7 +1412,7 @@ class FulcraAPI:
         if agg_functions is not None:
             params["agg_functions"] = agg_functions
         else:
-            params["agg_functions"] = ["sum"] # Default as per OpenAPI if not provided
+            params["agg_functions"] = ["sum"]  # Default as per OpenAPI if not provided
         if tz is not None:
             params["tz"] = tz
 
