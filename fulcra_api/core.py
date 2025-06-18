@@ -418,7 +418,8 @@ class FulcraAPI:
         segs = self.fulcra_cached_access_token.split(".")
         if len(segs) < 2:
             raise Exception("Authorized token is in an incorrect format.")
-        jd = json.loads(base64.b64decode(segs[1]))
+        payload = segs[1] + "=="        # add extra padding to prevent b64decode from breaking
+        jd = json.loads(base64.b64decode(payload))
         return jd["fulcradynamics.com/userid"]
 
     def time_series_grouped(
