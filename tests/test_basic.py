@@ -1,8 +1,10 @@
-from fulcra_api.core import FulcraAPI
-import pytest
 import uuid
-from typing import List
 from datetime import datetime
+from typing import List
+
+import pytest
+
+from fulcra_api.core import FulcraAPI
 
 
 @pytest.fixture(scope="session")
@@ -138,63 +140,6 @@ def test_workouts(fulcra_client):
         assert False
     except Exception:
         assert True
-
-
-def test_simple_events(fulcra_client):
-    events = fulcra_client.simple_events(
-        start_time="2022-05-01 04:00:00.000Z", end_time="2023-08-03 04:00:00.000Z"
-    )
-    assert isinstance(events, List)
-    events = fulcra_client.simple_events(
-        start_time="2022-05-01 04:00:00.000Z",
-        end_time="2023-08-03 04:00:00.000Z",
-        fulcra_userid=fulcra_client.get_fulcra_userid(),
-    )
-    assert isinstance(events, List)
-    try:
-        events = fulcra_client.simple_events(
-            start_time="2022-05-01 04:00:00.000Z",
-            end_time="2023-08-03 04:00:00.000Z",
-            fulcra_userid="13371337-1337-1337-81e7-a102ab7d3ff8",
-        )
-        assert False
-    except Exception:
-        assert True
-
-    filtered_events = fulcra_client.simple_events(
-        start_time="2022-05-01 04:00:00.000Z",
-        end_time="2023-08-03 04:00:00.000Z",
-        categories=["testxyz", "nothing"],
-    )
-    assert isinstance(filtered_events, List)
-
-    events = fulcra_client.simple_events(
-        start_time=datetime.fromisoformat("2022-05-01 04:00:00.000+00:00"),
-        end_time=datetime.fromisoformat("2023-08-03 04:00:00.000+00:00"),
-    )
-    assert isinstance(events, List)
-    events = fulcra_client.simple_events(
-        start_time=datetime.fromisoformat("2022-05-01 04:00:00.000+00:00"),
-        end_time=datetime.fromisoformat("2023-08-03 04:00:00.000+00:00"),
-        fulcra_userid=fulcra_client.get_fulcra_userid(),
-    )
-    assert isinstance(events, List)
-    try:
-        events = fulcra_client.simple_events(
-            start_time=datetime.fromisoformat("2022-05-01 04:00:00.000+00:00"),
-            end_time=datetime.fromisoformat("2023-08-03 04:00:00.000+00:00"),
-            fulcra_userid="13371337-1337-1337-81e7-a102ab7d3ff8",
-        )
-        assert False
-    except Exception:
-        assert True
-
-    filtered_events = fulcra_client.simple_events(
-        start_time=datetime.fromisoformat("2022-05-01 04:00:00.000+00:00"),
-        end_time=datetime.fromisoformat("2023-08-03 04:00:00.000+00:00"),
-        categories=["testxyz", "nothing"],
-    )
-    assert isinstance(filtered_events, List)
 
 
 def test_metric_samples(fulcra_client):
@@ -359,7 +304,15 @@ def test_metric_time_series_with_calculations(fulcra_client):
         end_time="2024-01-25 00:00:00-08:00",
         sample_rate=3600,
         metric="HeartRate",
-        calculations=["min", "max", "mean", "delta", "uniques", "allpoints", "rollingmean"],
+        calculations=[
+            "min",
+            "max",
+            "mean",
+            "delta",
+            "uniques",
+            "allpoints",
+            "rollingmean",
+        ],
     )
     print(df.columns)
     assert "min_heart_rate" in df
@@ -522,11 +475,55 @@ def test_location_at_time(fulcra_client):
         assert True
 
 
-def test_custom_inputs(fulcra_client):
-    loc = fulcra_client.custom_input_events("2024-06-01T00:00Z", "2024-06-10T00:00Z")
+def test_moment_annotations(fulcra_client):
+    loc = fulcra_client.moment_annotations("2024-06-01T00:00Z", "2024-06-10T00:00Z")
     assert type(loc) is list
 
-    loc = fulcra_client.custom_input_events(
+    loc = fulcra_client.moment_annotations(
+        datetime.fromisoformat("2024-06-01T00:00+00:00"),
+        datetime.fromisoformat("2024-06-10T00:00+00:00"),
+    )
+    assert type(loc) is list
+
+
+def test_duration_annotations(fulcra_client):
+    loc = fulcra_client.duration_annotations("2024-06-01T00:00Z", "2024-06-10T00:00Z")
+    assert type(loc) is list
+
+    loc = fulcra_client.duration_annotations(
+        datetime.fromisoformat("2024-06-01T00:00+00:00"),
+        datetime.fromisoformat("2024-06-10T00:00+00:00"),
+    )
+    assert type(loc) is list
+
+
+def test_boolean_annotations(fulcra_client):
+    loc = fulcra_client.boolean_annotations("2024-06-01T00:00Z", "2024-06-10T00:00Z")
+    assert type(loc) is list
+
+    loc = fulcra_client.boolean_annotations(
+        datetime.fromisoformat("2024-06-01T00:00+00:00"),
+        datetime.fromisoformat("2024-06-10T00:00+00:00"),
+    )
+    assert type(loc) is list
+
+
+def test_numeric_annotations(fulcra_client):
+    loc = fulcra_client.numeric_annotations("2024-06-01T00:00Z", "2024-06-10T00:00Z")
+    assert type(loc) is list
+
+    loc = fulcra_client.numeric_annotations(
+        datetime.fromisoformat("2024-06-01T00:00+00:00"),
+        datetime.fromisoformat("2024-06-10T00:00+00:00"),
+    )
+    assert type(loc) is list
+
+
+def test_scale_annotations(fulcra_client):
+    loc = fulcra_client.scale_annotations("2024-06-01T00:00Z", "2024-06-10T00:00Z")
+    assert type(loc) is list
+
+    loc = fulcra_client.scale_annotations(
         datetime.fromisoformat("2024-06-01T00:00+00:00"),
         datetime.fromisoformat("2024-06-10T00:00+00:00"),
     )

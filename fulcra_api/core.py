@@ -1,13 +1,14 @@
-import http.client
-import urllib.parse
-import json
 import base64
 import datetime
-import time
-import pandas as pd
-from typing import List, Tuple, Dict, Optional, Union
+import http.client
 import io
+import json
+import time
+import urllib.parse
 import webbrowser
+from typing import Dict, List, Optional, Tuple, Union
+
+import pandas as pd
 
 try:
     from IPython.display import HTML, display
@@ -129,7 +130,7 @@ class FulcraAPI:
         data = json.loads(response.read())
         if "access_token" not in data:
             return (None, None, None)
-        
+
         access_token = data["access_token"]
         expires_in = datetime.datetime.now() + datetime.timedelta(
             seconds=float(data["expires_in"])
@@ -264,7 +265,7 @@ class FulcraAPI:
         }
         if state:
             params["state"] = state
-        
+
         return f"https://{self.oidc_domain}/authorize?{urllib.parse.urlencode(params)}"
 
     def set_cached_access_token(self, token: str):
@@ -307,8 +308,10 @@ class FulcraAPI:
             "code": code,
             "redirect_uri": redirect_uri,
         }
-        
-        access_token, expiration_date, refresh_token = self._fetch_token_from_auth_server(payload)
+
+        access_token, expiration_date, refresh_token = (
+            self._fetch_token_from_auth_server(payload)
+        )
 
         if access_token and expiration_date:
             self.fulcra_cached_access_token = access_token
@@ -330,7 +333,7 @@ class FulcraAPI:
 
         Returns:
             True if the token was successfully refreshed, False otherwise.
-        
+
         Raises:
             Exception: If no refresh token is available.
         """
@@ -344,7 +347,9 @@ class FulcraAPI:
             "scope": self.oidc_scope,
         }
 
-        access_token, expiration_date, new_refresh_token = self._fetch_token_from_auth_server(payload)
+        access_token, expiration_date, new_refresh_token = (
+            self._fetch_token_from_auth_server(payload)
+        )
 
         if access_token and expiration_date:
             self.fulcra_cached_access_token = access_token
@@ -380,6 +385,26 @@ class FulcraAPI:
         if response.status != 200:
             raise Exception(f"request failed: {response.read().decode('utf-8')}")
         return response.read()
+
+    def fulcra_v1_api(
+        self, access_token: str, data_class: str, data_type: str, params: dict = {}
+    ) -> bytes:
+        """
+        Make a call to the v1 API.
+
+        Params:
+            access_token: The access token to authenticate the request with
+            data_class: The class of data to query (event or metric)
+            data_type: The data type to query
+            params: Additional params to add to the query
+
+        Returns:
+            The raw response data (as bytes).  Raises an exception on failure.
+        """
+        query_params = urllib.parse.urlencode(params, doseq=True)
+        return self.fulcra_api(
+            access_token, f"/data/v1alpha1/{data_class}/{data_type}?{query_params}"
+        )
 
     def get_fulcra_userid(self) -> str:
         """
@@ -483,7 +508,7 @@ class FulcraAPI:
             "metrics": metrics,
             "output": "arrow",
             "samprate": sample_rate,
-            "replace_nulls": int(replace_nulls == True),
+            "replace_nulls": int(replace_nulls),
         }
         if fulcra_userid is not None:
             params["fulcra_userid"] = fulcra_userid
@@ -663,63 +688,6 @@ class FulcraAPI:
         )
         return json.loads(resp)
 
-    def simple_events(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        categories: Optional[List[str]] = None,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieve the events that occurred during the specified period of time,
-        optionally filtering by categories.
-
-        If included, the `categories` parameter only includes events from the specified
-        categories.
-
-        Requires an authorized access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
-            categories:
-                When present, the categories to filter on.  Only events
-                matching these categories will be returned.
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
-
-        Returns:
-            A list of dicts, each of which represents an event.
-
-        Examples:
-            To retrieve the stored events during a given range:
-
-            >>> simple_events = fulcra.simple_events(
-            ...     start_time="2022-05-01 04:00:00.000Z",
-            ...     end_time="2023-08-03 04:00:00.000Z"
-            ... )
-
-            To get the details of an event:
-            >>> simple_events[0]
-            {'event_body': 'relieved', 'category': 'mood', 'event_id':
-            '12680011-6668-4c8e-b4cd-3ca429445ac0', 'timestamp':
-            '2022-09-21T05:51:22Z'}
-
-        """
-        params = {
-            "start_time": start_time,
-            "end_time": end_time,
-        }
-        if categories is not None:
-            params["categories"] = categories
-        qparams = urllib.parse.urlencode(params, doseq=True)
-        if fulcra_userid is None:
-            fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/simple_events?{qparams}",
-        )
-        return json.loads(resp)
-
     def metric_samples(
         self,
         start_time: Union[str, datetime.datetime],
@@ -806,7 +774,7 @@ class FulcraAPI:
         params = {"start_time": start_time, "end_time": end_time}
         if fulcra_source_id is not None:
             params["fulcra_source_id"] = fulcra_source_id
-        
+
         qparams = urllib.parse.urlencode(params, doseq=True)
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
@@ -994,7 +962,7 @@ class FulcraAPI:
             "metric": metric,
             "output": "arrow",
             "samprate": sample_rate,
-            "replace_nulls": int(replace_nulls == True),
+            "replace_nulls": int(replace_nulls),
         }
         if calculations is not None:
             params["calculations"] = calculations
@@ -1139,43 +1107,6 @@ class FulcraAPI:
         """
         resp = self.fulcra_api(
             self.fulcra_cached_access_token, "/data/v0/metrics_catalog"
-        )
-        return json.loads(resp)
-
-    def custom_input_events(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        source: Optional[str] = None,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieves events from Fulcra custom inputs, along with any metadata,
-        for the requested time ranges.
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
-            source: When specified, the full name of the source to query records from
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for
-
-        Returns:
-            A list of events; each event is represnted by a dict.
-        """
-        params = {
-            "start_time": start_time,
-            "end_time": end_time,
-        }
-        if source is not None:
-            params["source"] = source
-        if fulcra_userid is not None:
-            params["fulcra_userid"] = fulcra_userid
-        qparams = urllib.parse.urlencode(params, doseq=True)
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v1alpha1/type/CustomInputEvent?{qparams}",
         )
         return json.loads(resp)
 
@@ -1408,7 +1339,7 @@ class FulcraAPI:
         if agg_functions is not None:
             params["agg_functions"] = agg_functions
         else:
-            params["agg_functions"] = ["sum"] # Default as per OpenAPI if not provided
+            params["agg_functions"] = ["sum"]  # Default as per OpenAPI if not provided
         if tz is not None:
             params["tz"] = tz
 
@@ -1421,3 +1352,223 @@ class FulcraAPI:
             f"/data/v0/{fulcra_userid}/sleep_agg?{qparams}",
         )
         return pd.read_feather(io.BytesIO(resp))
+
+    def moment_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Moment Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api(
+            self.fulcra_cached_access_token,
+            "event",
+            "MomentAnnotation",
+            params,
+        )
+        return json.loads(resp)
+
+    def duration_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Duration Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api(
+            self.fulcra_cached_access_token,
+            "event",
+            "DurationAnnotation",
+            params,
+        )
+        return json.loads(resp)
+
+    def boolean_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Boolean Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api(
+            self.fulcra_cached_access_token,
+            "metric",
+            "BooleanAnnotation",
+            params,
+        )
+        return json.loads(resp)
+
+    def numeric_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Numeric Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api(
+            self.fulcra_cached_access_token,
+            "metric",
+            "NumericAnnotation",
+            params,
+        )
+        return json.loads(resp)
+
+    def scale_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Scale Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api(
+            self.fulcra_cached_access_token,
+            "metric",
+            "ScaleAnnotation",
+            params,
+        )
+        return json.loads(resp)
