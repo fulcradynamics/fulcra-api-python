@@ -1,6 +1,6 @@
 [project]
 name = "fulcra-api"
-version = "0.1.27"
+version = "0.1.28"
 description = ""
 authors = [
     {name = "Brandon Creighton", email = "brandon@fulcradynamics.com"},
