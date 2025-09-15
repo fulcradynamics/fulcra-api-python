@@ -68,6 +68,16 @@ class FulcraAPI:
         self.oidc_scope = oidc_scope or FULCRA_OIDC_SCOPE
         self.oidc_audience = oidc_audience or FULCRA_OIDC_AUDIENCE
 
+        audience_url = urllib.parse.urlparse(self.oidc_audience)
+        self.fulcra_api_domain = audience_url.hostname
+        self.fulcra_api_is_http = False
+        if audience_url.scheme == "http":
+            if self.fulcra_api_domain in ["localhost", "127.0.0.1"]:
+                self.fulcra_api_is_http = True
+            else:
+                raise ValueError("HTTP audience scheme only allowed for localhost")
+        self.fulcra_api_port = audience_url.port
+
         if access_token:
             self.fulcra_cached_access_token = access_token
         if access_token_expiration:
@@ -378,7 +388,10 @@ class FulcraAPI:
         Returns:
             The raw response data (as bytes).  Raises an exception on failure.
         """
-        conn = http.client.HTTPSConnection("api.fulcradynamics.com")
+        if self.fulcra_api_is_http:
+            conn = http.client.HTTPConnection(self.fulcra_api_domain, port=self.fulcra_api_port)
+        else:
+            conn = http.client.HTTPSConnection(self.fulcra_api_domain, port=self.fulcra_api_port)
         headers = {"Authorization": f"Bearer {access_token}"}
         conn.request("GET", url_path, headers=headers)
         response = conn.getresponse()
