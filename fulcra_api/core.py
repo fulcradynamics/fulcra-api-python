@@ -1,3 +1,4 @@
+import os
 import base64
 import datetime
 import http.client
@@ -18,10 +19,10 @@ except ImportError:  # ugly
     is_notebook = False
     pass
 
-FULCRA_OIDC_DOMAIN = "fulcra.us.auth0.com"
-FULCRA_OIDC_CLIENT_ID = "48p3VbMnr5kMuJAUe9gJ9vjmdWLdnqZt"
-FULCRA_OIDC_AUDIENCE = "https://api.fulcradynamics.com/"
-FULCRA_OIDC_SCOPE = "openid profile name email offline_access"
+FULCRA_OIDC_DOMAIN = os.environ.get("FULCRA_OIDC_DOMAIN", "fulcra.us.auth0.com")
+FULCRA_OIDC_CLIENT_ID = os.environ.get("FULCRA_OIDC_CLIENT_ID", "48p3VbMnr5kMuJAUe9gJ9vjmdWLdnqZt")
+FULCRA_OIDC_AUDIENCE = os.environ.get("FULCRA_OIDC_AUDIENCE", "https://api.fulcradynamics.com/")
+FULCRA_OIDC_SCOPE = os.environ.get("FULCRA_OIDC_SCOPE", "openid profile name email offline_access")
 
 
 class FulcraAPI:
