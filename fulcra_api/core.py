@@ -1,3 +1,4 @@
+import os
 import base64
 import datetime
 import http.client
@@ -18,10 +19,10 @@ except ImportError:  # ugly
     is_notebook = False
     pass
 
-FULCRA_OIDC_DOMAIN = "fulcra.us.auth0.com"
-FULCRA_OIDC_CLIENT_ID = "48p3VbMnr5kMuJAUe9gJ9vjmdWLdnqZt"
-FULCRA_OIDC_AUDIENCE = "https://api.fulcradynamics.com/"
-FULCRA_OIDC_SCOPE = "openid profile name email offline_access"
+FULCRA_OIDC_DOMAIN = os.environ.get("FULCRA_OIDC_DOMAIN", "fulcra.us.auth0.com")
+FULCRA_OIDC_CLIENT_ID = os.environ.get("FULCRA_OIDC_CLIENT_ID", "48p3VbMnr5kMuJAUe9gJ9vjmdWLdnqZt")
+FULCRA_OIDC_AUDIENCE = os.environ.get("FULCRA_OIDC_AUDIENCE", "https://api.fulcradynamics.com/")
+FULCRA_OIDC_SCOPE = os.environ.get("FULCRA_OIDC_SCOPE", "openid profile name email offline_access")
 
 
 class FulcraAPI:
@@ -67,6 +68,16 @@ class FulcraAPI:
         self.oidc_client_id = oidc_client_id or FULCRA_OIDC_CLIENT_ID
         self.oidc_scope = oidc_scope or FULCRA_OIDC_SCOPE
         self.oidc_audience = oidc_audience or FULCRA_OIDC_AUDIENCE
+
+        audience_url = urllib.parse.urlparse(self.oidc_audience)
+        self.fulcra_api_domain = audience_url.hostname
+        self.fulcra_api_is_http = False
+        if audience_url.scheme == "http":
+            if self.fulcra_api_domain in ["localhost", "127.0.0.1"]:
+                self.fulcra_api_is_http = True
+            else:
+                raise ValueError("HTTP audience scheme only allowed for localhost")
+        self.fulcra_api_port = audience_url.port
 
         if access_token:
             self.fulcra_cached_access_token = access_token
@@ -378,7 +389,10 @@ class FulcraAPI:
         Returns:
             The raw response data (as bytes).  Raises an exception on failure.
         """
-        conn = http.client.HTTPSConnection("api.fulcradynamics.com")
+        if self.fulcra_api_is_http:
+            conn = http.client.HTTPConnection(self.fulcra_api_domain, port=self.fulcra_api_port)
+        else:
+            conn = http.client.HTTPSConnection(self.fulcra_api_domain, port=self.fulcra_api_port)
         headers = {"Authorization": f"Bearer {access_token}"}
         conn.request("GET", url_path, headers=headers)
         response = conn.getresponse()
