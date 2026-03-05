@@ -19,28 +19,6 @@ def test_auth(fulcra_client):
     assert fuuid.variant == uuid.RFC_4122
 
 
-def test_time_series_grouped(fulcra_client):
-    df = fulcra_client.time_series_grouped(
-        start_time="2023-07-04 17:00:00.000Z",
-        end_time="2023-07-04 18:00:00.000Z",
-        metrics=[
-            "DistanceTraveledOnFoot",
-        ],
-        sample_rate=60,
-    )
-    assert df.shape[0] == 60
-
-    df = fulcra_client.time_series_grouped(
-        start_time=datetime.fromisoformat("2023-07-04 17:00:00.000+00:00"),
-        end_time=datetime.fromisoformat("2023-07-04 18:00:00.000+00:00"),
-        metrics=[
-            "DistanceTraveledOnFoot",
-        ],
-        sample_rate=60,
-    )
-    assert df.shape[0] == 60
-
-
 def test_calendars(fulcra_client):
     cals = fulcra_client.calendars()
     assert isinstance(cals, List)

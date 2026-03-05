@@ -379,7 +379,7 @@ class FulcraAPI:
 
     def fulcra_api(self, access_token: str, url_path: str) -> bytes:
         """
-        Make a call to the given url path (e.g. `/v0/data/time_series_grouped?...`)
+        Make a call to the given url path (e.g. `/v0/data/metric_time_series?...`)
         with the specified access token.
 
         Params:
@@ -436,102 +436,6 @@ class FulcraAPI:
         jd = json.loads(base64.b64decode(payload))
         return jd["fulcradynamics.com/userid"]
 
-    def time_series_grouped(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        metrics: List[str],
-        sample_rate: float = 60,
-        replace_nulls: Optional[bool] = False,
-        fulcra_userid: Optional[str] = None,
-    ) -> pd.DataFrame:
-        """
-        Retrieve a time-series data frame containing the specified set of
-        Fulcra metrics from `start_time` (inclusive) until `end_time` (exclusive).
-
-        If specified, the `sample_rate` parameter defines the number of
-        seconds per sample.  This value can be smaller than 1.  The default
-        value is 60 (one sample per minute).
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
-            metrics: The names of the time-series metrics to include in the result
-            sample_rate: The length (in seconds) of each sample
-            replace_nulls: When true, replace all NA/null/None values with 0
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
-
-        Returns:
-            a pandas DataFrame containing the data.  For time ranges where data is
-                missing, the values will be `<NA>`.
-
-        Examples:
-            To retrieve a dataframe containing four different metrics
-            (`DistanceTraveledOnFoot`, `AppleWatchExerciseTime`,
-            `ActiveCaloriesBurned`, and `BasalCaloriesBurned`):
-
-            >>> df = fulcra.time_series_grouped(
-            ...     start_time = "2023-07-01 04:00:00.000Z",
-            ...     end_time = "2023-07-10 04:00:00.000Z",
-            ...     metrics=["DistanceTraveledOnFoot",
-            ...         "AppleWatchExerciseTime",
-            ...         "ActiveCaloriesBurned",
-            ...         "BasalCaloriesBurned"
-            ...     ]
-            ... )
-
-            The index of the DataFrame will be the time:
-
-            >>> df.index
-            DatetimeIndex(['2023-07-01 04:00:00+00:00',
-                           '2023-07-01 04:01:00+00:00',
-                           '2023-07-01 04:02:00+00:00',
-                           '2023-07-01 04:03:00+00:00',
-                           '2023-07-01 04:04:00+00:00',
-                           '2023-07-01 04:05:00+00:00',
-                           '2023-07-01 04:06:00+00:00',
-                           '2023-07-01 04:07:00+00:00',
-                           '2023-07-01 04:08:00+00:00',
-                           '2023-07-01 04:09:00+00:00',
-                           ...
-                           '2023-07-10 03:50:00+00:00',
-                           '2023-07-10 03:51:00+00:00',
-                           '2023-07-10 03:52:00+00:00',
-                           '2023-07-10 03:53:00+00:00',
-                           '2023-07-10 03:54:00+00:00',
-                           '2023-07-10 03:55:00+00:00',
-                           '2023-07-10 03:56:00+00:00',
-                           '2023-07-10 03:57:00+00:00',
-                           '2023-07-10 03:58:00+00:00',
-                        '2023-07-10 03:59:00+00:00'],
-                          dtype='datetime64[ns, UTC]', name='time', length=12960,
-                            freq=None)
-
-            Each metric requested will add at least one column to the dataframe:
-
-            >>> df.columns
-            Index(['distance_on_foot', 'apple_watch_exercise_time',
-                   'active_calories_burned', 'basal_calories_burned'],
-                    dtype='object')
-
-        """
-        params = {
-            "start_time": start_time,
-            "end_time": end_time,
-            "metrics": metrics,
-            "output": "arrow",
-            "samprate": sample_rate,
-            "replace_nulls": int(replace_nulls),
-        }
-        if fulcra_userid is not None:
-            params["fulcra_userid"] = fulcra_userid
-        qparams = urllib.parse.urlencode(params, doseq=True)
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token, "/data/v0/time_series_grouped?" + qparams
-        )
-        return pd.read_feather(io.BytesIO(resp)).set_index("time")
 
     def calendars(
         self,
@@ -1106,8 +1010,7 @@ class FulcraAPI:
     ) -> List[Dict]:
         """
         Gets the list of time-series metrics that are available for this user.
-        These metrics can be passed to the `metric_time_series` and
-        `time_series_grouped` functions.
+        These metrics can be passed to the `metric_time_series` function.
 
         Returns:
             The metrics, including descriptions.
