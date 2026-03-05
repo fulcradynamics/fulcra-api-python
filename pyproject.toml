@@ -1,6 +1,6 @@
 [project]
 name = "fulcra-api"
-version = "0.1.28"
+version = "0.1.29"
 description = ""
 authors = [
     {name = "Brandon Creighton", email = "brandon@fulcradynamics.com"},
@@ -13,6 +13,7 @@ python = "^3.11"
 pandas = "> 1.5, < 3"
 pyarrow = ">= 19.0.0"
 numpy = "^2.0.0"
+pytest = "^7.4.2"
 
 
 [build-system]
