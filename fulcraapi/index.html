@@ -540,15 +540,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#fulcra_api.core.FulcraAPI.time_series_grouped" class="md-nav__link">
-    <span class="md-ellipsis">
-      time_series_grouped
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -855,15 +846,6 @@
   <a href="#fulcra_api.core.FulcraAPI.sleep_stages" class="md-nav__link">
     <span class="md-ellipsis">
       sleep_stages
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#fulcra_api.core.FulcraAPI.time_series_grouped" class="md-nav__link">
-    <span class="md-ellipsis">
-      time_series_grouped
     </span>
   </a>
   
@@ -2079,7 +2061,7 @@ ID as the <code>fulcra_userid</code> parameter.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Make a call to the given url path (e.g. <code>/v0/data/time_series_grouped?...</code>)
+        <p>Make a call to the given url path (e.g. <code>/v0/data/metric_time_series?...</code>)
 with the specified access token.</p>
 
 
@@ -3321,8 +3303,7 @@ Index(['step_count'], dtype='object')</p>
     <div class="doc doc-contents ">
 
         <pre><code>Gets the list of time-series metrics that are available for this user.
-These metrics can be passed to the `metric_time_series` and
-`time_series_grouped` functions.
+These metrics can be passed to the `metric_time_series` function.
 
 Returns:
     The metrics, including descriptions.
@@ -4392,212 +4373,6 @@ and the start time of the sample (latest takes precedence).</p>
           </tr>
       </tbody>
     </table>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h3 id="fulcra_api.core.FulcraAPI.time_series_grouped" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">time_series_grouped</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">metrics</span><span class="p">,</span> <span class="n">sample_rate</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">replace_nulls</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
-
-</h3>
-
-
-    <div class="doc doc-contents ">
-
-        <p>Retrieve a time-series data frame containing the specified set of
-Fulcra metrics from <code>start_time</code> (inclusive) until <code>end_time</code> (exclusive).</p>
-<p>If specified, the <code>sample_rate</code> parameter defines the number of
-seconds per sample.  This value can be smaller than 1.  The default
-value is 60 (one sample per minute).</p>
-<p>Requires a valid access token.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>start_time</code>
-            </td>
-            <td>
-                  <code><span title="typing.Union">Union</span>[<span title="str">str</span>, <span title="datetime.datetime">datetime</span>]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The start of the time range (inclusive), as an ISO 8601 string or <code>datetime</code> object</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>end_time</code>
-            </td>
-            <td>
-                  <code><span title="typing.Union">Union</span>[<span title="str">str</span>, <span title="datetime.datetime">datetime</span>]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The end of the range (exclusive), as an ISO 8601 string or <code>datetime</code> object</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>metrics</code>
-            </td>
-            <td>
-                  <code><span title="typing.List">List</span>[<span title="str">str</span>]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The names of the time-series metrics to include in the result</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>sample_rate</code>
-            </td>
-            <td>
-                  <code><span title="float">float</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>The length (in seconds) of each sample</p>
-              </div>
-            </td>
-            <td>
-                  <code>60</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>replace_nulls</code>
-            </td>
-            <td>
-                  <code><span title="typing.Optional">Optional</span>[<span title="bool">bool</span>]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>When true, replace all NA/null/None values with 0</p>
-              </div>
-            </td>
-            <td>
-                  <code>False</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>fulcra_userid</code>
-            </td>
-            <td>
-                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>When present, specifies the Fulcra user ID to request data for.</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                  <code><span title="pandas.DataFrame">DataFrame</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>a pandas DataFrame containing the data.  For time ranges where data is
-missing, the values will be <code>&lt;NA&gt;</code>.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-<p><span class="doc-section-title">Examples:</span></p>
-    <p>To retrieve a dataframe containing four different metrics
-(<code>DistanceTraveledOnFoot</code>, <code>AppleWatchExerciseTime</code>,
-<code>ActiveCaloriesBurned</code>, and <code>BasalCaloriesBurned</code>):</p>
-    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">df</span> <span class="o">=</span> <span class="n">fulcra</span><span class="o">.</span><span class="n">time_series_grouped</span><span class="p">(</span>
-<span class="gp">... </span>    <span class="n">start_time</span> <span class="o">=</span> <span class="s2">&quot;2023-07-01 04:00:00.000Z&quot;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="n">end_time</span> <span class="o">=</span> <span class="s2">&quot;2023-07-10 04:00:00.000Z&quot;</span><span class="p">,</span>
-<span class="gp">... </span>    <span class="n">metrics</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;DistanceTraveledOnFoot&quot;</span><span class="p">,</span>
-<span class="gp">... </span>        <span class="s2">&quot;AppleWatchExerciseTime&quot;</span><span class="p">,</span>
-<span class="gp">... </span>        <span class="s2">&quot;ActiveCaloriesBurned&quot;</span><span class="p">,</span>
-<span class="gp">... </span>        <span class="s2">&quot;BasalCaloriesBurned&quot;</span>
-<span class="gp">... </span>    <span class="p">]</span>
-<span class="gp">... </span><span class="p">)</span>
-</code></pre></div>
-    <p>The index of the DataFrame will be the time:</p>
-    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">df</span><span class="o">.</span><span class="n">index</span>
-<span class="go">DatetimeIndex([&#39;2023-07-01 04:00:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-01 04:01:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-01 04:02:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-01 04:03:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-01 04:04:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-01 04:05:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-01 04:06:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-01 04:07:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-01 04:08:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-01 04:09:00+00:00&#39;,</span>
-<span class="go">               ...</span>
-<span class="go">               &#39;2023-07-10 03:50:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-10 03:51:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-10 03:52:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-10 03:53:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-10 03:54:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-10 03:55:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-10 03:56:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-10 03:57:00+00:00&#39;,</span>
-<span class="go">               &#39;2023-07-10 03:58:00+00:00&#39;,</span>
-<span class="go">            &#39;2023-07-10 03:59:00+00:00&#39;],</span>
-<span class="go">              dtype=&#39;datetime64[ns, UTC]&#39;, name=&#39;time&#39;, length=12960,</span>
-<span class="go">                freq=None)</span>
-</code></pre></div>
-    <p>Each metric requested will add at least one column to the dataframe:</p>
-    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">df</span><span class="o">.</span><span class="n">columns</span>
-<span class="go">Index([&#39;distance_on_foot&#39;, &#39;apple_watch_exercise_time&#39;,</span>
-<span class="go">       &#39;active_calories_burned&#39;, &#39;basal_calories_burned&#39;],</span>
-<span class="go">        dtype=&#39;object&#39;)</span>
-</code></pre></div>
 
 
     </div>
