@@ -1271,6 +1271,40 @@ class FulcraAPI:
         )
         return pd.read_feather(io.BytesIO(resp))
 
+    def annotations_catalog(
+        self,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves a list of all annotations the user has defined, whether or not
+        there is any data in them.
+
+        Params:
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of defined annotations, including data about type and ID. Use this
+            information with the annotation-retrieval functions
+            (`moment_annotations()`, `scale_annotations()`, etc.) to retrieve the
+            data for a time window.
+
+        Examples:
+            >>> annotations = fulcra.annotations_catalog()
+            >>> annotations[3]
+			{'name': 'Energy Level', 'description': 'How much energy do I have right now?', 'annotation_type': 'scale', 'measurement_spec': {'value_type': 'integer', 'metric_kind': 'discrete', 'measurement_type': 'scale', 'unit': None, 'scale': {'min_allowed': 1, 'max_allowed': 5, 'value': 3}}, 'spec': {'default_note': None, 'scale': {'label_mapping': {'mapping_type': 'string', 'string': {'mapping': {'1': 'Very Low', '2': 'Low', '3': 'Medium', '4': 'High', '5': 'Very High'}}}, 'scale_mapping': {'mapping_type': 'emoji', 'color': {'mapping': {'1': '#ff3b30', '2': '#ff9e96', '3': '#8a8a8f', '4': '#99e3ab', '5': '#33c759'}}, 'string': {'mapping': {'1': 'annotation-emoji-1', '2': 'annotation-emoji-2', '3': 'annotation-emoji-3', '4': 'annotation-emoji-4', '5': 'annotation-emoji-5'}}}}}, 'tags': ['cb8e9254-1446-4055-9e3c-4d76335d1be5'], 'fulcra_userid': '315c1b32-5399-40e1-b808-2346da7bf32e', 'id': 'a6b01642-2298-4a49-af6f-0e7edf1cb3cb', 'created_at': '2025-05-22T20:40:51.191044Z', 'updated_at': '2025-05-22T20:40:51.191044Z', 'deleted_at': '2025-05-24T21:52:29.985758Z'}
+        """
+        params = {}
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        resp = self.fulcra_api(
+            self.fulcra_cached_access_token, "/user/v1alpha1/annotation"
+        )
+        return json.loads(resp)
+
+
+
     def moment_annotations(
         self,
         start_time: Union[str, datetime.datetime],

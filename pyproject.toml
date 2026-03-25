@@ -1,12 +1,13 @@
 [project]
 name = "fulcra-api"
-version = "0.1.29"
-description = ""
+version = "0.1.30"
+description = "Python client library for Context by Fulcra"
 authors = [
     {name = "Brandon Creighton", email = "brandon@fulcradynamics.com"},
 ]
 readme = "README.md"
 packages = [{include = "fulcra_api"}]
+requires-python = ">= 3.9"
 
 [tool.poetry.dependencies]
 python = "^3.11"
