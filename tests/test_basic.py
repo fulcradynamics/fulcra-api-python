@@ -508,6 +508,22 @@ def test_scale_annotations(fulcra_client):
     assert type(loc) is list
 
 
+def test_annotations_catalog(fulcra_client):
+    annotations = fulcra_client.annotations_catalog()
+    assert type(annotations) is list
+    annotations = fulcra_client.annotations_catalog(
+        fulcra_userid=fulcra_client.get_fulcra_userid()
+    )
+    assert type(annotations) is list
+    try:
+        fulcra_client.annotations_catalog(
+            fulcra_userid="13371337-1337-1337-81e7-a102ab7d3ff8"
+        )
+        assert False
+    except Exception:
+        assert True
+
+
 def test_metrics_catalog(fulcra_client):
     metrics = fulcra_client.metrics_catalog()
     assert type(metrics) is list
