@@ -1,4 +1,4 @@
-# AGENTS.md — Context by Fulcra
+# AGENTS.md - Context by Fulcra
 
 > Context by Fulcra - bridging the gap between agents and humans.
 
@@ -107,11 +107,9 @@ Example metrics from the catalog: `StepCount`, `HeartRate`, `HeartRateVariabilit
 
 ## Best Practices for Agents
 
-- **Use appropriate sample rates.** When querying time series data, choose a `samprate` that balances resolution with performance. For daily overviews, 3600 seconds (hourly) works well. For detailed analysis, 60–300 seconds.
+- **Use appropriate sample rates.** When querying time series data, choose a `samprate` that balances resolution with performance. For daily overviews, 3600 seconds (hourly) works well. For detailed analysis, 60-300 seconds.
 - **Sleep spans midnight.** Sleep cycles typically start on day N and end on day N+1. When querying sleep data, account for this by extending your date range.
-- **Check the metrics catalog first.** Use `get_metrics_catalog` (MCP) or `/data/v0/metrics_catalog` (REST) to discover what data is available for a given user before querying.
-- **Respect permissions.** Only access data your human has granted you. The platform enforces scoped permissions and maintains a full audit trail.
-- **Correlate across domains.** The real power of Context is combining data streams — sleep quality with nutrition, HRV with training load, location with calendar events. Look for patterns across domains.
+- **Correlate across domains.** The real power of Context is combining data streams - sleep quality with nutrition, HRV with training load, location with calendar events. Look for patterns across domains.
 
 ### Example: Querying Data with the Python Client
 
