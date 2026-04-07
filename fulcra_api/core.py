@@ -1,9 +1,9 @@
-import os
 import base64
 import datetime
 import http.client
 import io
 import json
+import os
 import time
 import urllib.parse
 import webbrowser
@@ -20,9 +20,15 @@ except ImportError:  # ugly
     pass
 
 FULCRA_OIDC_DOMAIN = os.environ.get("FULCRA_OIDC_DOMAIN", "fulcra.us.auth0.com")
-FULCRA_OIDC_CLIENT_ID = os.environ.get("FULCRA_OIDC_CLIENT_ID", "48p3VbMnr5kMuJAUe9gJ9vjmdWLdnqZt")
-FULCRA_OIDC_AUDIENCE = os.environ.get("FULCRA_OIDC_AUDIENCE", "https://api.fulcradynamics.com/")
-FULCRA_OIDC_SCOPE = os.environ.get("FULCRA_OIDC_SCOPE", "openid profile name email offline_access")
+FULCRA_OIDC_CLIENT_ID = os.environ.get(
+    "FULCRA_OIDC_CLIENT_ID", "48p3VbMnr5kMuJAUe9gJ9vjmdWLdnqZt"
+)
+FULCRA_OIDC_AUDIENCE = os.environ.get(
+    "FULCRA_OIDC_AUDIENCE", "https://api.fulcradynamics.com/"
+)
+FULCRA_OIDC_SCOPE = os.environ.get(
+    "FULCRA_OIDC_SCOPE", "openid profile name email offline_access"
+)
 
 
 class FulcraAPI:
@@ -162,7 +168,9 @@ class FulcraAPI:
             "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
             "device_code": device_code,
         }
-        access_token, expiration_date, refresh_token = self._fetch_token_from_auth_server(payload)
+        access_token, expiration_date, refresh_token = (
+            self._fetch_token_from_auth_server(payload)
+        )
         return access_token, expiration_date, refresh_token
 
     def authorize(self):
@@ -392,9 +400,13 @@ class FulcraAPI:
             The raw response data (as bytes).  Raises an exception on failure.
         """
         if self.fulcra_api_is_http:
-            conn = http.client.HTTPConnection(self.fulcra_api_domain, port=self.fulcra_api_port)
+            conn = http.client.HTTPConnection(
+                self.fulcra_api_domain, port=self.fulcra_api_port
+            )
         else:
-            conn = http.client.HTTPSConnection(self.fulcra_api_domain, port=self.fulcra_api_port)
+            conn = http.client.HTTPSConnection(
+                self.fulcra_api_domain, port=self.fulcra_api_port
+            )
         headers = {"Authorization": f"Bearer {access_token}"}
         conn.request("GET", url_path, headers=headers)
         response = conn.getresponse()
@@ -434,10 +446,9 @@ class FulcraAPI:
         segs = self.fulcra_cached_access_token.split(".")
         if len(segs) < 2:
             raise Exception("Authorized token is in an incorrect format.")
-        payload = segs[1] + "=="        # add extra padding to prevent b64decode from breaking
+        payload = segs[1] + "=="  # add extra padding to prevent b64decode from breaking
         jd = json.loads(base64.b64decode(payload))
         return jd["fulcradynamics.com/userid"]
-
 
     def calendars(
         self,
@@ -1293,7 +1304,7 @@ class FulcraAPI:
         Examples:
             >>> annotations = fulcra.annotations_catalog()
             >>> annotations[3]
-			{'name': 'Energy Level', 'description': 'How much energy do I have right now?', 'annotation_type': 'scale', 'measurement_spec': {'value_type': 'integer', 'metric_kind': 'discrete', 'measurement_type': 'scale', 'unit': None, 'scale': {'min_allowed': 1, 'max_allowed': 5, 'value': 3}}, 'spec': {'default_note': None, 'scale': {'label_mapping': {'mapping_type': 'string', 'string': {'mapping': {'1': 'Very Low', '2': 'Low', '3': 'Medium', '4': 'High', '5': 'Very High'}}}, 'scale_mapping': {'mapping_type': 'emoji', 'color': {'mapping': {'1': '#ff3b30', '2': '#ff9e96', '3': '#8a8a8f', '4': '#99e3ab', '5': '#33c759'}}, 'string': {'mapping': {'1': 'annotation-emoji-1', '2': 'annotation-emoji-2', '3': 'annotation-emoji-3', '4': 'annotation-emoji-4', '5': 'annotation-emoji-5'}}}}}, 'tags': ['cb8e9254-1446-4055-9e3c-4d76335d1be5'], 'fulcra_userid': '315c1b32-5399-40e1-b808-2346da7bf32e', 'id': 'a6b01642-2298-4a49-af6f-0e7edf1cb3cb', 'created_at': '2025-05-22T20:40:51.191044Z', 'updated_at': '2025-05-22T20:40:51.191044Z', 'deleted_at': '2025-05-24T21:52:29.985758Z'}
+                        {'name': 'Energy Level', 'description': 'How much energy do I have right now?', 'annotation_type': 'scale', 'measurement_spec': {'value_type': 'integer', 'metric_kind': 'discrete', 'measurement_type': 'scale', 'unit': None, 'scale': {'min_allowed': 1, 'max_allowed': 5, 'value': 3}}, 'spec': {'default_note': None, 'scale': {'label_mapping': {'mapping_type': 'string', 'string': {'mapping': {'1': 'Very Low', '2': 'Low', '3': 'Medium', '4': 'High', '5': 'Very High'}}}, 'scale_mapping': {'mapping_type': 'emoji', 'color': {'mapping': {'1': '#ff3b30', '2': '#ff9e96', '3': '#8a8a8f', '4': '#99e3ab', '5': '#33c759'}}, 'string': {'mapping': {'1': 'annotation-emoji-1', '2': 'annotation-emoji-2', '3': 'annotation-emoji-3', '4': 'annotation-emoji-4', '5': 'annotation-emoji-5'}}}}}, 'tags': ['cb8e9254-1446-4055-9e3c-4d76335d1be5'], 'fulcra_userid': '315c1b32-5399-40e1-b808-2346da7bf32e', 'id': 'a6b01642-2298-4a49-af6f-0e7edf1cb3cb', 'created_at': '2025-05-22T20:40:51.191044Z', 'updated_at': '2025-05-22T20:40:51.191044Z', 'deleted_at': '2025-05-24T21:52:29.985758Z'}
         """
         params = {}
 
@@ -1304,8 +1315,6 @@ class FulcraAPI:
             self.fulcra_cached_access_token, "/user/v1alpha1/annotation"
         )
         return json.loads(resp)
-
-
 
     def moment_annotations(
         self,
