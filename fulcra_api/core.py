@@ -152,7 +152,7 @@ class FulcraAPI:
 
     def get_token(
         self, device_code: str
-    ) -> Tuple[Optional[str], Optional[datetime.datetime]]:
+    ) -> Tuple[Optional[str], Optional[datetime.datetime], Optional[str]]:
         """
         Polls for an access token using a device code.
         Used by the device authorization flow.
@@ -162,8 +162,8 @@ class FulcraAPI:
             "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
             "device_code": device_code,
         }
-        access_token, expiration_date, _ = self._fetch_token_from_auth_server(payload)
-        return access_token, expiration_date
+        access_token, expiration_date, refresh_token = self._fetch_token_from_auth_server(payload)
+        return access_token, expiration_date, refresh_token
 
     def authorize(self):
         """
@@ -230,9 +230,10 @@ class FulcraAPI:
             """
             )
         stop_at = datetime.datetime.now() + datetime.timedelta(seconds=120)
+
         while datetime.datetime.now() < stop_at:
             time.sleep(0.5)
-            token, expiration_date = self.get_token(device_code)
+            token, expiration_date, refresh_token = self.get_token(device_code)
             if token is not None:
                 if is_notebook:
                     display(HTML("Authorization succeeded."))
@@ -240,8 +241,9 @@ class FulcraAPI:
                     print("Authorization succeeded.")
                 self.fulcra_cached_access_token = token
                 self.fulcra_cached_access_token_expiration = expiration_date
-                self.fulcra_cached_refresh_token = None
+                self.fulcra_cached_refresh_token = refresh_token
                 return
+
         self.fulcra_cached_access_token = None
         self.fulcra_cached_access_token_expiration = None
         self.fulcra_cached_refresh_token = None
