@@ -1,15 +1,19 @@
 import base64
 import datetime
+import functools
 import http.client
 import io
 import json
 import os
 import time
 import urllib.parse
+import warnings
 import webbrowser
 from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
+
+from .credentials import FulcraCredentials
 
 try:
     from IPython.display import HTML, display
@@ -31,6 +35,23 @@ FULCRA_OIDC_SCOPE = os.environ.get(
 )
 
 
+def _deprecated(replacement):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            warnings.warn(
+                f"{func.__name__} is deprecated and will be removed in a future version. "
+                f"Use {replacement} instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 class FulcraAPI:
     """
     The main class for making Fulcra API functions.
@@ -39,9 +60,7 @@ class FulcraAPI:
     making calls, and loading data.
     """
 
-    fulcra_cached_access_token = None
-    fulcra_cached_access_token_expiration = None
-    fulcra_cached_refresh_token = None
+    fulcra_credentials: Optional[FulcraCredentials] = None
 
     def __init__(
         self,
@@ -52,6 +71,7 @@ class FulcraAPI:
         access_token: Optional[str] = None,
         access_token_expiration: Optional[datetime.datetime] = None,
         refresh_token: Optional[str] = None,
+        credentials: Optional[FulcraCredentials] = None,
     ):
         """
         Initializes the FulcraAPI client.
@@ -85,12 +105,22 @@ class FulcraAPI:
                 raise ValueError("HTTP audience scheme only allowed for localhost")
         self.fulcra_api_port = audience_url.port
 
-        if access_token:
-            self.fulcra_cached_access_token = access_token
-        if access_token_expiration:
-            self.fulcra_cached_access_token_expiration = access_token_expiration
-        if refresh_token:
-            self.fulcra_cached_refresh_token = refresh_token
+        self.fulcra_credentials = credentials
+
+        if self.fulcra_credentials is None and (
+            access_token is not None
+            or access_token_expiration is not None
+            or refresh_token is not None
+        ):
+            kwargs = {}
+            if access_token:
+                kwargs["access_token"] = access_token
+            if access_token_expiration:
+                kwargs["access_token_expiration"] = access_token_expiration
+            if refresh_token:
+                kwargs["refresh_token"] = refresh_token
+
+            self.fulcra_credentials = FulcraCredentials(**kwargs)
 
     def _get_auth_connection(self, domain: str) -> http.client.HTTPSConnection:
         """
@@ -203,9 +233,8 @@ class FulcraAPI:
         ```
         """
         if (
-            self.fulcra_cached_access_token is not None
-            and self.fulcra_cached_access_token_expiration is not None
-            and self.fulcra_cached_access_token_expiration > datetime.datetime.now()
+            self.fulcra_credentials is not None
+            and not self.fulcra_credentials.is_expired()
         ):
             if is_notebook:
                 display(HTML("<p>Your access token is still valid.</p>"))
@@ -247,14 +276,14 @@ class FulcraAPI:
                     display(HTML("Authorization succeeded."))
                 else:
                     print("Authorization succeeded.")
-                self.fulcra_cached_access_token = token
-                self.fulcra_cached_access_token_expiration = expiration_date
-                self.fulcra_cached_refresh_token = refresh_token
+                self.fulcra_credentials = FulcraCredentials(
+                    access_token=token,
+                    access_token_expiration=expiration_date,
+                    refresh_token=refresh_token,
+                )
                 return
 
-        self.fulcra_cached_access_token = None
-        self.fulcra_cached_access_token_expiration = None
-        self.fulcra_cached_refresh_token = None
+        self.fulcra_credentials = None
         raise Exception("Authorization failed.  Re-run these cells.")
 
     def get_authorization_code_url(
@@ -289,23 +318,35 @@ class FulcraAPI:
 
         return f"https://{self.oidc_domain}/authorize?{urllib.parse.urlencode(params)}"
 
+    @_deprecated("fulcra_credentials.access_token")
     def set_cached_access_token(self, token: str):
-        self.fulcra_cached_access_token = token
+        self.fulcra_credentials.access_token = token
 
+    @_deprecated("fulcra_credentials.access_token_expiration")
     def set_cached_access_token_expiration(self, expiration: datetime.datetime):
-        self.fulcra_cached_access_token_expiration = expiration
+        self.fulcra_credentials.access_token_expiration = expiration
 
+    @_deprecated("fulcra_credentials.refresh_token")
     def set_cached_refresh_token(self, token: str):
-        self.fulcra_cached_refresh_token = token
+        self.fulcra_credentials.refresh_token = token
 
+    @_deprecated("fulcra_credentials.access_token")
     def get_cached_access_token(self) -> str | None:
-        return self.fulcra_cached_access_token
+        if self.fulcra_credentials:
+            return self.fulcra_credentials.access_token
+        return None
 
+    @_deprecated("fulcra_credentials.refresh_token")
     def get_cached_refresh_token(self) -> str | None:
-        return self.fulcra_cached_refresh_token
+        if self.fulcra_credentials:
+            return self.fulcra_credentials.refresh_token
+        return None
 
+    @_deprecated("fulcra_credentials.access_token_expiration")
     def get_cached_access_token_expiration(self) -> datetime.datetime | None:
-        return self.fulcra_cached_access_token_expiration
+        if self.fulcra_credentials:
+            return self.fulcra_credentials.access_token_expiration
+        return None
 
     def authorize_with_authorization_code(self, code: str, redirect_uri: str):
         """
@@ -335,17 +376,17 @@ class FulcraAPI:
         )
 
         if access_token and expiration_date:
-            self.fulcra_cached_access_token = access_token
-            self.fulcra_cached_access_token_expiration = expiration_date
-            self.fulcra_cached_refresh_token = refresh_token
+            self.fulcra_credentials = FulcraCredentials(
+                access_token=access_token,
+                access_token_expiration=expiration_date,
+                refresh_token=refresh_token,
+            )
             if is_notebook:
                 display(HTML("Authorization succeeded using authorization code."))
             else:
                 print("Authorization succeeded using authorization code.")
         else:
-            self.fulcra_cached_access_token = None
-            self.fulcra_cached_access_token_expiration = None
-            self.fulcra_cached_refresh_token = None
+            self.fulcra_credentials = None
             raise Exception("Failed to exchange authorization code for token.")
 
     def refresh_access_token(self) -> bool:
@@ -358,13 +399,16 @@ class FulcraAPI:
         Raises:
             Exception: If no refresh token is available.
         """
-        if not self.fulcra_cached_refresh_token:
+        if (
+            self.fulcra_credentials is None
+            or self.fulcra_credentials.refresh_token is None
+        ):
             raise Exception("No refresh token available to refresh the access token.")
 
         payload = {
             "grant_type": "refresh_token",
             "client_id": self.oidc_client_id,
-            "refresh_token": self.fulcra_cached_refresh_token,
+            "refresh_token": self.fulcra_credentials.refresh_token,
             "scope": self.oidc_scope,
         }
 
@@ -373,11 +417,11 @@ class FulcraAPI:
         )
 
         if access_token and expiration_date:
-            self.fulcra_cached_access_token = access_token
-            self.fulcra_cached_access_token_expiration = expiration_date
+            self.fulcra_credentials.access_token = access_token
+            self.fulcra_credentials.access_token_expiration = expiration_date
             # Auth0 may return a new refresh token (if refresh token rotation is enabled)
             if new_refresh_token:
-                self.fulcra_cached_refresh_token = new_refresh_token
+                self.fulcra_credentials.refresh_token = new_refresh_token
             if is_notebook:
                 display(HTML("Access token refreshed successfully."))
             else:
@@ -387,7 +431,7 @@ class FulcraAPI:
             print("Failed to refresh access token.")
             return False
 
-    def fulcra_api(self, access_token: str, url_path: str) -> bytes:
+    def fulcra_api(self, url_path: str) -> bytes:
         """
         Make a call to the given url path (e.g. `/v0/data/metric_time_series?...`)
         with the specified access token.
@@ -407,7 +451,7 @@ class FulcraAPI:
             conn = http.client.HTTPSConnection(
                 self.fulcra_api_domain, port=self.fulcra_api_port
             )
-        headers = {"Authorization": f"Bearer {access_token}"}
+        headers = {"Authorization": f"Bearer {self.fulcra_credentials.access_token}"}
         conn.request("GET", url_path, headers=headers)
         response = conn.getresponse()
         if response.status != 200:
@@ -415,7 +459,7 @@ class FulcraAPI:
         return response.read()
 
     def fulcra_v1_api(
-        self, access_token: str, data_class: str, data_type: str, params: dict = {}
+        self, data_class: str, data_type: str, params: dict = {}
     ) -> bytes:
         """
         Make a call to the v1 API.
@@ -431,7 +475,7 @@ class FulcraAPI:
         """
         query_params = urllib.parse.urlencode(params, doseq=True)
         return self.fulcra_api(
-            access_token, f"/data/v1alpha1/{data_class}/{data_type}?{query_params}"
+            f"/data/v1alpha1/{data_class}/{data_type}?{query_params}"
         )
 
     def get_fulcra_userid(self) -> str:
@@ -441,9 +485,12 @@ class FulcraAPI:
         Returns:
             the Fulcra UserID of the currently-authorized user.
         """
-        if self.fulcra_cached_access_token is None:
+        if (
+            self.fulcra_credentials is None
+            or self.fulcra_credentials.access_token is None
+        ):
             raise Exception("Authorization must occur before retrieving user ID.")
-        segs = self.fulcra_cached_access_token.split(".")
+        segs = self.fulcra_credentials.access_token.split(".")
         if len(segs) < 2:
             raise Exception("Authorized token is in an incorrect format.")
         payload = segs[1] + "=="  # add extra padding to prevent b64decode from breaking
@@ -487,10 +534,7 @@ class FulcraAPI:
         """
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/calendars",
-        )
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/calendars")
         return json.loads(resp)
 
     def calendar_events(
@@ -566,10 +610,7 @@ class FulcraAPI:
         qparams = urllib.parse.urlencode(params, doseq=True)
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/calendar_events?{qparams}",
-        )
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/calendar_events?{qparams}")
         return json.loads(resp)
 
     def apple_workouts(
@@ -614,10 +655,7 @@ class FulcraAPI:
         qparams = urllib.parse.urlencode(params, doseq=True)
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/apple_workouts?{qparams}",
-        )
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/apple_workouts?{qparams}")
         return json.loads(resp)
 
     def metric_samples(
@@ -673,10 +711,7 @@ class FulcraAPI:
         qparams = urllib.parse.urlencode(params, doseq=True)
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/metric_samples?{qparams}",
-        )
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/metric_samples?{qparams}")
         return json.loads(resp)
 
     def gmaps_location_updates(
@@ -711,8 +746,7 @@ class FulcraAPI:
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/gmaps_location_updates?{qparams}",
+            f"/data/v0/{fulcra_userid}/gmaps_location_updates?{qparams}"
         )
         return json.loads(resp)
 
@@ -762,8 +796,7 @@ class FulcraAPI:
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/apple_location_updates?{qparams}",
+            f"/data/v0/{fulcra_userid}/apple_location_updates?{qparams}"
         )
         return json.loads(resp)
 
@@ -811,8 +844,7 @@ class FulcraAPI:
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/apple_location_visits?{qparams}",
+            f"/data/v0/{fulcra_userid}/apple_location_visits?{qparams}"
         )
         return json.loads(resp)
 
@@ -905,10 +937,7 @@ class FulcraAPI:
         )
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/metric_time_series?{qparams}",
-        )
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/metric_time_series?{qparams}")
         return pd.read_feather(io.BytesIO(resp)).set_index("time")
 
     def location_time_series(
@@ -965,8 +994,7 @@ class FulcraAPI:
             fulcra_userid = self.get_fulcra_userid()
         qparams = urllib.parse.urlencode(params, doseq=True)
         resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/location_time_series?{qparams}",
+            f"/data/v0/{fulcra_userid}/location_time_series?{qparams}"
         )
         return json.loads(resp)
 
@@ -1012,10 +1040,7 @@ class FulcraAPI:
         qparams = urllib.parse.urlencode(params, doseq=True)
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/location_at_time?{qparams}",
-        )
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/location_at_time?{qparams}")
         return json.loads(resp)
 
     def metrics_catalog(
@@ -1036,9 +1061,7 @@ class FulcraAPI:
                 >>> metrics[1]
                 {'name': 'ActiveCaloriesBurned', 'description': 'A cumulative measure of the amount of active energy the user has burned.', 'unit': 'cal', 'is_time_series': True, 'metric_kind': 'cumulative', 'value_column': 'active_calories_burned'}
         """
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token, "/data/v0/metrics_catalog"
-        )
+        resp = self.fulcra_api("/data/v0/metrics_catalog")
         return json.loads(resp)
 
     def get_shared_datasets(self) -> List[Dict]:
@@ -1051,9 +1074,7 @@ class FulcraAPI:
                 >>> datasets[0]
                 {'permission_id': 'cf362f80-ef41-4c08-b5e3-b18bd3d1524b', 'created_at': '2024-08-21T17:52:10.658596Z', 'time_start': None, 'time_end': None, 'fulcra_userid': 'a24a9667-c2c6-4bbf-9a0f-4Bej0afcb521', 'fulcra_user_name': 'John Doe', 'fulcra_user_picture': 'https://lh3.googleusercontent.com/a/ACg8ocL-ggGYjOFq23Dfbf5GohDXbk01AoGmL0gCSbooVBXDgWeTLJk=s47-d', 'datashare_name': 'Provisioned for data analysis'}
         """
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token, "/user/v1alpha1/datasets"
-        )
+        resp = self.fulcra_api("/user/v1alpha1/datasets")
         return json.loads(resp)
 
     def get_user_info(self) -> Dict:
@@ -1072,7 +1093,7 @@ class FulcraAPI:
                 >>> user_info
                 {'userid': 'a24a9667-c2c6-4bbf-9a0f-4Bej0afcb521', 'created': '2024-08-20T19:51:09.123456Z', 'preferences': {'timezone': 'America/Los_Angeles'}}
         """
-        resp = self.fulcra_api(self.fulcra_cached_access_token, "/user/v1alpha1/info")
+        resp = self.fulcra_api("/user/v1alpha1/info")
         return json.loads(resp)
 
     def sleep_cycles(
@@ -1127,10 +1148,7 @@ class FulcraAPI:
             fulcra_userid = self.get_fulcra_userid()
 
         qparams = urllib.parse.urlencode(params, doseq=True)
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/sleep_cycles?{qparams}",
-        )
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/sleep_cycles?{qparams}")
         return pd.read_feather(io.BytesIO(resp))
 
     def sleep_stages(
@@ -1200,10 +1218,7 @@ class FulcraAPI:
             fulcra_userid = self.get_fulcra_userid()
 
         qparams = urllib.parse.urlencode(params, doseq=True)
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/sleep_stages?{qparams}",
-        )
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/sleep_stages?{qparams}")
         return pd.read_feather(io.BytesIO(resp))
 
     def sleep_agg(
@@ -1278,10 +1293,7 @@ class FulcraAPI:
             fulcra_userid = self.get_fulcra_userid()
 
         qparams = urllib.parse.urlencode(params, doseq=True)
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token,
-            f"/data/v0/{fulcra_userid}/sleep_agg?{qparams}",
-        )
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/sleep_agg?{qparams}")
         return pd.read_feather(io.BytesIO(resp))
 
     def annotations_catalog(
@@ -1311,9 +1323,7 @@ class FulcraAPI:
         if fulcra_userid is not None:
             params["fulcra_userid"] = fulcra_userid
 
-        resp = self.fulcra_api(
-            self.fulcra_cached_access_token, "/user/v1alpha1/annotation"
-        )
+        resp = self.fulcra_api("/user/v1alpha1/annotation")
         return json.loads(resp)
 
     def moment_annotations(
@@ -1352,12 +1362,7 @@ class FulcraAPI:
         if source is not None:
             params["filter"].append(f"source_id:{source}")
 
-        resp = self.fulcra_v1_api(
-            self.fulcra_cached_access_token,
-            "event",
-            "MomentAnnotation",
-            params,
-        )
+        resp = self.fulcra_v1_api("event", "MomentAnnotation", params)
         return json.loads(resp)
 
     def duration_annotations(
@@ -1396,12 +1401,7 @@ class FulcraAPI:
         if source is not None:
             params["filter"].append(f"source_id:{source}")
 
-        resp = self.fulcra_v1_api(
-            self.fulcra_cached_access_token,
-            "event",
-            "DurationAnnotation",
-            params,
-        )
+        resp = self.fulcra_v1_api("event", "DurationAnnotation", params)
         return json.loads(resp)
 
     def boolean_annotations(
@@ -1440,12 +1440,7 @@ class FulcraAPI:
         if source is not None:
             params["filter"].append(f"source_id:{source}")
 
-        resp = self.fulcra_v1_api(
-            self.fulcra_cached_access_token,
-            "metric",
-            "BooleanAnnotation",
-            params,
-        )
+        resp = self.fulcra_v1_api("metric", "BooleanAnnotation", params)
         return json.loads(resp)
 
     def numeric_annotations(
@@ -1484,12 +1479,7 @@ class FulcraAPI:
         if source is not None:
             params["filter"].append(f"source_id:{source}")
 
-        resp = self.fulcra_v1_api(
-            self.fulcra_cached_access_token,
-            "metric",
-            "NumericAnnotation",
-            params,
-        )
+        resp = self.fulcra_v1_api("metric", "NumericAnnotation", params)
         return json.loads(resp)
 
     def scale_annotations(
@@ -1528,10 +1518,5 @@ class FulcraAPI:
         if source is not None:
             params["filter"].append(f"source_id:{source}")
 
-        resp = self.fulcra_v1_api(
-            self.fulcra_cached_access_token,
-            "metric",
-            "ScaleAnnotation",
-            params,
-        )
+        resp = self.fulcra_v1_api("metric", "ScaleAnnotation", params)
         return json.loads(resp)

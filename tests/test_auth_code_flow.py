@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from fulcra_api.core import FulcraAPI
+from fulcra_api.credentials import FulcraCredentials
 
 
 @pytest.fixture
@@ -68,9 +69,9 @@ def test_authorize_with_authorization_code_success(mock_fetch_token, client: Ful
         }
     )
 
-    assert client.fulcra_cached_access_token == mock_access_token
-    assert client.fulcra_cached_access_token_expiration == mock_expiration
-    assert client.fulcra_cached_refresh_token == mock_refresh_token
+    assert client.get_cached_access_token() == mock_access_token
+    assert client.get_cached_access_token_expiration() == mock_expiration
+    assert client.get_cached_refresh_token() == mock_refresh_token
 
 
 @patch("fulcra_api.core.FulcraAPI._fetch_token_from_auth_server")
@@ -85,9 +86,9 @@ def test_authorize_with_authorization_code_failure(mock_fetch_token, client: Ful
     ):
         client.authorize_with_authorization_code(code=code, redirect_uri=redirect_uri)
 
-    assert client.fulcra_cached_access_token is None
-    assert client.fulcra_cached_access_token_expiration is None
-    assert client.fulcra_cached_refresh_token is None
+    assert client.get_cached_access_token() is None
+    assert client.get_cached_access_token_expiration() is None
+    assert client.get_cached_refresh_token() is None
 
 
 def test_refresh_access_token_no_initial_refresh_token(client: FulcraAPI):
@@ -102,8 +103,14 @@ def test_refresh_access_token_no_initial_refresh_token(client: FulcraAPI):
 def test_refresh_access_token_success_with_new_refresh_token(
     mock_fetch_token, client: FulcraAPI
 ):
+
     initial_refresh_token = "initial_refresh_token"
-    client.fulcra_cached_refresh_token = initial_refresh_token
+
+    client.fulcra_credentials = FulcraCredentials(
+        access_token="initial_access_token",
+        access_token_expiration=datetime.datetime.now() - datetime.timedelta(hours=1),
+        refresh_token=initial_refresh_token,
+    )
 
     new_access_token = "new_access_token_val"
     new_refresh_token = "new_refresh_token_val"  # Simulating refresh token rotation
@@ -127,9 +134,9 @@ def test_refresh_access_token_success_with_new_refresh_token(
         }
     )
 
-    assert client.fulcra_cached_access_token == new_access_token
-    assert client.fulcra_cached_access_token_expiration == new_expiration
-    assert client.fulcra_cached_refresh_token == new_refresh_token
+    assert client.get_cached_access_token() == new_access_token
+    assert client.get_cached_access_token_expiration() == new_expiration
+    assert client.get_cached_refresh_token() == new_refresh_token
 
 
 @patch("fulcra_api.core.FulcraAPI._fetch_token_from_auth_server")
@@ -137,7 +144,12 @@ def test_refresh_access_token_success_no_new_refresh_token(
     mock_fetch_token, client: FulcraAPI
 ):
     initial_refresh_token = "initial_refresh_token_no_rotate"
-    client.fulcra_cached_refresh_token = initial_refresh_token
+
+    client.fulcra_credentials = FulcraCredentials(
+        access_token="initial_access_token",
+        access_token_expiration=datetime.datetime.now() - datetime.timedelta(hours=1),
+        refresh_token=initial_refresh_token,
+    )
 
     new_access_token = "new_access_token_val_no_rotate"
     # Server does not return a new refresh token
@@ -148,24 +160,29 @@ def test_refresh_access_token_success_no_new_refresh_token(
     result = client.refresh_access_token()
 
     assert result is True
-    assert client.fulcra_cached_access_token == new_access_token
-    assert client.fulcra_cached_access_token_expiration == new_expiration
+    assert client.get_cached_access_token() == new_access_token
+    assert client.get_cached_access_token_expiration() == new_expiration
     # Refresh token should remain the old one
-    assert client.fulcra_cached_refresh_token == initial_refresh_token
+    assert client.get_cached_refresh_token() == initial_refresh_token
 
 
 @patch("fulcra_api.core.FulcraAPI._fetch_token_from_auth_server")
 def test_refresh_access_token_failure(mock_fetch_token, client: FulcraAPI):
     initial_refresh_token = "initial_refresh_token_fail"
-    client.fulcra_cached_refresh_token = initial_refresh_token
+
+    client.fulcra_credentials = FulcraCredentials(
+        access_token="initial_access_token",
+        access_token_expiration=datetime.datetime.now() - datetime.timedelta(hours=1),
+        refresh_token=initial_refresh_token,
+    )
 
     # Store original token values to check they are not cleared on simple failure
     original_access_token = "original_access_token"
     original_expiration = datetime.datetime.now() - datetime.timedelta(
         hours=1
     )  # Expired
-    client.fulcra_cached_access_token = original_access_token
-    client.fulcra_cached_access_token_expiration = original_expiration
+    client.set_cached_access_token(original_access_token)
+    client.set_cached_access_token_expiration(original_expiration)
 
     mock_fetch_token.return_value = (None, None, None)
 
@@ -173,6 +190,6 @@ def test_refresh_access_token_failure(mock_fetch_token, client: FulcraAPI):
 
     assert result is False
     # Current implementation does not clear tokens on refresh failure, it just returns False.
-    assert client.fulcra_cached_access_token == original_access_token
-    assert client.fulcra_cached_access_token_expiration == original_expiration
-    assert client.fulcra_cached_refresh_token == initial_refresh_token
+    assert client.get_cached_access_token() == original_access_token
+    assert client.get_cached_access_token_expiration() == original_expiration
+    assert client.get_cached_refresh_token() == initial_refresh_token
