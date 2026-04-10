@@ -6,20 +6,23 @@ from typing import Optional, Self
 
 @dataclass
 class FulcraCredentials:
-    access_token: str
-    access_token_expiration: datetime
-    refresh_token: str
+    access_token: Optional[str] = None
+    access_token_expiration: Optional[datetime] = None
+    refresh_token: Optional[str] = None
     refresh_token_expiration: Optional[datetime] = None
 
     def is_expired(self) -> bool:
+        """return whether the held credentials are expired"""
         if (
             self.access_token is not None
+            and self.access_token_expiration is not None
             and self.access_token_expiration > datetime.now()
         ):
             return False
         return True
 
     def to_json(self) -> str:
+        """serialize the FulcraCredentials object to a JSON string"""
         return json.dumps(
             {
                 "access_token": self.access_token,
@@ -33,6 +36,7 @@ class FulcraCredentials:
 
     @classmethod
     def from_json(cls, data: str | bytes) -> Self:
+        """deserialize a FulcraCredentials object from a JSON string or bytes"""
         o = json.loads(data)
 
         o["access_token_expiration"] = datetime.fromisoformat(

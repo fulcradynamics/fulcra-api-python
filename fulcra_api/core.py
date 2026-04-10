@@ -1,19 +1,17 @@
 import base64
 import datetime
-import functools
 import http.client
 import io
 import json
 import os
-import time
 import urllib.parse
-import warnings
 import webbrowser
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
 from .credentials import FulcraCredentials
+from .oidc import FulcraOIDCProvider
 
 try:
     from IPython.display import HTML, display
@@ -33,23 +31,6 @@ FULCRA_OIDC_AUDIENCE = os.environ.get(
 FULCRA_OIDC_SCOPE = os.environ.get(
     "FULCRA_OIDC_SCOPE", "openid profile name email offline_access"
 )
-
-
-def _deprecated(replacement):
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            warnings.warn(
-                f"{func.__name__} is deprecated and will be removed in a future version. "
-                f"Use {replacement} instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
 
 
 class FulcraAPI:
@@ -72,6 +53,7 @@ class FulcraAPI:
         access_token_expiration: Optional[datetime.datetime] = None,
         refresh_token: Optional[str] = None,
         credentials: Optional[FulcraCredentials] = None,
+        refresh_callback: Optional[Callable] = None,
     ):
         """
         Initializes the FulcraAPI client.
@@ -85,17 +67,25 @@ class FulcraAPI:
                         Defaults to FULCRA_OIDC_SCOPE.
             oidc_audience: Optional. The OIDC audience for the token.
                            Defaults to FULCRA_OIDC_AUDIENCE.
-            access_token: Optional. An existing access token to use.
+            access_token: Optional. An existing access token to use. [Deprecated]
             access_token_expiration: Optional. The expiration datetime for the
-                                     provided access_token.
-            refresh_token: Optional. An existing refresh token to use.
+                                     provided access_token. [Deprecated]
+            refresh_token: Optional. An existing refresh token to use. [Deprecated]
+            credentials: Optional. A FulcraCredentials object with credentials to use.
+            refresh_callback: Optional. A callback function for when the access token is successfully refreshed.
         """
-        self.oidc_domain = oidc_domain or FULCRA_OIDC_DOMAIN
-        self.oidc_client_id = oidc_client_id or FULCRA_OIDC_CLIENT_ID
-        self.oidc_scope = oidc_scope or FULCRA_OIDC_SCOPE
-        self.oidc_audience = oidc_audience or FULCRA_OIDC_AUDIENCE
 
-        audience_url = urllib.parse.urlparse(self.oidc_audience)
+        # New OIDC provider which should replace most of the oidc workflow functionality here
+        self.oidc = FulcraOIDCProvider(
+            domain=oidc_domain or FULCRA_OIDC_DOMAIN,
+            client_id=oidc_client_id or FULCRA_OIDC_CLIENT_ID,
+            scope=oidc_scope or FULCRA_OIDC_SCOPE,
+            audience=oidc_audience or FULCRA_OIDC_AUDIENCE,
+        )
+
+        self.fulcra_credentials = credentials
+
+        audience_url = urllib.parse.urlparse(self.oidc.audience)
         self.fulcra_api_domain = audience_url.hostname
         self.fulcra_api_is_http = False
         if audience_url.scheme == "http":
@@ -105,8 +95,7 @@ class FulcraAPI:
                 raise ValueError("HTTP audience scheme only allowed for localhost")
         self.fulcra_api_port = audience_url.port
 
-        self.fulcra_credentials = credentials
-
+        # Support for deprecated constructor credential params
         if self.fulcra_credentials is None and (
             access_token is not None
             or access_token_expiration is not None
@@ -122,86 +111,28 @@ class FulcraAPI:
 
             self.fulcra_credentials = FulcraCredentials(**kwargs)
 
-    def _get_auth_connection(self, domain: str) -> http.client.HTTPSConnection:
-        """
-        Opens an https connection to the given server.
-
-        Params:
-            domain: The domain name to connect to
-
-        Returns:
-            an open `HTTPSConnection` to the server.
-        """
-        return http.client.HTTPSConnection(domain)
-
-    def _request_device_code(
-        self, domain: str, client_id: str, scope: str, audience: str
-    ) -> Tuple[str, str, str]:
-        """
-        Requests a device code and complete verification URI from auth0.
-        """
-        conn = self._get_auth_connection(domain)
-        body = urllib.parse.urlencode(
-            {"client_id": client_id, "audience": audience, "scope": scope}
-        )
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
-        }
-        conn.request("POST", "/oauth/device/code", body, headers)
-        response = conn.getresponse()
-        if response.status != 200:
-            raise Exception(f"could not get device code: {response}")
-        bdata = response.read()
-        data = json.loads(bdata)
-        return (
-            data["device_code"],
-            data["verification_uri_complete"],
-            data["user_code"],
-        )
-
-    def _fetch_token_from_auth_server(
-        self, payload: Dict
-    ) -> Tuple[Optional[str], Optional[datetime.datetime], Optional[str]]:
-        """
-        Internal helper to fetch tokens from the OIDC provider's /oauth/token endpoint.
-        """
-        conn = self._get_auth_connection(self.oidc_domain)
-        body = urllib.parse.urlencode(payload)
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
-        }
-        conn.request("POST", "/oauth/token", body, headers)
-        response = conn.getresponse()
-        if response.status != 200:
-            return (None, None, None)
-        data = json.loads(response.read())
-        if "access_token" not in data:
-            return (None, None, None)
-
-        access_token = data["access_token"]
-        expires_in = datetime.datetime.now() + datetime.timedelta(
-            seconds=float(data["expires_in"])
-        )
-        refresh_token = data.get("refresh_token")
-
-        return (access_token, expires_in, refresh_token)
+        self.refresh_callback = refresh_callback
 
     def get_token(
         self, device_code: str
     ) -> Tuple[Optional[str], Optional[datetime.datetime], Optional[str]]:
         """
-        Polls for an access token using a device code.
+        Deprecated. Polls for an access token using a device code.
         Used by the device authorization flow.
         """
-        payload = {
-            "client_id": self.oidc_client_id,
-            "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-            "device_code": device_code,
-        }
-        access_token, expiration_date, refresh_token = (
-            self._fetch_token_from_auth_server(payload)
-        )
-        return access_token, expiration_date, refresh_token
+
+        try:
+            creds = self.oidc.get_token(
+                "urn:ietf:params:oauth:grant-type:device_code",
+                {"device_code": device_code},
+            )
+            return (
+                creds.access_token,
+                creds.access_token_expiration,
+                creds.refresh_token,
+            )
+        except Exception as exc:
+            return (None, None, None)
 
     def authorize(self):
         """
@@ -241,50 +172,38 @@ class FulcraAPI:
             else:
                 print("Your access token is still valid.")
             return
-        device_code, uri, code = self._request_device_code(
-            self.oidc_domain,
-            self.oidc_client_id,
-            self.oidc_scope,
-            self.oidc_audience,
-        )
-        webbrowser.open_new_tab(uri)
-        if is_notebook:
-            display(
-                HTML(
-                    f'<a href="{uri}" target="_blank">'
-                    + "Use your browser to log in to Fulcra.  If "
-                    + " the tab does not open automatically, click here to "
-                    + "log in to Fulcra.</a>  The code displayed will "
-                    + f"be: <b>{code}</b><p>After you have authorized, "
-                    + "close the browser tab.</p>"
-                )
-            )
-        else:
-            print(
-                f"""
-            Use your browser to log in to Fulcra.  If the tab does not open
-            automatically, visit this URL to authenticate: {uri}
-            """
-            )
-        stop_at = datetime.datetime.now() + datetime.timedelta(seconds=120)
 
-        while datetime.datetime.now() < stop_at:
-            time.sleep(0.5)
-            token, expiration_date, refresh_token = self.get_token(device_code)
-            if token is not None:
-                if is_notebook:
-                    display(HTML("Authorization succeeded."))
-                else:
-                    print("Authorization succeeded.")
-                self.fulcra_credentials = FulcraCredentials(
-                    access_token=token,
-                    access_token_expiration=expiration_date,
-                    refresh_token=refresh_token,
+        def prompt(device_code: str, uri: str, code: str):
+            webbrowser.open_new_tab(uri)
+            if is_notebook:
+                display(
+                    HTML(
+                        f'<a href="{uri}" target="_blank">'
+                        + "Use your browser to log in to Fulcra.  If "
+                        + " the tab does not open automatically, click here to "
+                        + "log in to Fulcra.</a>  The code displayed will "
+                        + f"be: <b>{code}</b><p>After you have authorized, "
+                        + "close the browser tab.</p>"
+                    )
                 )
-                return
+            else:
+                print(
+                    f"""
+                Use your browser to log in to Fulcra.  If the tab does not open
+                automatically, visit this URL to authenticate: {uri}
+                """
+                )
 
-        self.fulcra_credentials = None
-        raise Exception("Authorization failed.  Re-run these cells.")
+        try:
+            self.fulcra_credentials = self.oidc.authorize_via_device_flow(
+                prompt_callback=prompt
+            )
+            if is_notebook:
+                display(HTML("Authorization succeeded."))
+            else:
+                print("Authorization succeeded.")
+        except Exception as exc:
+            raise Exception("Authorization failed. Re-run these calls") from exc
 
     def get_authorization_code_url(
         self, redirect_uri: str, state: Optional[str] = None
@@ -306,44 +225,34 @@ class FulcraAPI:
         Returns:
             The authorization URL.
         """
-        params = {
-            "client_id": self.oidc_client_id,
-            "audience": self.oidc_audience,
-            "scope": self.oidc_scope,
-            "response_type": "code",
-            "redirect_uri": redirect_uri,
-        }
-        if state:
-            params["state"] = state
+        return self.oidc.make_authorization_code_url(redirect_uri, state)
 
-        return f"https://{self.oidc_domain}/authorize?{urllib.parse.urlencode(params)}"
-
-    @_deprecated("fulcra_credentials.access_token")
     def set_cached_access_token(self, token: str):
+        """Deprecated. Directly set access token on credentials."""
         self.fulcra_credentials.access_token = token
 
-    @_deprecated("fulcra_credentials.access_token_expiration")
     def set_cached_access_token_expiration(self, expiration: datetime.datetime):
+        """Deprecated. Directly set access token expiration on credentials."""
         self.fulcra_credentials.access_token_expiration = expiration
 
-    @_deprecated("fulcra_credentials.refresh_token")
     def set_cached_refresh_token(self, token: str):
+        """Deprecated. Directly set refresh token on credentials."""
         self.fulcra_credentials.refresh_token = token
 
-    @_deprecated("fulcra_credentials.access_token")
     def get_cached_access_token(self) -> str | None:
+        """Deprecated. Return access token from current credentials."""
         if self.fulcra_credentials:
             return self.fulcra_credentials.access_token
         return None
 
-    @_deprecated("fulcra_credentials.refresh_token")
     def get_cached_refresh_token(self) -> str | None:
+        """Deprecated. Return refresh token from current credentials"""
         if self.fulcra_credentials:
             return self.fulcra_credentials.refresh_token
         return None
 
-    @_deprecated("fulcra_credentials.access_token_expiration")
     def get_cached_access_token_expiration(self) -> datetime.datetime | None:
+        """Deprecated. Return access token expiration from credentials"""
         if self.fulcra_credentials:
             return self.fulcra_credentials.access_token_expiration
         return None
@@ -364,30 +273,17 @@ class FulcraAPI:
         Raises:
             Exception: If the token exchange fails.
         """
-        payload = {
-            "grant_type": "authorization_code",
-            "client_id": self.oidc_client_id,
-            "code": code,
-            "redirect_uri": redirect_uri,
-        }
-
-        access_token, expiration_date, refresh_token = (
-            self._fetch_token_from_auth_server(payload)
-        )
-
-        if access_token and expiration_date:
-            self.fulcra_credentials = FulcraCredentials(
-                access_token=access_token,
-                access_token_expiration=expiration_date,
-                refresh_token=refresh_token,
+        try:
+            self.fulcra_credentials = self.oidc.authorize_via_authorization_code_flow(
+                code, redirect_uri
             )
             if is_notebook:
                 display(HTML("Authorization succeeded using authorization code."))
             else:
                 print("Authorization succeeded using authorization code.")
-        else:
+        except Exception as exc:
             self.fulcra_credentials = None
-            raise Exception("Failed to exchange authorization code for token.")
+            raise Exception("Failed to exchange authorization code for token.") from exc
 
     def refresh_access_token(self) -> bool:
         """
@@ -405,31 +301,21 @@ class FulcraAPI:
         ):
             raise Exception("No refresh token available to refresh the access token.")
 
-        payload = {
-            "grant_type": "refresh_token",
-            "client_id": self.oidc_client_id,
-            "refresh_token": self.fulcra_credentials.refresh_token,
-            "scope": self.oidc_scope,
-        }
-
-        access_token, expiration_date, new_refresh_token = (
-            self._fetch_token_from_auth_server(payload)
-        )
-
-        if access_token and expiration_date:
-            self.fulcra_credentials.access_token = access_token
-            self.fulcra_credentials.access_token_expiration = expiration_date
-            # Auth0 may return a new refresh token (if refresh token rotation is enabled)
-            if new_refresh_token:
-                self.fulcra_credentials.refresh_token = new_refresh_token
-            if is_notebook:
-                display(HTML("Access token refreshed successfully."))
-            else:
-                print("Access token refreshed successfully.")
-            return True
-        else:
-            print("Failed to refresh access token.")
+        try:
+            new_creds = self.oidc.refresh_credentials(self.fulcra_credentials)
+        except Exception:
             return False
+
+        # Preserve old refresh token if the server didn't issue a new one
+        if new_creds.refresh_token is None:
+            new_creds.refresh_token = self.fulcra_credentials.refresh_token
+
+        self.fulcra_credentials = new_creds
+
+        if self.refresh_callback is not None:
+            self.refresh_callback(self.fulcra_credentials)
+
+        return True
 
     def fulcra_api(self, url_path: str) -> bytes:
         """
@@ -443,6 +329,11 @@ class FulcraAPI:
         Returns:
             The raw response data (as bytes).  Raises an exception on failure.
         """
+
+        # Attempt to refresh our access token if it's expired
+        if self.fulcra_credentials is not None and self.fulcra_credentials.is_expired():
+            self.refresh_access_token()
+
         if self.fulcra_api_is_http:
             conn = http.client.HTTPConnection(
                 self.fulcra_api_domain, port=self.fulcra_api_port

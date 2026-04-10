@@ -18,14 +18,14 @@ def test_get_authorization_code_url_basic(client: FulcraAPI):
     redirect_uri = "https://testing.fulcradynamics.com/callback"
     url_str = client.get_authorization_code_url(redirect_uri=redirect_uri)
 
-    assert url_str.startswith(f"https://{client.oidc_domain}/authorize?")
+    assert url_str.startswith(f"https://{client.oidc.domain}/authorize?")
 
     parsed_url = urllib.parse.urlparse(url_str)
     query_params = urllib.parse.parse_qs(parsed_url.query)
 
-    assert query_params["client_id"] == [client.oidc_client_id]
-    assert query_params["audience"] == [client.oidc_audience]
-    assert query_params["scope"] == [client.oidc_scope]
+    assert query_params["client_id"] == [client.oidc.client_id]
+    assert query_params["audience"] == [client.oidc.audience]
+    assert query_params["scope"] == [client.oidc.scope]
     assert query_params["response_type"] == ["code"]
     assert query_params["redirect_uri"] == [redirect_uri]
     assert "state" not in query_params
@@ -43,7 +43,7 @@ def test_get_authorization_code_url_with_state(client: FulcraAPI):
     assert query_params["redirect_uri"] == [redirect_uri]
 
 
-@patch("fulcra_api.core.FulcraAPI._fetch_token_from_auth_server")
+@patch("fulcra_api.oidc.FulcraOIDCProvider.get_token")
 def test_authorize_with_authorization_code_success(mock_fetch_token, client: FulcraAPI):
     code = "auth_code_123"
     redirect_uri = "https://testing.fulcradynamics.com/callback"
@@ -52,21 +52,20 @@ def test_authorize_with_authorization_code_success(mock_fetch_token, client: Ful
     mock_refresh_token = "mock_refresh_token_val"
     mock_expiration = datetime.datetime.now() + datetime.timedelta(hours=1)
 
-    mock_fetch_token.return_value = (
-        mock_access_token,
-        mock_expiration,
-        mock_refresh_token,
+    mock_fetch_token.return_value = FulcraCredentials(
+        access_token=mock_access_token,
+        access_token_expiration=mock_expiration,
+        refresh_token=mock_refresh_token,
     )
 
     client.authorize_with_authorization_code(code=code, redirect_uri=redirect_uri)
 
     mock_fetch_token.assert_called_once_with(
+        "authorization_code",
         {
-            "grant_type": "authorization_code",
-            "client_id": client.oidc_client_id,  # Uses instance client_id
             "code": code,
             "redirect_uri": redirect_uri,
-        }
+        },
     )
 
     assert client.get_cached_access_token() == mock_access_token
@@ -74,12 +73,13 @@ def test_authorize_with_authorization_code_success(mock_fetch_token, client: Ful
     assert client.get_cached_refresh_token() == mock_refresh_token
 
 
-@patch("fulcra_api.core.FulcraAPI._fetch_token_from_auth_server")
+@patch("fulcra_api.oidc.FulcraOIDCProvider.get_token")
 def test_authorize_with_authorization_code_failure(mock_fetch_token, client: FulcraAPI):
     code = "auth_code_123"
     redirect_uri = "https://testing.fulcradynamics.com/callback"
 
-    mock_fetch_token.return_value = (None, None, None)
+    # this should raise an exception
+    mock_fetch_token.side_effect = Exception()
 
     with pytest.raises(
         Exception, match="Failed to exchange authorization code for token."
@@ -99,11 +99,10 @@ def test_refresh_access_token_no_initial_refresh_token(client: FulcraAPI):
         client.refresh_access_token()
 
 
-@patch("fulcra_api.core.FulcraAPI._fetch_token_from_auth_server")
+@patch("fulcra_api.oidc.FulcraOIDCProvider.get_token")
 def test_refresh_access_token_success_with_new_refresh_token(
-    mock_fetch_token, client: FulcraAPI
+    mock_get_token, client: FulcraAPI
 ):
-
     initial_refresh_token = "initial_refresh_token"
 
     client.fulcra_credentials = FulcraCredentials(
@@ -116,22 +115,18 @@ def test_refresh_access_token_success_with_new_refresh_token(
     new_refresh_token = "new_refresh_token_val"  # Simulating refresh token rotation
     new_expiration = datetime.datetime.now() + datetime.timedelta(hours=1)
 
-    mock_fetch_token.return_value = (
-        new_access_token,
-        new_expiration,
-        new_refresh_token,
+    mock_get_token.return_value = FulcraCredentials(
+        access_token=new_access_token,
+        access_token_expiration=new_expiration,
+        refresh_token=new_refresh_token,
     )
 
     result = client.refresh_access_token()
 
     assert result is True
-    mock_fetch_token.assert_called_once_with(
-        {
-            "grant_type": "refresh_token",
-            "client_id": client.oidc_client_id,  # Uses instance client_id
-            "refresh_token": initial_refresh_token,
-            "scope": client.oidc_scope,  # Uses instance scope
-        }
+    mock_get_token.assert_called_once_with(
+        "refresh_token",
+        {"refresh_token": initial_refresh_token, "scope": client.oidc.scope},
     )
 
     assert client.get_cached_access_token() == new_access_token
@@ -139,9 +134,9 @@ def test_refresh_access_token_success_with_new_refresh_token(
     assert client.get_cached_refresh_token() == new_refresh_token
 
 
-@patch("fulcra_api.core.FulcraAPI._fetch_token_from_auth_server")
+@patch("fulcra_api.oidc.FulcraOIDCProvider.get_token")
 def test_refresh_access_token_success_no_new_refresh_token(
-    mock_fetch_token, client: FulcraAPI
+    mock_get_token, client: FulcraAPI
 ):
     initial_refresh_token = "initial_refresh_token_no_rotate"
 
@@ -155,7 +150,11 @@ def test_refresh_access_token_success_no_new_refresh_token(
     # Server does not return a new refresh token
     new_expiration = datetime.datetime.now() + datetime.timedelta(hours=1)
 
-    mock_fetch_token.return_value = (new_access_token, new_expiration, None)
+    mock_get_token.return_value = FulcraCredentials(
+        access_token=new_access_token,
+        access_token_expiration=new_expiration,
+        refresh_token=None,
+    )
 
     result = client.refresh_access_token()
 
@@ -166,8 +165,8 @@ def test_refresh_access_token_success_no_new_refresh_token(
     assert client.get_cached_refresh_token() == initial_refresh_token
 
 
-@patch("fulcra_api.core.FulcraAPI._fetch_token_from_auth_server")
-def test_refresh_access_token_failure(mock_fetch_token, client: FulcraAPI):
+@patch("fulcra_api.oidc.FulcraOIDCProvider.get_token")
+def test_refresh_access_token_failure(mock_get_token, client: FulcraAPI):
     initial_refresh_token = "initial_refresh_token_fail"
 
     client.fulcra_credentials = FulcraCredentials(
@@ -184,7 +183,7 @@ def test_refresh_access_token_failure(mock_fetch_token, client: FulcraAPI):
     client.set_cached_access_token(original_access_token)
     client.set_cached_access_token_expiration(original_expiration)
 
-    mock_fetch_token.return_value = (None, None, None)
+    mock_get_token.side_effect = Exception("Token refresh failed")
 
     result = client.refresh_access_token()
 
