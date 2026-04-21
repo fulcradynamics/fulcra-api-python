@@ -5,6 +5,7 @@ import io
 import json
 import os
 import urllib.parse
+import urllib.request
 import webbrowser
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
@@ -317,7 +318,7 @@ class FulcraAPI:
 
         return True
 
-    def fulcra_api(self, url_path: str) -> bytes:
+    def fulcra_api(self, url_path: str, query: Optional[dict[str, str]] = None) -> bytes:
         """
         Make a call to the given url path (e.g. `/v0/data/metric_time_series?...`)
         with the specified access token.
@@ -335,18 +336,25 @@ class FulcraAPI:
             self.refresh_access_token()
 
         if self.fulcra_api_is_http:
-            conn = http.client.HTTPConnection(
-                self.fulcra_api_domain, port=self.fulcra_api_port
-            )
+            proto = "http"
         else:
-            conn = http.client.HTTPSConnection(
-                self.fulcra_api_domain, port=self.fulcra_api_port
-            )
+            proto = "https"
+
+        host = self.fulcra_api_domain
+
+        if self.fulcra_api_port:
+            host = f"{host}:{self.fulcra_api_port}"
+
+        if query:
+            url_query = urllib.parse.urlencode(query, doseq=True)
+        else:
+            url_query = ''
+
+        url = urllib.parse.urlunparse((proto, host, url_path, '', url_query, ''))
         headers = {"Authorization": f"Bearer {self.fulcra_credentials.access_token}"}
-        conn.request("GET", url_path, headers=headers)
-        response = conn.getresponse()
-        if response.status != 200:
-            raise Exception(f"request failed: {response.read().decode('utf-8')}")
+        req = urllib.request.Request(url=url, headers=headers, method="GET")
+        response = urllib.request.urlopen(req)
+
         return response.read()
 
     def fulcra_v1_api(
@@ -364,9 +372,9 @@ class FulcraAPI:
         Returns:
             The raw response data (as bytes).  Raises an exception on failure.
         """
-        query_params = urllib.parse.urlencode(params, doseq=True)
+        #query_params = urllib.parse.urlencode(params, doseq=True)
         return self.fulcra_api(
-            f"/data/v1alpha1/{data_class}/{data_type}?{query_params}"
+            f"/data/v1alpha1/{data_class}/{data_type}", query=params
         )
 
     def get_fulcra_userid(self) -> str:
@@ -498,10 +506,9 @@ class FulcraAPI:
         }
         if calendar_ids is not None:
             params["calendar_ids"] = calendar_ids
-        qparams = urllib.parse.urlencode(params, doseq=True)
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/calendar_events?{qparams}")
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/calendar_events", query=params)
         return json.loads(resp)
 
     def apple_workouts(
@@ -543,10 +550,9 @@ class FulcraAPI:
 
         """
         params = {"start_time": start_time, "end_time": end_time}
-        qparams = urllib.parse.urlencode(params, doseq=True)
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/apple_workouts?{qparams}")
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/apple_workouts", query=params)
         return json.loads(resp)
 
     def metric_samples(
@@ -599,10 +605,9 @@ class FulcraAPI:
             'softwareVersion': '16.6'}}
         """
         params = {"start_time": start_time, "end_time": end_time, "metric": metric}
-        qparams = urllib.parse.urlencode(params, doseq=True)
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/metric_samples?{qparams}")
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/metric_samples", query=params)
         return json.loads(resp)
 
     def gmaps_location_updates(
@@ -633,11 +638,10 @@ class FulcraAPI:
         if fulcra_source_id is not None:
             params["fulcra_source_id"] = fulcra_source_id
 
-        qparams = urllib.parse.urlencode(params, doseq=True)
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
-            f"/data/v0/{fulcra_userid}/gmaps_location_updates?{qparams}"
+            f"/data/v0/{fulcra_userid}/gmaps_location_updates", query=params
         )
         return json.loads(resp)
 
@@ -683,11 +687,10 @@ class FulcraAPI:
 
         """
         params = {"start_time": start_time, "end_time": end_time}
-        qparams = urllib.parse.urlencode(params, doseq=True)
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
-            f"/data/v0/{fulcra_userid}/apple_location_updates?{qparams}"
+            f"/data/v0/{fulcra_userid}/apple_location_updates", query=params
         )
         return json.loads(resp)
 
@@ -731,11 +734,10 @@ class FulcraAPI:
 
         """
         params = {"start_time": start_time, "end_time": end_time}
-        qparams = urllib.parse.urlencode(params, doseq=True)
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
         resp = self.fulcra_api(
-            f"/data/v0/{fulcra_userid}/apple_location_visits?{qparams}"
+            f"/data/v0/{fulcra_userid}/apple_location_visits", query=params
         )
         return json.loads(resp)
 
@@ -822,13 +824,9 @@ class FulcraAPI:
         if calculations is not None:
             params["calculations"] = calculations
 
-        qparams = urllib.parse.urlencode(
-            params,
-            doseq=True,
-        )
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/metric_time_series?{qparams}")
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/metric_time_series", query=params)
         return pd.read_feather(io.BytesIO(resp)).set_index("time")
 
     def location_time_series(
@@ -883,9 +881,8 @@ class FulcraAPI:
             params["change_meters"] = change_meters
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        qparams = urllib.parse.urlencode(params, doseq=True)
         resp = self.fulcra_api(
-            f"/data/v0/{fulcra_userid}/location_time_series?{qparams}"
+            f"/data/v0/{fulcra_userid}/location_time_series", query=params
         )
         return json.loads(resp)
 
@@ -928,10 +925,9 @@ class FulcraAPI:
             "include_after": include_after,
             "reverse_geocode": reverse_geocode,
         }
-        qparams = urllib.parse.urlencode(params, doseq=True)
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/location_at_time?{qparams}")
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/location_at_time", query=params)
         return json.loads(resp)
 
     def metrics_catalog(
@@ -1038,8 +1034,7 @@ class FulcraAPI:
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
 
-        qparams = urllib.parse.urlencode(params, doseq=True)
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/sleep_cycles?{qparams}")
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/sleep_cycles", query=params)
         return pd.read_feather(io.BytesIO(resp))
 
     def sleep_stages(
@@ -1108,8 +1103,7 @@ class FulcraAPI:
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
 
-        qparams = urllib.parse.urlencode(params, doseq=True)
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/sleep_stages?{qparams}")
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/sleep_stages", query=params)
         return pd.read_feather(io.BytesIO(resp))
 
     def sleep_agg(
@@ -1183,8 +1177,7 @@ class FulcraAPI:
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
 
-        qparams = urllib.parse.urlencode(params, doseq=True)
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/sleep_agg?{qparams}")
+        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/sleep_agg", query=params)
         return pd.read_feather(io.BytesIO(resp))
 
     def annotations_catalog(
