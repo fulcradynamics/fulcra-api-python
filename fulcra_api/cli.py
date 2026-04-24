@@ -6,6 +6,7 @@ from datetime import datetime
 from functools import wraps
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.error import HTTPError
+from uuid import UUID
 
 import click
 import dateparser
@@ -559,7 +560,24 @@ def sleep_cycles_aggregated(
 @click.argument("data_type")
 @time_range
 @click.pass_context
-def get_records(ctx, data_type: str, start_time: datetime, end_time: datetime):
+def get_records(
+    ctx,
+    data_type: str,
+    start_time: datetime,
+    end_time: datetime,
+):
+
+    # Deal with user-configured annotation shorthand (AnnotationType/UUID)
+    user_annotation_id = None
+    parts = data_type.split("/", maxsplit=2)
+    if len(parts) > 1:
+        data_type = parts[0]
+        try:
+            user_annotation_id = UUID(parts[1])
+        except ValueError as exc:
+            raise click.ClickException(
+                "User configured annotation shorthand must be <Annotation Type>/<UUID>"
+            )
 
     try:
         data_type = ctx.obj.v1_catalog(data_type)
@@ -586,6 +604,10 @@ def get_records(ctx, data_type: str, start_time: datetime, end_time: datetime):
                 "data_type": dt["id"],
                 "params": {"start_time": start_time, "end_time": end_time},
             }
+            if user_annotation_id:
+                kwargs["params"]["filter"] = (
+                    f"source:com.fulcradynamics.annotation.{user_annotation_id}"
+                )
         elif dt["api_version"] == "v1alpha1" and dt["class"] == "event":
             query_func = ctx.obj.fulcra_v1_api
             kwargs = {
@@ -593,6 +615,10 @@ def get_records(ctx, data_type: str, start_time: datetime, end_time: datetime):
                 "data_type": dt["id"],
                 "params": {"start_time": start_time, "end_time": end_time},
             }
+            if user_annotation_id:
+                kwargs["params"]["filter"] = (
+                    f"source:com.fulcradynamics.annotation.{user_annotation_id}"
+                )
         else:
             raise click.ClickException(
                 f"Could not derive API endpoint for data type '{dt['id']}'"
@@ -615,6 +641,7 @@ def get_records(ctx, data_type: str, start_time: datetime, end_time: datetime):
 @click.option("-d", "--data-type", type=str, help="Data Type to look up by ID")
 @click.pass_context
 def catalog(ctx, data_type: Optional[str]):
+
     try:
         response = ctx.obj.v1_catalog(data_type)
     except HTTPError as exc:
