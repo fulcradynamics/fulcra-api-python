@@ -92,9 +92,15 @@ def auth():
     pass
 
 
-@auth.command(help="Authenticate to Fulcra")
+@auth.command(short_help="Authenticate to Fulcra")
 @click.pass_context
 def login(ctx):
+    """Authenticates to the Fulcra Platform.
+
+    The OAuth Device Authorization Flow isused to authenticate a user to the Fulcra Life API. A URL will be presented to load in browser. A new browser session will be automatically launched on supported platforms.
+
+    Once run this command will poll for a valid token from the completion of the flow for up to two minutes.
+    """
 
     def prompt(device_code: str, uri: str, code: str):
         webbrowser.open_new_tab(uri)
@@ -116,9 +122,17 @@ def login(ctx):
     save_creds(creds)
 
 
-@auth.command("print-access-token", help="Print Fulcra oauth2 access token")
+@auth.command("print-access-token", short_help="Print Fulcra oauth2 access token")
 @click.pass_context
 def get_access_token(ctx):
+    """Print a OAuth2 bearer token for use with accessing the Fulcra Life API.
+
+    This is useful for making direct calls to the Fulcra Life API.
+
+    \b
+    EXAMPLE:
+        curl --oauth2-bearer "$(fulcra auth print-access-token)" 'https://api.fulcradynamics.com/user/v1alpha1/info'
+    """
     if ctx.obj.fulcra_credentials.is_expired():
         ctx.obj.refresh_access_token()
     click.echo(ctx.obj.fulcra_credentials.access_token)
