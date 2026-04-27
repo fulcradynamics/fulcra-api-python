@@ -74,6 +74,10 @@ def time_range(func):
 @click.group()
 @click.pass_context
 def cli(ctx):
+    """Command line interface for authenticated and interacting with the Fulcra Life API.
+
+    Sub-commands return JSON data by default and be piped into tools like `jq` for parsing and filtering.
+    """
     ensure_config_directory()
     creds: FulcraCredentials | None = load_creds()
     kwargs: Dict[str, Any] = {"refresh_callback": save_creds}
@@ -83,7 +87,7 @@ def cli(ctx):
     ctx.obj = FulcraAPI(**kwargs)
 
 
-@cli.group(help="Fulcra authentication sub-commands")
+@cli.group(help="Authentication sub-commands")
 def auth():
     pass
 
@@ -121,40 +125,51 @@ def get_access_token(ctx):
 
 
 #
-# mvp API implementation
+# API commands
 #
 
 
-@cli.command("calendars", help="List calendars")
+@cli.command("calendars", short_help="Return Apple calendars")
 @click.pass_context
 def list_calendars(ctx):
+    """Return Apple Calendar records."""
     results = ctx.obj.calendars()
 
     for c in results:
         click.echo(json.dumps(c))
 
 
-@cli.command("calendar-events", help="List calendar events")
+@cli.command("calendar-events", short_help="Return Apple calendar events")
 @time_range
 @click.pass_context
 def list_calendar_events(ctx, start_time: datetime, end_time: datetime):
+    """Return Apple Calendar Event records across TIME_RANGE.
+
+    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+    """
     results = ctx.obj.calendar_events(start_time, end_time)
 
     for c in results:
         click.echo(json.dumps(c))
 
 
-@cli.command("apple-workouts", help="List apple workouts")
+@cli.command("apple-workouts", short_help="Return Apple workouts")
 @time_range
 @click.pass_context
 def list_apple_workouts(ctx, start_time: datetime, end_time: datetime):
+    """Return Apple Workout records across TIME_RANGE.
+
+    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+    """
     results = ctx.obj.apple_workouts(start_time, end_time)
 
     for c in results:
         click.echo(json.dumps(c))
 
 
-@cli.command("metric-time-series", help="List calculated time series for a Metric")
+@cli.command(
+    "metric-time-series", short_help="Return a calculated time series for a metric"
+)
 @click.argument("metric")
 @time_range
 @click.option(
@@ -185,7 +200,13 @@ def metric_time_series(
     replace_nulls: bool,
     agg_function: Tuple[str],
 ):
+    """Return calculated time series data for METRIC across TIME_RANGE.
 
+    METRIC: A Fulcra Data Type ID. Only API v0 'metric' types are supported. A full list of Fulcra Data Types can be returned from `fulcra catalog`.
+
+    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+
+    """
     try:
         data_type = ctx.obj.v1_catalog(metric)
     except HTTPError as exc:
@@ -215,52 +236,77 @@ def metric_time_series(
         click.echo(json.dumps(c))
 
 
-@cli.command("google-location-updates", help="List Google Maps location updates")
+@cli.command(
+    "google-location-updates", short_help="Return Google Maps location update records"
+)
 @time_range
 @click.pass_context
 def google_location_updates(ctx, start_time: datetime, end_time: datetime):
+    """Return raw Google location update sample records across TIME_RANGE.
+
+    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+    """
     results = ctx.obj.gmaps_location_updates(start_time, end_time)
 
     for c in results:
         click.echo(json.dumps(c))
 
 
-@cli.command("apple-location-updates", help="List Apple location updates")
+@cli.command(
+    "apple-location-updates", short_help="Return Apple location update records"
+)
 @time_range
 @click.pass_context
 def apple_location_updates(ctx, start_time: datetime, end_time: datetime):
+    """Return raw Apple location update sample records across TIME_RANGE.
+
+    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+    """
     results = ctx.obj.apple_location_updates(start_time, end_time)
 
     for c in results:
         click.echo(json.dumps(c))
 
 
-@cli.command("apple-location-visits", help="List Apple location updates")
+@cli.command("apple-location-visits", short_help="Return Apple location visit records")
 @time_range
 @click.pass_context
 def apple_location_visits(ctx, start_time: datetime, end_time: datetime):
+    """Return raw Apple location visit sample records across TIME_RANGE.
+
+    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+    """
+
     results = ctx.obj.apple_location_visits(start_time, end_time)
 
     for c in results:
         click.echo(json.dumps(c))
 
 
-@cli.command("location-time-series", help="Return time series of locations")
+@cli.command(
+    "location-time-series",
+    short_help="Return a calculated time series of location data",
+)
 @time_range
-@click.option("-m", "--change-meters", help="Resolution granularity in meters")
-@click.option("-s", "--sample-rate", default=900, help="Time series sample rate")
+@click.option("-m", "--change-meters", help="Resolution granularity in meters.")
+@click.option(
+    "-s",
+    "--sample-rate",
+    default=900,
+    help="Time series sample rate in seconds. Default: 900",
+)
 @click.option(
     "-l",
     "--look-back",
     default=14400,
-    help="Maximum time in seconds to look back to find a value for a sample",
+    help="Maximum time in seconds to look back to find a value for a sample. Default: 14400",
 )
 @click.option(
     "-r",
     "--reverse-geocode",
     is_flag=True,
     default=False,
-    help="Reverse geolocate coordinates",
+    help="Reverse geolocate coordinates.",
 )
 @click.pass_context
 def location_time_series(
@@ -272,6 +318,10 @@ def location_time_series(
     look_back: int,
     reverse_geocode: bool,
 ):
+    """Return a computed time series of visited locations across TIME_RANGE. This uses the most precise underlying data sources available at the given time.
+
+    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+    """
     results = ctx.obj.location_time_series(
         start_time, end_time, change_meters, sample_rate, look_back, reverse_geocode
     )
@@ -280,8 +330,8 @@ def location_time_series(
         click.echo(json.dumps(c))
 
 
-@cli.command("location-at-time", help="Return location at specified time")
-@click.argument("time", type=click.DateTime())
+@cli.command("location-at-time", short_help="Return location at specified time")
+@click.argument("time", metavar="TIME", type=click.DateTime())
 @click.option(
     "-s", "--window-size", default=14400, help="Size window to look for samples within"
 )
@@ -307,6 +357,12 @@ def location_at_time(
     include_after: bool,
     reverse_geocode: bool,
 ):
+    """Return the location at specified TIME.
+
+    TIME: The time in ISO8601 format or as string interval relative to now. ("1 day", "5 days ago", etc)
+
+    If no sample is available for the exact time, searches for the closest sample up to `window_size` seconds back. If `--include_after` is passed then also searches `window_size` seconds forward.
+    """
     results = ctx.obj.location_at_time(
         time, window_size, include_after, reverse_geocode
     )
@@ -316,7 +372,8 @@ def location_at_time(
 
 
 @cli.command(
-    "sleep-stages", help="Return sleep stages derived from sleep-related metric records"
+    "sleep-stages",
+    short_help="Return sleep stages derived from sleep-related metric records",
 )
 @time_range
 @click.pass_context
@@ -369,6 +426,10 @@ def sleep_stages(
     no_merge_contiguous: bool,
     no_clip_to_range: bool,
 ):
+    """Return computed sleep stages from sleep data over TIME_RANGE.
+
+    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+    """
 
     kwargs = {
         "start_time": start_time,
@@ -399,7 +460,9 @@ def sleep_stages(
         click.echo(json.dumps(c))
 
 
-@cli.command("sleep-cycles", help="Return sleep cycles summarized from sleep stages")
+@cli.command(
+    "sleep-cycles", short_help="Return sleep cycles summarized from sleep stages"
+)
 @time_range
 @click.pass_context
 @click.option(
@@ -437,6 +500,10 @@ def sleep_cycles(
     gap_stage: Optional[Tuple[int]],
     no_clip_to_range: bool,
 ):
+    """Return computed sleep cycles summarized from sleep stages over TIME_RANGE.
+
+    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+    """
     kwargs = {
         "start_time": start_time,
         "end_time": end_time,
@@ -462,7 +529,7 @@ def sleep_cycles(
 
 @cli.command(
     "sleep-cycles-aggregated",
-    help="Return sleep cycles aggregated by a specific period",
+    short_help="Return sleep cycles aggregated by a specific period",
 )
 @time_range
 @click.option(
@@ -526,6 +593,10 @@ def sleep_cycles_aggregated(
     function: Tuple[str],
     time_zone: Optional[str],
 ):
+    """Return computed sleep cycles aggregated by a specific function over TIME_RANGE.
+
+    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+    """
 
     kwargs = {
         "start_time": start_time,
@@ -556,7 +627,7 @@ def sleep_cycles_aggregated(
         click.echo(json.dumps(c))
 
 
-@cli.command("get-records", help="Return raw sample records of a Fulcra data type")
+@cli.command("get-records", short_help="Return raw sample records for a data type")
 @click.argument("data_type")
 @time_range
 @click.pass_context
@@ -566,7 +637,22 @@ def get_records(
     start_time: datetime,
     end_time: datetime,
 ):
+    """Return raw sample records of DATA_TYPE across TIME_RANGE.
 
+    \b
+    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types.
+    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+
+    Examples:
+
+    \b
+    Return seven days of HeartRate records:
+    fulcra get-records HeartRate "2025-05-01T00:00:00Z" "2025-05-08T00:00:00Z"
+
+    \b
+    Return the last day of StepCount records:
+    fulcra get-records StepCount "1 day"
+    """
     # Deal with user-configured annotation shorthand (AnnotationType/UUID)
     user_annotation_id = None
     parts = data_type.split("/", maxsplit=2)
@@ -574,7 +660,7 @@ def get_records(
         data_type = parts[0]
         try:
             user_annotation_id = UUID(parts[1])
-        except ValueError as exc:
+        except ValueError:
             raise click.ClickException(
                 "User configured annotation shorthand must be <Annotation Type>/<UUID>"
             )
@@ -636,11 +722,12 @@ def get_records(
 
 
 @cli.command(
-    "catalog", help="Return a list of queryable Fulcra data types and metadata"
+    "catalog", short_help="Return a list of queryable Fulcra data types and metadata"
 )
 @click.option("-d", "--data-type", type=str, help="Data Type to look up by ID")
 @click.pass_context
 def catalog(ctx, data_type: Optional[str]):
+    """Return a list of Fulcra Data Types that can be queried with `get-records`, `location-time-series`, and other commands."""
 
     try:
         response = ctx.obj.v1_catalog(data_type)
@@ -654,9 +741,10 @@ def catalog(ctx, data_type: Optional[str]):
         click.echo(json.dumps(c))
 
 
-@cli.command("user-info", help="Return information about the authenticated user")
+@cli.command("user-info", short_help="Return information about the authenticated user")
 @click.pass_context
 def user_info(ctx):
+    """Return user information object for authenticated user"""
     resp = ctx.obj.get_user_info()
     click.echo(json.dumps(resp))
 
