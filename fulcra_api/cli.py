@@ -38,6 +38,19 @@ def save_creds(creds: FulcraCredentials):
         f.write(creds.to_json())
 
 
+def requires_auth(f):
+    @wraps(f)
+    def wrapper(ctx, *args, **kwargs):
+        if ctx.obj.fulcra_credentials is None:
+            raise click.ClickException(
+                f"No credentials found, please run `{ctx.find_root().info_name} auth login`"
+            )
+
+        return f(ctx, *args, **kwargs)
+
+    return wrapper
+
+
 def time_range(func):
     """
     Decorator to add flexible time domain arguments for a command.
@@ -100,6 +113,8 @@ def login(ctx):
     The OAuth Device Authorization Flow isused to authenticate a user to the Fulcra Life API. A URL will be presented to load in browser. A new browser session will be automatically launched on supported platforms.
 
     Once run this command will poll for a valid token from the completion of the flow for up to two minutes.
+
+    Credentials are
     """
 
     def prompt(device_code: str, uri: str, code: str):
@@ -124,6 +139,7 @@ def login(ctx):
 
 @auth.command("print-access-token", short_help="Print Fulcra oauth2 access token")
 @click.pass_context
+@requires_auth
 def get_access_token(ctx):
     """Print a OAuth2 bearer token for use with accessing the Fulcra Life API.
 
@@ -145,6 +161,7 @@ def get_access_token(ctx):
 
 @cli.command("calendars", short_help="Return Apple calendars")
 @click.pass_context
+@requires_auth
 def list_calendars(ctx):
     """Return Apple Calendar records."""
     results = ctx.obj.calendars()
@@ -156,6 +173,7 @@ def list_calendars(ctx):
 @cli.command("calendar-events", short_help="Return Apple calendar events")
 @time_range
 @click.pass_context
+@requires_auth
 def list_calendar_events(ctx, start_time: datetime, end_time: datetime):
     """Return Apple Calendar Event records across TIME_RANGE.
 
@@ -170,6 +188,7 @@ def list_calendar_events(ctx, start_time: datetime, end_time: datetime):
 @cli.command("apple-workouts", short_help="Return Apple workouts")
 @time_range
 @click.pass_context
+@requires_auth
 def list_apple_workouts(ctx, start_time: datetime, end_time: datetime):
     """Return Apple Workout records across TIME_RANGE.
 
@@ -205,6 +224,7 @@ def list_apple_workouts(ctx, start_time: datetime, end_time: datetime):
     help="Aggregate functions to apply to time series window (max, min, delta, mean, uniques, allpoints, rollingmean)",
 )
 @click.pass_context
+@requires_auth
 def metric_time_series(
     ctx,
     metric: str,
@@ -255,6 +275,7 @@ def metric_time_series(
 )
 @time_range
 @click.pass_context
+@requires_auth
 def google_location_updates(ctx, start_time: datetime, end_time: datetime):
     """Return raw Google location update sample records across TIME_RANGE.
 
@@ -271,6 +292,7 @@ def google_location_updates(ctx, start_time: datetime, end_time: datetime):
 )
 @time_range
 @click.pass_context
+@requires_auth
 def apple_location_updates(ctx, start_time: datetime, end_time: datetime):
     """Return raw Apple location update sample records across TIME_RANGE.
 
@@ -285,6 +307,7 @@ def apple_location_updates(ctx, start_time: datetime, end_time: datetime):
 @cli.command("apple-location-visits", short_help="Return Apple location visit records")
 @time_range
 @click.pass_context
+@requires_auth
 def apple_location_visits(ctx, start_time: datetime, end_time: datetime):
     """Return raw Apple location visit sample records across TIME_RANGE.
 
@@ -323,6 +346,7 @@ def apple_location_visits(ctx, start_time: datetime, end_time: datetime):
     help="Reverse geolocate coordinates.",
 )
 @click.pass_context
+@requires_auth
 def location_time_series(
     ctx,
     start_time: datetime,
@@ -364,6 +388,7 @@ def location_time_series(
     help="Reverse geolocate coordinates",
 )
 @click.pass_context
+@requires_auth
 def location_at_time(
     ctx,
     time: datetime,
@@ -390,7 +415,6 @@ def location_at_time(
     short_help="Return sleep stages derived from sleep-related metric records",
 )
 @time_range
-@click.pass_context
 @click.option(
     "--cycle-gap",
     type=str,
@@ -429,6 +453,8 @@ def location_at_time(
     default=False,
     help="Do not clip the data to the requested date range.",
 )
+@click.pass_context
+@requires_auth
 def sleep_stages(
     ctx,
     start_time: datetime,
@@ -478,7 +504,6 @@ def sleep_stages(
     "sleep-cycles", short_help="Return sleep cycles summarized from sleep stages"
 )
 @time_range
-@click.pass_context
 @click.option(
     "--cycle-gap",
     type=str,
@@ -505,6 +530,8 @@ def sleep_stages(
     default=False,
     help="Do not clip the data to the requested date range.",
 )
+@click.pass_context
+@requires_auth
 def sleep_cycles(
     ctx,
     start_time: datetime,
@@ -594,6 +621,7 @@ def sleep_cycles(
     help="Do not clip the data to the requested date range.",
 )
 @click.pass_context
+@requires_auth
 def sleep_cycles_aggregated(
     ctx,
     start_time: datetime,
@@ -645,6 +673,7 @@ def sleep_cycles_aggregated(
 @click.argument("data_type")
 @time_range
 @click.pass_context
+@requires_auth
 def get_records(
     ctx,
     data_type: str,
@@ -667,6 +696,7 @@ def get_records(
     Return the last day of StepCount records:
     fulcra get-records StepCount "1 day"
     """
+
     # Deal with user-configured annotation shorthand (AnnotationType/UUID)
     user_annotation_id = None
     parts = data_type.split("/", maxsplit=2)
@@ -740,6 +770,7 @@ def get_records(
 )
 @click.option("-d", "--data-type", type=str, help="Data Type to look up by ID")
 @click.pass_context
+@requires_auth
 def catalog(ctx, data_type: Optional[str]):
     """Return a list of Fulcra Data Types that can be queried with `get-records`, `location-time-series`, and other commands."""
 
@@ -757,6 +788,7 @@ def catalog(ctx, data_type: Optional[str]):
 
 @cli.command("user-info", short_help="Return information about the authenticated user")
 @click.pass_context
+@requires_auth
 def user_info(ctx):
     """Return user information object for authenticated user"""
     resp = ctx.obj.get_user_info()
