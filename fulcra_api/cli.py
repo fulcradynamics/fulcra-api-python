@@ -89,7 +89,7 @@ def time_range(func):
 def cli(ctx):
     """Command line interface for authenticated and interacting with the Fulcra Life API.
 
-    Sub-commands return JSON data by default and be piped into tools like `jq` for parsing and filtering.
+    Sub-commands return JSON data by default for convienent piping into tools like `jq` for parsing and filtering.
     """
     ensure_config_directory()
     creds: FulcraCredentials | None = load_creds()
