@@ -164,7 +164,11 @@ def get_access_token(ctx):
 @requires_auth
 def list_calendars(ctx):
     """Return Apple Calendar records."""
-    results = ctx.obj.calendars()
+
+    try:
+        results = ctx.obj.calendars()
+    except HTTPError as exc:
+        raise click.ClickException(exc)
 
     for c in results:
         click.echo(json.dumps(c))
@@ -179,7 +183,10 @@ def list_calendar_events(ctx, start_time: datetime, end_time: datetime):
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
-    results = ctx.obj.calendar_events(start_time, end_time)
+    try:
+        results = ctx.obj.calendar_events(start_time, end_time)
+    except HTTPError as exc:
+        raise click.ClickException(exc)
 
     for c in results:
         click.echo(json.dumps(c))
@@ -194,7 +201,11 @@ def list_apple_workouts(ctx, start_time: datetime, end_time: datetime):
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
-    results = ctx.obj.apple_workouts(start_time, end_time)
+
+    try:
+        results = ctx.obj.apple_workouts(start_time, end_time)
+    except HTTPError as exc:
+        raise click.ClickException(exc)
 
     for c in results:
         click.echo(json.dumps(c))
@@ -263,7 +274,6 @@ def metric_time_series(
         calculations=list(agg_function),
     )
 
-    # Not exactly the most efficient implementation but here we are for now
     j = json.loads(df.to_json(orient="table"))
 
     for c in j["data"]:
@@ -281,7 +291,11 @@ def google_location_updates(ctx, start_time: datetime, end_time: datetime):
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
-    results = ctx.obj.gmaps_location_updates(start_time, end_time)
+
+    try:
+        results = ctx.obj.gmaps_location_updates(start_time, end_time)
+    except HTTPError as exc:
+        raise click.ClickException(exc)
 
     for c in results:
         click.echo(json.dumps(c))
@@ -298,7 +312,11 @@ def apple_location_updates(ctx, start_time: datetime, end_time: datetime):
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
-    results = ctx.obj.apple_location_updates(start_time, end_time)
+
+    try:
+        results = ctx.obj.apple_location_updates(start_time, end_time)
+    except HTTPError as exc:
+        raise click.ClickException(exc)
 
     for c in results:
         click.echo(json.dumps(c))
@@ -314,7 +332,10 @@ def apple_location_visits(ctx, start_time: datetime, end_time: datetime):
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
 
-    results = ctx.obj.apple_location_visits(start_time, end_time)
+    try:
+        results = ctx.obj.apple_location_visits(start_time, end_time)
+    except HTTPError as exc:
+        raise click.ClickException(exc)
 
     for c in results:
         click.echo(json.dumps(c))
@@ -360,9 +381,12 @@ def location_time_series(
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
-    results = ctx.obj.location_time_series(
-        start_time, end_time, change_meters, sample_rate, look_back, reverse_geocode
-    )
+    try:
+        results = ctx.obj.location_time_series(
+            start_time, end_time, change_meters, sample_rate, look_back, reverse_geocode
+        )
+    except HTTPError as exc:
+        raise click.ClickException(exc)
 
     for c in results:
         click.echo(json.dumps(c))
@@ -402,9 +426,13 @@ def location_at_time(
 
     If no sample is available for the exact time, searches for the closest sample up to `window_size` seconds back. If `--include_after` is passed then also searches `window_size` seconds forward.
     """
-    results = ctx.obj.location_at_time(
-        time, window_size, include_after, reverse_geocode
-    )
+
+    try:
+        results = ctx.obj.location_at_time(
+            time, window_size, include_after, reverse_geocode
+        )
+    except HTTPError as exc:
+        raise click.ClickException(exc)
 
     for c in results:
         click.echo(json.dumps(c))
@@ -492,7 +520,10 @@ def sleep_stages(
     if no_clip_to_range:
         kwargs["clip_to_range"] = False
 
-    df = ctx.obj.sleep_stages(**kwargs)
+    try:
+        df = ctx.obj.sleep_stages(**kwargs)
+    except HTTPError as exc:
+        raise click.ClickException(exc)
 
     j = json.loads(df.to_json(orient="table"))
 
@@ -560,7 +591,10 @@ def sleep_cycles(
     if no_clip_to_range:
         kwargs["clip_to_range"] = False
 
-    df = ctx.obj.sleep_cycles(**kwargs)
+    try:
+        df = ctx.obj.sleep_cycles(**kwargs)
+    except HTTPError as exc:
+        raise click.ClickException(exc)
 
     j = json.loads(df.to_json(orient="table"))
 
@@ -661,7 +695,10 @@ def sleep_cycles_aggregated(
     if function:
         kwargs["agg_functions"] = list(function)
 
-    df = ctx.obj.sleep_agg(**kwargs)
+    try:
+        df = ctx.obj.sleep_agg(**kwargs)
+    except HTTPError as exc:
+        raise click.ClickException(exc)
 
     j = json.loads(df.to_json(orient="table"))
 
