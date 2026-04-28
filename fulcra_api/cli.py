@@ -828,7 +828,11 @@ def catalog(ctx, data_type: Optional[str]):
 @requires_auth
 def user_info(ctx):
     """Return user information object for authenticated user"""
-    resp = ctx.obj.get_user_info()
+    try:
+        resp = ctx.obj.get_user_info()
+    except HTTPError as exc:
+        raise click.ClickException(exc) from exc
+
     click.echo(json.dumps(resp))
 
 
