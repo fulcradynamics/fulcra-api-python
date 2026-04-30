@@ -1,4 +1,6 @@
 .*.sw?
+.venv
+.direnv
 .aider*
 .sw?
 __pycache__
