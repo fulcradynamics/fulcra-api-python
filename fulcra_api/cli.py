@@ -262,7 +262,7 @@ def metric_time_series(
 
     if data_type[0]["api_version"] != "v0" or data_type[0]["class"] != "metric":
         raise click.ClickException(
-            f"{data_type[0]['id']} cannot be returned with metric-time-series, use get-records instead to return raw sample records."
+            f"{data_type[0]['id']} cannot be returned with metric-time-series, use `{ctx.find_root().info_name} get-records {metric}` instead to return raw sample records."
         )
 
     df = ctx.obj.metric_time_series(
