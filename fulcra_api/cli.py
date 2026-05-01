@@ -87,7 +87,7 @@ def time_range(func):
 @click.group()
 @click.pass_context
 def cli(ctx):
-    """Command line interface for authenticated and interacting with the Fulcra Life API.
+    """Command line interface for authenticating and interacting with the Fulcra Life API.
 
     Sub-commands return JSON data by default for convienent piping into tools like `jq` for parsing and filtering.
     """
@@ -114,7 +114,7 @@ def login(ctx):
 
     Once run this command will poll for a valid token from the completion of the flow for up to two minutes.
 
-    Credentials are
+    Credentials are persisted on the filesystem at ~/.config/fulcra/credentials.json
     """
 
     def prompt(device_code: str, uri: str, code: str):
@@ -395,7 +395,10 @@ def location_time_series(
 @cli.command("location-at-time", short_help="Return location at specified time")
 @click.argument("time", metavar="TIME", type=click.DateTime())
 @click.option(
-    "-s", "--window-size", default=14400, help="Size window to look for samples within"
+    "-s",
+    "--window-size",
+    default=14400,
+    help="Size window in seconds to look for samples within",
 )
 @click.option(
     "-i",
