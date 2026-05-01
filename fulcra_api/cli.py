@@ -500,6 +500,16 @@ def sleep_stages(
     """Return computed sleep stages from sleep data over TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+
+    Sleep stage integer values map to the following:
+
+    \b
+    0: In Bed
+    1: Asleep (Unknown)
+    2: Awake
+    3: Asleep (Light)
+    4: Asleep (Deep)
+    5: Asleep (REM)
     """
 
     kwargs = {
