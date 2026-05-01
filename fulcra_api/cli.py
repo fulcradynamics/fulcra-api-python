@@ -822,7 +822,7 @@ def get_records(
 @click.pass_context
 @requires_auth
 def catalog(ctx, data_type: Optional[str]):
-    """Return a list of Fulcra Data Types that can be queried with `get-records`, `location-time-series`, and other commands."""
+    """Return a list of Fulcra Data Types that can be queried with `get-records`, `metric-time-series`, and other commands."""
 
     try:
         response = ctx.obj.v1_catalog(data_type)
