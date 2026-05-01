@@ -318,7 +318,9 @@ class FulcraAPI:
 
         return True
 
-    def fulcra_api(self, url_path: str, query: Optional[dict[str, str]] = None) -> bytes:
+    def fulcra_api(
+        self, url_path: str, query: Optional[dict[str, str]] = None
+    ) -> bytes:
         """
         Make a call to the given url path (e.g. `/v0/data/metric_time_series?...`)
         with the specified access token.
@@ -348,9 +350,9 @@ class FulcraAPI:
         if query:
             url_query = urllib.parse.urlencode(query, doseq=True)
         else:
-            url_query = ''
+            url_query = ""
 
-        url = urllib.parse.urlunparse((proto, host, url_path, '', url_query, ''))
+        url = urllib.parse.urlunparse((proto, host, url_path, "", url_query, ""))
         headers = {"Authorization": f"Bearer {self.fulcra_credentials.access_token}"}
         req = urllib.request.Request(url=url, headers=headers, method="GET")
         response = urllib.request.urlopen(req)
@@ -372,10 +374,8 @@ class FulcraAPI:
         Returns:
             The raw response data (as bytes).  Raises an exception on failure.
         """
-        #query_params = urllib.parse.urlencode(params, doseq=True)
-        return self.fulcra_api(
-            f"/data/v1alpha1/{data_class}/{data_type}", query=params
-        )
+        # query_params = urllib.parse.urlencode(params, doseq=True)
+        return self.fulcra_api(f"/data/v1alpha1/{data_class}/{data_type}", query=params)
 
     def get_fulcra_userid(self) -> str:
         """
@@ -508,7 +508,9 @@ class FulcraAPI:
             params["calendar_ids"] = calendar_ids
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/calendar_events", query=params)
+        resp = self.fulcra_api(
+            f"/data/v0/{fulcra_userid}/calendar_events", query=params
+        )
         return json.loads(resp)
 
     def apple_workouts(
@@ -826,7 +828,9 @@ class FulcraAPI:
 
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/metric_time_series", query=params)
+        resp = self.fulcra_api(
+            f"/data/v0/{fulcra_userid}/metric_time_series", query=params
+        )
         return pd.read_feather(io.BytesIO(resp)).set_index("time")
 
     def location_time_series(
@@ -927,7 +931,9 @@ class FulcraAPI:
         }
         if fulcra_userid is None:
             fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/location_at_time", query=params)
+        resp = self.fulcra_api(
+            f"/data/v0/{fulcra_userid}/location_at_time", query=params
+        )
         return json.loads(resp)
 
     def metrics_catalog(
@@ -949,6 +955,21 @@ class FulcraAPI:
                 {'name': 'ActiveCaloriesBurned', 'description': 'A cumulative measure of the amount of active energy the user has burned.', 'unit': 'cal', 'is_time_series': True, 'metric_kind': 'cumulative', 'value_column': 'active_calories_burned'}
         """
         resp = self.fulcra_api("/data/v0/metrics_catalog")
+        return json.loads(resp)
+
+    def v1_catalog(self, data_type: Optional[str]) -> List[Dict]:
+        params = {}
+        if data_type:
+            params["data_type"] = data_type
+
+        query_params = urllib.parse.urlencode(params, doseq=True)
+
+        if query_params != "":
+            uri = f"/data/v1/catalog?{query_params}"
+        else:
+            uri = "/data/v1/catalog"
+
+        resp = self.fulcra_api(uri)
         return json.loads(resp)
 
     def get_shared_datasets(self) -> List[Dict]:
