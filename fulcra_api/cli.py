@@ -2,7 +2,7 @@ import json
 import os
 import pathlib
 import webbrowser
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.error import HTTPError
@@ -65,15 +65,28 @@ def time_range(func):
     def wrapper(time_range, *args, **kwargs):
         # we got a time domain in a single interval argument
         if len(time_range) == 1:
-            interval = dateparser.parse(time_range[0])
+            interval = dateparser.parse(
+                time_range[0],
+                settings={"TIMEZONE": "UTC", "RETURN_AS_TIMEZONE_AWARE": True},
+            )
             if interval is None:
                 raise click.UsageError("Invalid date range")
-            end_time = datetime.now()
+            end_time = datetime.now(timezone.utc)
             start_time = interval
         elif len(time_range) == 2:
             try:
                 start_time = datetime.fromisoformat(time_range[0])
+                if (
+                    start_time.tzinfo is None
+                    or start_time.tzinfo.utcoffset(start_time) is None
+                ):
+                    start_time = start_time.astimezone().astimezone(timezone.utc)
                 end_time = datetime.fromisoformat(time_range[1])
+                if (
+                    end_time.tzinfo is None
+                    or end_time.tzinfo.utcoffset(end_time) is None
+                ):
+                    end_time = end_time.astimezone().astimezone(timezone.utc)
             except ValueError as e:
                 raise click.UsageError(f"Invalid datetime format: {e}")
         else:
