@@ -51,6 +51,20 @@ def requires_auth(f):
     return wrapper
 
 
+def parse_time(ctx: click.Context, param: click.Parameter, value: str) -> datetime:
+    """
+    callback to parse a time string through dateparser and return datetime
+    """
+    dt = dateparser.parse(
+        value,
+        settings={"TIMEZONE": "UTC", "RETURN_AS_TIMEZONE_AWARE": True},
+    )
+    if dt is None:
+        raise click.UsageError("Invalid time format")
+
+    return dt
+
+
 def time_range(func):
     """
     Decorator to add flexible time domain arguments for a command.
@@ -406,7 +420,7 @@ def location_time_series(
 
 
 @cli.command("location-at-time", short_help="Return location at specified time")
-@click.argument("time", metavar="TIME", type=click.DateTime())
+@click.argument("time", metavar="TIME", callback=parse_time)
 @click.option(
     "-s",
     "--window-size",
@@ -438,7 +452,7 @@ def location_at_time(
 ):
     """Return the location at specified TIME.
 
-    TIME: The time in ISO8601 format or as string interval relative to now. ("1 day", "5 days ago", etc)
+    TIME: The time in ISO8601 format or as human readable string. ("now", "2025-05-05T01:30:00Z", "1 day", "5 days ago", etc)
 
     If no sample is available for the exact time, searches for the closest sample up to `window_size` seconds back. If `--include_after` is passed then also searches `window_size` seconds forward.
     """
