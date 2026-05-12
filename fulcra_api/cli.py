@@ -65,6 +65,31 @@ def parse_time(ctx: click.Context, param: click.Parameter, value: str) -> dateti
     return dt
 
 
+def related_cli_commands(dt: dict) -> list[str]:
+    """Return a list of related CLI subcommands for a data type"""
+
+    cmd = []
+
+    if dt.get("api_version") == "v0":
+        if dt.get("class") == "metric":
+            cmd = ["metric-time-series", "get-records"]
+        elif dt.get("class") == "location":
+            cmd = [
+                "location-at-time",
+                "location-time-series",
+                "google-location-updates",
+                "apple-location-updates",
+                "apple-location-visits",
+            ]
+    elif dt.get("api_version") == "v1alpha1":
+        if dt.get("class") == "metric":
+            cmd = ["get-records"]
+        elif dt.get("class") == "event":
+            cmd = ["get-records"]
+
+    return cmd
+
+
 def time_range(func):
     """
     Decorator to add flexible time domain arguments for a command.
@@ -866,6 +891,7 @@ def catalog(ctx, data_type: Optional[str]):
             raise click.ClickException(exc) from exc
 
     for c in response:
+        c["related_cli_commands"] = related_cli_commands(c)
         click.echo(json.dumps(c))
 
 
