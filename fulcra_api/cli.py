@@ -244,14 +244,18 @@ def list_apple_workouts(ctx, start_time: datetime, end_time: datetime):
 @click.argument("metric")
 @time_range
 @click.option(
-    "-s", "--sample-rate", type=int, default=60, help="Length of each sample in seconds"
+    "-s",
+    "--sample-rate",
+    type=int,
+    default=60,
+    help="Length of each sample in seconds. [default: 60]",
 )
 @click.option(
     "-n",
     "--replace-nulls",
     default=False,
     is_flag=True,
-    help="Replace NA/null/None values with 0",
+    help="Replace NA/null/None values with 0.",
 )
 @click.option(
     "-a",
@@ -259,7 +263,7 @@ def list_apple_workouts(ctx, start_time: datetime, end_time: datetime):
     type=str,
     multiple=True,
     default=None,
-    help="Aggregate functions to apply to time series window (max, min, delta, mean, uniques, allpoints, rollingmean)",
+    help="Aggregate functions (max, min, delta, mean, uniques, allpoints, rollingmean) to apply to time series window, can be passed multiple times.",
 )
 @click.pass_context
 @requires_auth
@@ -277,6 +281,8 @@ def metric_time_series(
     METRIC: A Fulcra Data Type ID. Only API v0 'metric' types are supported. A full list of Fulcra Data Types can be returned from `fulcra catalog`.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+
+    Time series values are calculated from multiple sources by sample rate according to source prioritization rules.
 
     """
     try:
@@ -378,13 +384,13 @@ def apple_location_visits(ctx, start_time: datetime, end_time: datetime):
     "-s",
     "--sample-rate",
     default=900,
-    help="Time series sample rate in seconds. Default: 900",
+    help="Time series sample rate in seconds. [default: 900]",
 )
 @click.option(
     "-l",
     "--look-back",
     default=14400,
-    help="Maximum time in seconds to look back to find a value for a sample. Default: 14400",
+    help="Maximum time in seconds to look back to find a value for a sample. [default: 14400]",
 )
 @click.option(
     "-r",
@@ -425,21 +431,21 @@ def location_time_series(
     "-s",
     "--window-size",
     default=14400,
-    help="Size window in seconds to look for samples within",
+    help="Size window in seconds to look for samples within. [default: 14400]",
 )
 @click.option(
     "-i",
     "--include-after",
     is_flag=True,
     default=False,
-    help="Include samples after the given time if it's the closest",
+    help="Include samples after the given time if they're the closest.",
 )
 @click.option(
     "-r",
     "--reverse-geocode",
     is_flag=True,
     default=False,
-    help="Reverse geolocate coordinates",
+    help="Reverse geolocate coordinates.",
 )
 @click.pass_context
 @requires_auth
@@ -484,7 +490,7 @@ def location_at_time(
     type=int,
     multiple=True,
     default=None,
-    help="Sleep stage to include. Can be passed multiple times. Defaults to all stages.",
+    help="Sleep stage to include. Can be passed multiple times. [default: all stages]",
 )
 @click.option(
     "--gap-stage",
@@ -586,7 +592,7 @@ def sleep_stages(
     type=int,
     multiple=True,
     default=None,
-    help="Sleep stage to include. Can be passed multiple times. Defaults to all stages.",
+    help="Sleep stage to include. Can be passed multiple times. [default: all stages]",
 )
 @click.option(
     "--gap-stage",
@@ -653,20 +659,18 @@ def sleep_cycles(
     default=None,
     help="Use cycle start or cycle end to assign cycles to periods, or split intervals at period boundaries.",
 )
-@click.option(
-    "--period", type=str, default=None, help="Period interval. Defaults to 1d"
-)
+@click.option("--period", type=str, default=None, help="Period interval. [default: 1d]")
 @click.option(
     "--function",
     multiple=True,
     default=None,
-    help="Aggregation function to return. Can be specified multiple times. Defaults to 'sum'",
+    help="Aggregation function to return. Can be specified multiple times. [default: sum]",
 )
 @click.option(
     "--time-zone",
     type=str,
     default=None,
-    help="IANA time zone to return results in. Defaults to 'UTC'",
+    help="IANA time zone to return results in. [default: UTC]",
 )
 @click.option(
     "--cycle-gap",
@@ -679,7 +683,7 @@ def sleep_cycles(
     type=int,
     multiple=True,
     default=None,
-    help="Sleep stage to include. Can be passed multiple times. Defaults to all stages.",
+    help="Sleep stage to include. Can be passed multiple times. [default: all stages]",
 )
 @click.option(
     "--gap-stage",
@@ -759,9 +763,11 @@ def get_records(
 ):
     """Return raw sample records of DATA_TYPE across TIME_RANGE.
 
-    \b
     DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types.
+
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+
+    Returned records may have multiple sources and require additional filtering and prioritization to calculate correct results.
 
     Examples:
 
