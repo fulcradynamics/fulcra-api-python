@@ -215,12 +215,12 @@ def list_calendar_events(ctx, calendar_name: str | None,  start_time: datetime, 
     """
 
     try:
-        calendar_ids_filter = None
+        calendar_ids = None
         if calendar_name is not None:
             calendars = [c for c in ctx.obj.calendars() if c["calendar_name"].lower() == calendar_name.lower()]
-            calendar_ids_filter = [c["calendar_id"] for c in calendars]
+            calendar_ids = [c["calendar_id"] for c in calendars]
 
-        results = ctx.obj.calendar_events(start_time, end_time, calendar_ids=calendar_ids_filter)
+        results = ctx.obj.calendar_events(start_time, end_time, calendar_ids=calendar_ids)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
