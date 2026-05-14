@@ -876,11 +876,16 @@ def get_records(
 @cli.command(
     "catalog", short_help="Return a list of queryable Fulcra data types and metadata"
 )
-@click.option("-d", "--data-type", type=str, help="Data Type to look up by ID")
+@click.option("-d", "--data-type", type=str, help="Data Type to look up by ID.")
+@click.option("-n", "--name", type=str, help="Filter results by partial name.")
 @click.pass_context
 @requires_auth
-def catalog(ctx, data_type: Optional[str]):
-    """Return a list of Fulcra Data Types that can be queried with `get-records`, `metric-time-series`, and other commands."""
+def catalog(ctx, data_type: Optional[str], name: Optional[str]):
+    """
+    Return a list of Fulcra Data Types that can be queried with `get-records`, `metric-time-series`, and other commands.
+
+    The `related_cli_commands` property contains a list of CLI sub-commands that can be used with a given data type.
+    """
 
     try:
         response = ctx.obj.v1_catalog(data_type)
@@ -889,6 +894,9 @@ def catalog(ctx, data_type: Optional[str]):
             raise click.ClickException("Type not found")
         else:
             raise click.ClickException(exc) from exc
+
+    if name:
+        response = [c for c in response if name.lower() in c.get("name", "").lower()]
 
     for c in response:
         c["related_cli_commands"] = related_cli_commands(c)
