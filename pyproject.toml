@@ -17,8 +17,14 @@ dependencies = [
     "pyarrow>= 19.0.0",
     "numpy>=2.0.0,<3",
     "pytest>=7.4.2,<8",
+    "click>=8.2.1",
+    "dateparser>=1.4.0",
 ]
 packages = [{ include = "fulcra_api" }]
+
+[project.scripts]
+fulcra = "fulcra_api.cli:cli"
+fulcra-api = "fulcra_api.cli:cli"
 
 [dependency-groups]
 docs = [
@@ -39,5 +45,3 @@ module-root = ""
 [build-system]
 requires = ["uv_build>=0.11.3,<0.12.0"]
 build-backend = "uv_build"
-
-

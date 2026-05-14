@@ -1,12 +1,17 @@
 # `fulcra-api`: A Fulcra API client library for Python
 
-The fulcra-api library is currently compatible with Python 3.9 and up.
+The fulcra-api library is currently compatible with Python 3.11 and up.
 
 ## Installation
 
 ### Installing in your project
 
 First, install the `fulcra-api` module in your project.
+
+If you're using uv, use:
+```python
+uv add fulcra-api
+```
 
 If you're using Poetry, use:
 ```python
@@ -75,4 +80,3 @@ You can find some demo notebooks in the [Fulcra demos repository](https://github
 ## Bugs / Feature Requests
 
 Feel free to report any bugs or feature requests using GitHub issues.
-
