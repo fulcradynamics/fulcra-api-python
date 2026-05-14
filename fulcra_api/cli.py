@@ -228,15 +228,24 @@ def list_calendars(ctx):
 
 @cli.command("calendar-events", short_help="Return Apple calendar events")
 @time_range
+@click.option(
+    "--calendar-name", type=str, default=None, help="Which calendar to retrieve events for by calendar name"
+)
 @click.pass_context
 @requires_auth
-def list_calendar_events(ctx, start_time: datetime, end_time: datetime):
+def list_calendar_events(ctx, calendar_name: str | None,  start_time: datetime, end_time: datetime):
     """Return Apple Calendar Event records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
+
     try:
-        results = ctx.obj.calendar_events(start_time, end_time)
+        calendar_ids = None
+        if calendar_name is not None:
+            calendars = [c for c in ctx.obj.calendars() if c["calendar_name"].lower() == calendar_name.lower()]
+            calendar_ids = [c["calendar_id"] for c in calendars]
+
+        results = ctx.obj.calendar_events(start_time, end_time, calendar_ids=calendar_ids)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
