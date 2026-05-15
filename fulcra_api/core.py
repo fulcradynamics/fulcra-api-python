@@ -3,10 +3,13 @@ import datetime
 import http.client
 import io
 import json
+import mimetypes
 import os
+import os.path
 import urllib.parse
 import urllib.request
 import webbrowser
+from pathlib import PurePath
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
@@ -319,8 +322,13 @@ class FulcraAPI:
         return True
 
     def fulcra_api(
-        self, url_path: str, query: Optional[dict[str, str]] = None
-    ) -> bytes:
+        self,
+        url_path: str,
+        method: str = "GET",
+        query: Optional[dict[str, str]] = None,
+        data: Optional[dict] = None,
+        return_raw_response: bool = False,
+    ) -> bytes | http.client.HTTPResponse:
         """
         Make a call to the given url path (e.g. `/v0/data/metric_time_series?...`)
         with the specified access token.
@@ -354,8 +362,18 @@ class FulcraAPI:
 
         url = urllib.parse.urlunparse((proto, host, url_path, "", url_query, ""))
         headers = {"Authorization": f"Bearer {self.fulcra_credentials.access_token}"}
-        req = urllib.request.Request(url=url, headers=headers, method="GET")
+
+        if data:
+            headers["Content-Type"] = "application/json"
+            ds = json.dumps(data).encode("UTF-8")
+        else:
+            ds = None
+
+        req = urllib.request.Request(url=url, data=ds, headers=headers, method=method)
         response = urllib.request.urlopen(req)
+
+        if return_raw_response:
+            return response
 
         return response.read()
 
@@ -1425,3 +1443,68 @@ class FulcraAPI:
 
         resp = self.fulcra_v1_api("metric", "ScaleAnnotation", params)
         return json.loads(resp)
+
+    #
+    # File functionality
+    #
+    def list_files(self, path: str = "/") -> dict:
+        resp = self.fulcra_api("/input/v1/file_upload", query={"path": path})
+        return json.loads(resp)
+
+    def resolve_filepath(self, filepath: str) -> dict:
+        """Take a fully qualified file path and resolve it to the resource definition"""
+        p = PurePath(filepath)
+
+        files = self.list_files(p.parent)
+        for f in files.get("files", []):
+            if f.get("name") == p.name:
+                return f
+
+        raise Exception(f"File not found in Fulcra Library: {filepath}")
+
+    def upload_file(
+        self, data: io.BufferedReader, file_type: str, file_size: int, filepath: str
+    ):
+
+        path = PurePath(filepath)
+
+        file_info = {
+            "content_length": file_size,
+            "content_type": file_type,
+            "name": str(path.name),
+            "path": str(path.parent),
+        }
+
+        # make request to create upload
+        resp = self.fulcra_api(
+            "/input/v1/file_upload",
+            data=file_info,
+            method="POST",
+        )
+
+        r = json.loads(resp)
+
+        # get our url back and upload data to it
+        upload_url = r["url"]
+
+        req = urllib.request.Request(
+            upload_url,
+            data=data,
+            headers={"Content-Length": file_size, "Content-Type": file_type},
+            method="POST",
+        )
+        resp = urllib.request.urlopen(req)
+
+        # TODO-- do something useful here
+
+    def download_file(self, file_id: str) -> http.client.HTTPResponse:
+        """download a file and return the file object"""
+
+        resp = self.fulcra_api(
+            f"/input/v1/file_upload/{file_id}/download", return_raw_response=True
+        )
+
+        return resp
+
+    def delete_file(self, file_id: str):
+        self.fulcra_api(f"/input/v1/file_upload/{file_id}", method="DELETE")

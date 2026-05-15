@@ -1,5 +1,7 @@
 import json
+import mimetypes
 import os
+import os.path
 import pathlib
 import webbrowser
 from datetime import datetime, timezone
@@ -914,6 +916,121 @@ def user_info(ctx):
         raise click.ClickException(exc) from exc
 
     click.echo(json.dumps(resp))
+
+
+#
+# File functionality
+#
+
+
+@cli.group(help="File library sub-commands")
+def file():
+    pass
+
+
+@file.command("list", short_help="List files")
+@click.argument("path", type=str, default="/")
+@click.pass_context
+@requires_auth
+def file_list(ctx, path: str):
+    """List uploaded files in the Fulcra Library."""
+
+    if not path.startswith("/"):
+        path = f"/{path}"
+
+    results = ctx.obj.list_files(path)
+
+    if results.get("folders") is not None:
+        for d in results.get("folders", []):
+            click.echo(f"{d}/")
+
+    for f in results.get("files", []):
+        if f.get("state") == "uploaded":
+            click.echo(f.get("name"))
+
+
+@file.command("stat", short_help="Get information about a library file")
+@click.argument("path", type=str)
+@click.pass_context
+@requires_auth
+def file_stat(ctx, path: str):
+
+    if not path.startswith("/"):
+        path = f"/{path}"
+
+    try:
+        f = ctx.obj.resolve_filepath(path)
+    except Exception as exc:
+        raise click.ClickException(exc)
+
+    click.echo(json.dumps(f))
+
+
+# TODO- let's add an optional output path
+@file.command("download", short_help="Download a library file")
+@click.argument("remote_file", type=str)
+@click.argument("local_file", type=click.File(mode="wb"), required=False, default=None)
+@click.pass_context
+@requires_auth
+def file_download(ctx, remote_file: str, local_file=None):
+
+    if not remote_file.startswith("/"):
+        remote_file = f"/{remote_file}"
+
+    try:
+        f = ctx.obj.resolve_filepath(remote_file)
+    except Exception as exc:
+        raise click.ClickException(exc)
+
+    resp = ctx.obj.download_file(f.get("id"))
+
+    if local_file is None:
+        local_file = click.open_file(pathlib.PurePath(f.get("name")).name, mode="wb")
+
+    local_file.write(resp.read())
+
+    if local_file.name != "<stdout>":
+        click.echo(f"⬇️ fulcra:{remote_file} -> {local_file.name}")
+
+
+@file.command("upload", short_help="Upload a library file")
+@click.argument("local_file", type=click.File(mode="rb"))
+@click.argument("remote_file", type=str, default="")
+@click.pass_context
+@requires_auth
+def file_upload(ctx, local_file: click.File, remote_file: str):
+
+    if remote_file != "":
+        path = pathlib.PurePath(remote_file)
+    else:
+        # normalize this
+        path = pathlib.PurePath(f"/{local_file.name}")
+
+    file_size = os.path.getsize(local_file.name)
+    file_type = mimetypes.guess_type(local_file.name)
+
+    ctx.obj.upload_file(local_file, file_type[0], file_size, path)
+
+    click.echo(f"⬆️ {local_file.name} -> fulcra:{path}")
+
+
+@file.command("delete", short_help="Delete a library file")
+@click.argument("path", type=str)
+@click.pass_context
+@requires_auth
+def file_delete(ctx, path):
+
+    if not path.startswith("/"):
+        path = f"/{path}"
+
+    try:
+        f = ctx.obj.resolve_filepath(path)
+    except Exception as exc:
+        raise click.ClickException(exc)
+
+    ctx.obj.delete_file(f.get("id"))
+
+    click.echo(f"❌ fulcra:{path}")
 
 
 if __name__ == "__main__":
