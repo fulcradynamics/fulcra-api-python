@@ -973,6 +973,11 @@ def file_stat(ctx, path: str):
 @click.pass_context
 @requires_auth
 def file_download(ctx, remote_file: str, local_file=None):
+    """Download a library file.
+
+    Use - as LOCAL_FILE to write to stdout. If LOCAL_FILE is omitted, the
+    file is saved to the current directory using its remote filename.
+    """
 
     if not remote_file.startswith("/"):
         remote_file = f"/{remote_file}"
@@ -999,6 +1004,11 @@ def file_download(ctx, remote_file: str, local_file=None):
 @click.pass_context
 @requires_auth
 def file_upload(ctx, local_file: click.File, remote_file: str):
+    """Upload a library file.
+
+    Use - as LOCAL_FILE to read from stdin. If REMOTE_FILE is omitted, the
+    local filename is used as the remote path.
+    """
 
     if remote_file != "":
         path = pathlib.PurePath(remote_file)
