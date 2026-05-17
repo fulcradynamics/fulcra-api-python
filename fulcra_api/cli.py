@@ -3,6 +3,8 @@ import mimetypes
 import os
 import os.path
 import pathlib
+import sys
+import uuid
 import webbrowser
 from datetime import datetime, timezone
 from functools import wraps
@@ -139,8 +141,9 @@ def time_range(func):
 
 
 @click.group()
+@click.option("--beta", is_flag=True, default=False, help="Enable beta features")
 @click.pass_context
-def cli(ctx):
+def cli(ctx, beta):
     """Command line interface for authenticating and interacting with the Fulcra Life API.
 
     Sub-commands return JSON data by default for convienent piping into tools like `jq` for parsing and filtering.
@@ -1041,6 +1044,185 @@ def file_delete(ctx, path):
     ctx.obj.delete_file(f.get("id"))
 
     click.echo(f"❌ fulcra:{path}")
+
+
+#
+# Memory functionality (beta)
+#
+
+AGENT_ID_FILE = ".fulcra-agent-id"
+
+
+def get_or_create_agent_id(directory: str = ".") -> str:
+    """Get or create a unique agent identifier for the given directory.
+
+    The identifier is stored in a .fulcra-agent-id file in the directory.
+    If the file doesn't exist, a new UUID is generated and saved.
+
+    Args:
+        directory: The directory to check for the agent ID file
+
+    Returns:
+        A unique agent identifier string
+    """
+    dir_path = pathlib.Path(directory)
+    id_file = dir_path / AGENT_ID_FILE
+
+    if id_file.exists():
+        with open(id_file, "r") as f:
+            agent_id = f.read().strip()
+            if agent_id:
+                return agent_id
+
+    # Generate new agent ID
+    agent_id = str(uuid.uuid4())
+
+    # Save to file
+    with open(id_file, "w") as f:
+        f.write(agent_id)
+
+    return agent_id
+
+
+@click.group(help="Memory backup sub-commands")
+def memory():
+    pass
+
+
+@memory.command("sync", short_help="Sync markdown files to backup")
+@click.argument("directory", type=click.Path(exists=True), default=".", required=False)
+@click.pass_context
+@requires_auth
+def memory_sync(ctx, directory: str):
+    """Sync all markdown files in DIRECTORY to /backup/<agent-id>/<timestamp>/.
+
+    If DIRECTORY is not provided, defaults to the current working directory.
+    All .md files in the directory are uploaded with a timestamp prefix.
+
+    The agent ID is read from or generated in a .fulcra-agent-id file in DIRECTORY.
+    """
+    import time
+
+    # Get or create agent ID for this directory
+    agent_id = get_or_create_agent_id(directory)
+
+    # Get current timestamp
+    timestamp = int(time.time())
+
+    # Find all markdown files
+    dir_path = pathlib.Path(directory)
+    md_files = list(dir_path.glob("*.md"))
+
+    if not md_files:
+        click.echo("No markdown files found in directory")
+        return
+
+    click.echo(f"Agent ID: {agent_id}")
+    click.echo(f"Syncing {len(md_files)} markdown file(s) to /backup/{agent_id}/{timestamp}/")
+
+    # Upload each file
+    for md_file in md_files:
+        remote_path = pathlib.PurePath(f"/backup/{agent_id}/{timestamp}/{md_file.name}")
+
+        with open(md_file, "rb") as f:
+            file_size = os.path.getsize(md_file)
+            file_type = mimetypes.guess_type(md_file)
+
+            ctx.obj.upload_file(f, file_type[0], file_size, remote_path)
+            click.echo(f"  ⬆️  {md_file.name} -> fulcra:{remote_path}")
+
+    click.echo(f"✅ Sync complete. Timestamp: {timestamp}")
+
+
+@memory.command("list", short_help="List available backup timestamps")
+@click.argument("directory", type=click.Path(exists=True), default=".", required=False)
+@click.pass_context
+@requires_auth
+def memory_list(ctx, directory: str):
+    """List all available backup timestamps from /backup/<agent-id>/.
+
+    If DIRECTORY is not provided, defaults to the current working directory.
+    The agent ID is read from the .fulcra-agent-id file in DIRECTORY.
+    """
+
+    # Get or create agent ID for this directory
+    agent_id = get_or_create_agent_id(directory)
+
+    try:
+        result = ctx.obj.list_files(f"/backup/{agent_id}")
+    except Exception as exc:
+        raise click.ClickException(f"Failed to list backups: {exc}")
+
+    folders = result.get("folders", [])
+
+    if not folders:
+        click.echo(f"No backups found for agent ID: {agent_id}")
+        return
+
+    # Extract timestamps from folder names and sort
+    timestamps = sorted([folder.rstrip("/") for folder in folders])
+
+    click.echo(f"Agent ID: {agent_id}")
+    click.echo("Available backup timestamps:")
+    for ts in timestamps:
+        click.echo(f"  {ts}")
+
+
+@memory.command("rollback", short_help="Restore files from a backup timestamp")
+@click.argument("timestamp", type=str)
+@click.argument("directory", type=click.Path(), default=".", required=False)
+@click.pass_context
+@requires_auth
+def memory_rollback(ctx, timestamp: str, directory: str):
+    """Restore markdown files from /backup/<agent-id>/<TIMESTAMP>/ to DIRECTORY.
+
+    If DIRECTORY is not provided, defaults to the current working directory.
+    The agent ID is read from the .fulcra-agent-id file in DIRECTORY.
+    """
+
+    # Get or create agent ID for this directory
+    agent_id = get_or_create_agent_id(directory)
+
+    remote_path = f"/backup/{agent_id}/{timestamp}"
+
+    # List files in the backup
+    try:
+        result = ctx.obj.list_files(remote_path)
+    except Exception as exc:
+        raise click.ClickException(f"Failed to access backup: {exc}")
+
+    files = result.get("files", [])
+    uploaded_files = [f for f in files if f.get("state") == "uploaded"]
+
+    if not uploaded_files:
+        click.echo(f"No files found in backup timestamp: {timestamp}")
+        return
+
+    dir_path = pathlib.Path(directory)
+    dir_path.mkdir(parents=True, exist_ok=True)
+
+    click.echo(f"Agent ID: {agent_id}")
+    click.echo(f"Restoring {len(uploaded_files)} file(s) from timestamp {timestamp}")
+
+    # Download each file
+    for file_info in uploaded_files:
+        file_id = file_info.get("id")
+        file_name = file_info.get("name")
+
+        resp = ctx.obj.download_file(file_id)
+
+        local_path = dir_path / file_name
+        with open(local_path, "wb") as f:
+            f.write(resp.read())
+
+        click.echo(f"  ⬇️  fulcra:{remote_path}/{file_name} -> {local_path}")
+
+    click.echo(f"✅ Rollback complete")
+
+
+# Conditionally add beta commands based on --beta flag in argv
+if "--beta" in sys.argv:
+    cli.add_command(memory)
 
 
 if __name__ == "__main__":
