@@ -1462,15 +1462,31 @@ class FulcraAPI:
 
         raise Exception(f"File not found in Fulcra Library: {filepath}")
 
-    def upload_file(
-        self, data: io.BufferedReader, file_type: str, file_size: int, filepath: str
-    ):
+    def _file_content_type(self, file_type: Optional[str], filepath: str) -> str:
+        """Return a valid content type for file uploads."""
+        if file_type:
+            return file_type
 
         path = PurePath(filepath)
+        if path.suffix.lower() in {".md", ".markdown"}:
+            return "text/markdown"
+
+        guessed_type, _ = mimetypes.guess_type(str(path))
+        return guessed_type or "application/octet-stream"
+
+    def upload_file(
+        self,
+        data: io.BufferedReader,
+        file_type: Optional[str],
+        file_size: int,
+        filepath: str,
+    ):
+        path = PurePath(filepath)
+        content_type = self._file_content_type(file_type, str(path))
 
         file_info = {
             "content_length": file_size,
-            "content_type": file_type,
+            "content_type": content_type,
             "name": str(path.name),
             "path": str(path.parent),
         }
@@ -1490,7 +1506,7 @@ class FulcraAPI:
         req = urllib.request.Request(
             upload_url,
             data=data,
-            headers={"Content-Length": file_size, "Content-Type": file_type},
+            headers={"Content-Length": file_size, "Content-Type": content_type},
             method="POST",
         )
         resp = urllib.request.urlopen(req)
