@@ -19,6 +19,7 @@ dependencies = [
     "pytest>=7.4.2,<8",
     "click>=8.2.1",
     "dateparser>=1.4.0",
+    "puremagic>=1.30",
 ]
 packages = [{ include = "fulcra_api" }]
 

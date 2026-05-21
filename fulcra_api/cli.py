@@ -1,5 +1,4 @@
 import json
-import mimetypes
 import os
 import os.path
 import pathlib
@@ -14,6 +13,7 @@ from uuid import UUID
 
 import click
 import dateparser
+import puremagic
 
 from .core import FulcraAPI
 from .credentials import FulcraCredentials
@@ -1020,9 +1020,9 @@ def file_upload(ctx, local_file: click.File, remote_file: str):
         path = pathlib.PurePath(f"/{local_file.name}")
 
     file_size = os.path.getsize(local_file.name)
-    file_type = mimetypes.guess_type(local_file.name)
+    file_type = puremagic.from_file(local_file.name, mime=True)
 
-    ctx.obj.upload_file(local_file, file_type[0], file_size, path)
+    ctx.obj.upload_file(local_file, file_type, file_size, path)
 
     click.echo(f"⬆️ {local_file.name} -> fulcra:{path}")
 
@@ -1118,7 +1118,9 @@ def memory_sync(ctx, directory: str):
         return
 
     click.echo(f"Agent ID: {agent_id}")
-    click.echo(f"Syncing {len(md_files)} markdown file(s) to /backup/{agent_id}/{timestamp}/")
+    click.echo(
+        f"Syncing {len(md_files)} markdown file(s) to /backup/{agent_id}/{timestamp}/"
+    )
 
     # Upload each file
     for md_file in md_files:
