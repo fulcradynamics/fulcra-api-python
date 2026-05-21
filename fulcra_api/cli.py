@@ -204,7 +204,7 @@ def list_calendars(ctx):
 @cli.command("calendar-events", short_help="Return Apple calendar events")
 @time_range
 @click.option(
-    "--calendar-name", type=str, default=None, help="Which calendar to retrieve events for by calendar name"
+    "--calendar-name", type=str, default=None, help="Return events matching calendar name."
 )
 @click.pass_context
 @requires_auth
