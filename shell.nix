@@ -14,11 +14,14 @@ let
 in
 pkgs.mkShell {
   packages = [ pythonEnv ];
+  env = {
+    UV_PYTHON = pythonEnv.python.interpreter;
+    UV_PYTHON_DOWNLOADS = "never";
+  };
   shellHook = ''
-    export PYTHONHOME=${pythonEnv}
-    export UV_PYTHON_DOWNLOADS=never
-    export UV_PYTHON_PREFERENCE=only-system
-    export UV_PYTHON=${pythonEnv}
     export PATH=.venv/bin/:$PATH
+
+    # LD_LIBRARY_PATH magic for NixOS + nix-ld environments so we can import numpy/etc
+    [ -n "''${NIX_LD_LIBRARY_PATH:-}" ] && export LD_LIBRARY_PATH="$NIX_LD_LIBRARY_PATH" || true
   '';
 }
