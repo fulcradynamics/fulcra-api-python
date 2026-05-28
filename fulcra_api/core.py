@@ -1499,7 +1499,8 @@ class FulcraAPI:
         return result
 
     
-    def create_annotation(self, annotation_type: str, name: str, description: Optional[str], tags: List[str], metric_kind: Optional[str] = None, unit: Optional[str] = None, value: Optional[Any] = None) -> Dict:
+    def create_annotation(self, annotation_type: str, name: str, description: Optional[str], tags: List[str], metric_kind: Optional[str] = None, value: Optional[Any] = None, unit: Optional[str] = None) -> Dict:
+        tag_ids = []
         if len(tags) > 0:
             tag_ids = [t["id"] for t in self.create_tags(tags)]
 
@@ -1517,6 +1518,15 @@ class FulcraAPI:
                 "metric_kind": metric_kind,
                 "unit": None,
                 "boolean": {
+                    "value": value
+                }
+            }
+        elif annotation_type == "numeric":
+            measurement_spec = {
+                "measurement_type": "custom",
+                "metric_kind": metric_kind,
+                "unit": unit,
+                "custom": {
                     "value": value
                 }
             }

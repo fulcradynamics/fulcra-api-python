@@ -990,7 +990,7 @@ def create_tags(ctx, names: Tuple[str, ...]):
             "MomentAnnotation",  # TODO: use the fulcradatatypes package for these?
             "DurationAnnotation",
             "BooleanAnnotation",
-            # "NumericAnnotation",
+            "NumericAnnotation",
             # "ScaleAnnotation",
         ],
         case_sensitive=False,
@@ -1012,9 +1012,12 @@ def create_tags(ctx, names: Tuple[str, ...]):
 @click.option(
     "-v", "--value", "raw_value", type=str, help="Default value for recording the data type"
 )
+@click.option(
+    "-u", "--unit", "unit", type=str, help="Unit for recording the data type"
+)
 @click.pass_context
 @requires_auth
-def create_data_type(ctx, base_data_type: str, name: str, description: Optional[str], tags: List[str], metric_kind: Optional[str], raw_value: Optional[str]):
+def create_data_type(ctx, base_data_type: str, name: str, description: Optional[str], tags: List[str], metric_kind: Optional[str], raw_value: Optional[str], unit: Optional[str]):
     """Create a new moment annotation definition.
 
     BASE_DATA_TYPE: The base data type to create
@@ -1028,19 +1031,31 @@ def create_data_type(ctx, base_data_type: str, name: str, description: Optional[
     if base_data_type == "MomentAnnotation":
         annotation_type = "moment"
         if metric_kind is not None:
-            raise click.BadOptionUsage("k", f"-k / --kind cannot be used with base data type {base_data_type}", ctx)
+            raise click.BadOptionUsage("metric_kind", f"-k / --kind cannot be used with base data type {base_data_type}", ctx)
+        if raw_value is not None:
+            raise click.BadOptionUsage("raw_value", f"-v / --value cannot be used with base data type {base_data_type}", ctx)
+        if unit is not None:
+            raise click.BadOptionUsage("unit", f"-u / --unit cannot be used with base data type {base_data_type}", ctx)
     elif base_data_type == "DurationAnnotation":
         annotation_type = "duration"
+        if unit is not None:
+            raise click.BadOptionUsage("unit", f"-u / --unit cannot be used with base data type {base_data_type}", ctx)
     elif base_data_type == "BooleanAnnotation":
         annotation_type = "boolean"
         if raw_value is not None:
             value = click.types.BoolParamType().convert(raw_value, None, None)
+        if unit is not None:
+            raise click.BadOptionUsage("unit", f"-u / --unit cannot be used with base data type {base_data_type}", ctx)
+    elif base_data_type == "NumericAnnotation":
+        annotation_type = "numeric"
+        if raw_value is not None:
+            value = click.types.FloatParamType().convert(raw_value, None, None)
     else:
         raise click.ClickException(f"Unsupported base data type {base_data_type}")
     
     try:
         ann = ctx.obj.create_annotation(
-            annotation_type=annotation_type, name=name, description=description, tags=tags, metric_kind=metric_kind, value=value
+            annotation_type=annotation_type, name=name, description=description, tags=tags, metric_kind=metric_kind, value=value, unit=unit
         )
         click.echo(json.dumps(ann))
     except HTTPError as exc:
