@@ -1444,3 +1444,29 @@ class FulcraAPI:
 
         resp = self.fulcra_v1_api("metric", "ScaleAnnotation", params)
         return json.loads(resp)
+
+    def create_moment_annotation(
+        self, name: str, description: Optional[str] = None
+    ):
+        """
+        Create a new moment annotation definition.
+
+        Params:
+            name: The name of the annotation
+            description: Optional description of the annotation
+
+        Note:
+            The API endpoint returns a 303 See Other response. This method
+            currently doesn't handle the redirect to retrieve the created resource.
+        """
+        annotation_body = {
+            "name": name,
+            "description": description if description else "",
+            "annotation_type": "moment",
+            "tags": [],
+        }
+
+        # TODO: Handle 303 redirect to return the created annotation
+        resp = self.fulcra_api(
+            "/user/v1alpha1/annotation", data=annotation_body, method="POST"
+        )
