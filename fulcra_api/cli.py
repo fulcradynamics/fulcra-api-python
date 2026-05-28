@@ -922,6 +922,35 @@ def user_info(ctx):
 
 
 #
+# Create functionality
+#
+
+
+@cli.group(help="Create custom event or metric data types")
+def create():
+    pass
+
+
+@create.command("event", short_help="Create a new event data type")
+@click.argument("name", type=str)
+@click.option("-d", "--description", type=str, default=None, help="Description of the annotation")
+@click.pass_context
+@requires_auth
+def create_event(ctx, name: str, description: Optional[str]):
+    """Create a new moment annotation definition.
+
+    NAME: The name of the annotation to create
+
+    Use -d/--description to add an optional description
+    """
+    try:
+        ctx.obj.create_moment_annotation(name, description)
+        click.echo(f"Created event type: {name}")
+    except HTTPError as exc:
+        raise click.ClickException(f"Failed to create event data type: {exc}")
+
+
+#
 # File functionality
 #
 
