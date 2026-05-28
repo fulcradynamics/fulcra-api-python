@@ -4,6 +4,7 @@ import http.client
 import io
 import json
 import os
+import os.path
 import urllib.parse
 import urllib.request
 import webbrowser
@@ -319,8 +320,13 @@ class FulcraAPI:
         return True
 
     def fulcra_api(
-        self, url_path: str, query: Optional[dict[str, str]] = None
-    ) -> bytes:
+        self,
+        url_path: str,
+        method: str = "GET",
+        query: Optional[dict[str, str]] = None,
+        data: Optional[dict] = None,
+        return_raw_response: bool = False,
+    ) -> bytes | http.client.HTTPResponse:
         """
         Make a call to the given url path (e.g. `/v0/data/metric_time_series?...`)
         with the specified access token.
@@ -354,8 +360,18 @@ class FulcraAPI:
 
         url = urllib.parse.urlunparse((proto, host, url_path, "", url_query, ""))
         headers = {"Authorization": f"Bearer {self.fulcra_credentials.access_token}"}
-        req = urllib.request.Request(url=url, headers=headers, method="GET")
+
+        if data:
+            headers["Content-Type"] = "application/json"
+            ds = json.dumps(data).encode("UTF-8")
+        else:
+            ds = None
+
+        req = urllib.request.Request(url=url, data=ds, headers=headers, method=method)
         response = urllib.request.urlopen(req)
+
+        if return_raw_response:
+            return response
 
         return response.read()
 
