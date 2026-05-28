@@ -989,7 +989,7 @@ def create_tags(ctx, names: Tuple[str, ...]):
         [
             "MomentAnnotation",  # TODO: use the fulcradatatypes package for these?
             "DurationAnnotation",
-            # "BooleanAnnotation",
+            "BooleanAnnotation",
             # "NumericAnnotation",
             # "ScaleAnnotation",
         ],
@@ -1003,9 +1003,12 @@ def create_tags(ctx, names: Tuple[str, ...]):
 @click.option(
     "-t", "--tag", "tags", type=str, multiple=True, help="Tags to attach to the data type"
 )
+@click.option(
+    "-v", "--value", "raw_value", type=str, help="Default value for recording the data type"
+)
 @click.pass_context
 @requires_auth
-def create_data_type(ctx, base_data_type: str, name: str, description: Optional[str], tags: List[str]):
+def create_data_type(ctx, base_data_type: str, name: str, description: Optional[str], tags: List[str], raw_value: Optional[str]):
     """Create a new moment annotation definition.
 
     BASE_DATA_TYPE: The base data type to create
@@ -1015,16 +1018,21 @@ def create_data_type(ctx, base_data_type: str, name: str, description: Optional[
     Use -d/--description to add an optional description
     """
 
+    value = None
     if base_data_type == "MomentAnnotation":
         annotation_type = "moment"
     elif base_data_type == "DurationAnnotation":
         annotation_type = "duration"
+    elif base_data_type == "BooleanAnnotation":
+        annotation_type = "boolean"
+        if raw_value is not None:
+            value = click.types.BoolParamType().convert(raw_value, None, None)
     else:
         raise click.ClickException(f"Unsupported base data type {base_data_type}")
     
     try:
         ann = ctx.obj.create_annotation(
-            annotation_type=annotation_type, name=name, description=description, tags=tags
+            annotation_type=annotation_type, name=name, description=description, tags=tags, value=value
         )
         click.echo(json.dumps(ann))
     except HTTPError as exc:

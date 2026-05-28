@@ -8,7 +8,7 @@ import os.path
 import urllib.parse
 import urllib.request
 import webbrowser
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -1499,7 +1499,7 @@ class FulcraAPI:
         return result
 
     
-    def create_annotation(self, annotation_type: str, name: str, description: Optional[str], tags: List[str], unit: Optional[str] = None) -> Dict:
+    def create_annotation(self, annotation_type: str, name: str, description: Optional[str], tags: List[str], unit: Optional[str] = None, value: Optional[Any] = None) -> Dict:
         if len(tags) > 0:
             tag_ids = [t["id"] for t in self.create_tags(tags)]
 
@@ -1509,6 +1509,15 @@ class FulcraAPI:
                 "measurement_type": "duration",
                 "value_type": "duration",
                 "unit": None
+            }
+        elif annotation_type == "boolean":
+            measurement_spec = {
+                "measurement_type": "boolean",
+                "value_type": "boolean",
+                "unit": None,
+                "boolean": {
+                    "value": value
+                }
             }
 
         annotation_body = {
