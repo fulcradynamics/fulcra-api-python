@@ -988,7 +988,7 @@ def create_tags(ctx, names: Tuple[str, ...]):
     type=click.Choice(
         [
             "MomentAnnotation",  # TODO: use the fulcradatatypes package for these?
-            # "DurationAnnotation",
+            "DurationAnnotation",
             # "BooleanAnnotation",
             # "NumericAnnotation",
             # "ScaleAnnotation",
@@ -1014,10 +1014,17 @@ def create_data_type(ctx, base_data_type: str, name: str, description: Optional[
 
     Use -d/--description to add an optional description
     """
+
+    if base_data_type == "MomentAnnotation":
+        annotation_type = "moment"
+    elif base_data_type == "DurationAnnotation":
+        annotation_type = "duration"
+    else:
+        raise click.ClickException(f"Unsupported base data type {base_data_type}")
+    
     try:
-        # TODO: add support for tags
         ann = ctx.obj.create_annotation(
-            annotation_type="moment", name=name, description=description, tags=tags
+            annotation_type=annotation_type, name=name, description=description, tags=tags
         )
         click.echo(json.dumps(ann))
     except HTTPError as exc:

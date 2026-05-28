@@ -1503,10 +1503,19 @@ class FulcraAPI:
         if len(tags) > 0:
             tag_ids = [t["id"] for t in self.create_tags(tags)]
 
+        measurement_spec = None
+        if annotation_type == "duration":
+            measurement_spec = {
+                "measurement_type": "duration",
+                "value_type": "duration",
+                "unit": None
+            }
+
         annotation_body = {
             "name": name,
             "description": description or "",
             "annotation_type": annotation_type,
+            "measurement_spec": measurement_spec,
             "tags": tag_ids,
         }
         resp = self.fulcra_api(
