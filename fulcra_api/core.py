@@ -1447,7 +1447,7 @@ class FulcraAPI:
 
     def create_moment_annotation(
         self, name: str, description: Optional[str] = None
-    ):
+    ) -> Dict:
         """
         Create a new moment annotation definition.
 
@@ -1470,3 +1470,4 @@ class FulcraAPI:
         resp = self.fulcra_api(
             "/user/v1alpha1/annotation", data=annotation_body, method="POST"
         )
+        return json.loads(resp)
