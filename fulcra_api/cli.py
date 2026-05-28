@@ -932,10 +932,45 @@ def tags(ctx, name: Optional[str], tag_name: Optional[str], tag_id: Optional[str
             response = [
                 t for t in response if name.lower() in t.get("name", "").lower()
             ]
+        
+        if tag_name is not None:
+            response = [
+                t for t in response if tag_name.lower() == t.get("name", "").lower()
+            ]
+
+        if tag_id is not None:
+            response = [
+                t for t in response if tag_id.lower() == t.get("id", "").lower()
+            ]
 
         click.echo(json.dumps(response))
     except HTTPError as exc:
         raise click.ClickException(f"Failed to get tags: {exc}")
+    
+
+@cli.command("create-tags", short_help="Create user-defined tags")
+@click.argument("names", nargs=-1)
+@click.pass_context
+@requires_auth
+def create_tags(ctx, names: Tuple[str, ...]):
+    """
+    Create case-insensitive user-defined tags by name that can be used when creating and recording custom data types.
+    """
+
+    created_tags = []
+
+    for name in names:
+        tag_name = name.lower()
+        try:
+            resp = ctx.obj.create_tag(tag_name)
+            created_tags.append(resp)
+        except HTTPError as exc:
+            if exc.status == 409:
+                continue
+            raise click.ClickException(f"Failed to create tag {tag_name}: {exc}")
+    
+    click.echo(json.dumps(created_tags))
+
 
 
 #

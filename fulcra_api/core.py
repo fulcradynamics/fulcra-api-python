@@ -1458,6 +1458,21 @@ class FulcraAPI:
 
         resp = self.fulcra_api("/user/v1alpha1/tag")
         return json.loads(resp)
+    
+    def create_tag(self, tag_name: str) -> List[Dict]:
+        """
+        Creates a user defined tags.
+
+        Requires a valid access token.
+
+        Returns:
+            The created tag; represented by a dict.
+
+        """
+
+        resp = self.fulcra_api("/user/v1alpha1/tag", method="POST", data={"name": tag_name})
+        return json.loads(resp)
+
 
     def create_moment_annotation(
         self, name: str, description: Optional[str] = None, tags: List[str] = []
