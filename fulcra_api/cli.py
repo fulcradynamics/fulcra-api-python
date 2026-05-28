@@ -914,6 +914,30 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only:
         click.echo(json.dumps(c))
 
 
+@cli.command("tags", short_help="Return a list of user-defined tags")
+@click.option("-n", "--name", type=str, help="Filter results by partial name.")
+@click.option("--tag-name", type=str, help="Filter results by full tag name.")
+@click.option("--tag-id", type=str, help="Filter results by tag ID.")
+@click.pass_context
+@requires_auth
+def tags(ctx, name: Optional[str], tag_name: Optional[str], tag_id: Optional[str]):
+    """
+    Return a list of user-defined tags that can be used when creating and recording custom data types.
+    """
+
+    try:
+        response = ctx.obj.tags()
+
+        if name:
+            response = [
+                t for t in response if name.lower() in t.get("name", "").lower()
+            ]
+
+        click.echo(json.dumps(response))
+    except HTTPError as exc:
+        raise click.ClickException(f"Failed to get tags: {exc}")
+
+
 #
 # Create data type functionality
 #

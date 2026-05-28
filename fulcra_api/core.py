@@ -1445,6 +1445,20 @@ class FulcraAPI:
         resp = self.fulcra_v1_api("metric", "ScaleAnnotation", params)
         return json.loads(resp)
 
+    def tags(self) -> List[Dict]:
+        """
+        Retrieves user defined tags.
+
+        Requires a valid access token.
+
+        Returns:
+            A list of user tags; each is represented by a dict.
+
+        """
+
+        resp = self.fulcra_api("/user/v1alpha1/tag")
+        return json.loads(resp)
+
     def create_moment_annotation(
         self, name: str, description: Optional[str] = None, tags: List[str] = []
     ) -> Dict:
