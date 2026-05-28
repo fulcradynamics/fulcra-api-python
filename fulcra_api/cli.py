@@ -914,6 +914,10 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only:
         click.echo(json.dumps(c))
 
 
+#
+# Tag functionality
+#
+
 @cli.command("tags", short_help="Return a list of user-defined tags")
 @click.option("-n", "--name", type=str, help="Filter results by partial name.")
 @click.option("--tag-name", type=str, help="Filter results by full tag name.")
@@ -994,11 +998,14 @@ def create_tags(ctx, names: Tuple[str, ...]):
 )
 @click.argument("name", type=str)
 @click.option(
-    "-d", "--description", type=str, default=None, help="Description of the annotation"
+    "-d", "--description", type=str, default=None, help="Description of the data type"
+)
+@click.option(
+    "-t", "--tag", "tags", type=str, multiple=True, help="Tags to attach to the data type"
 )
 @click.pass_context
 @requires_auth
-def create_data_type(ctx, base_data_type: str, name: str, description: Optional[str]):
+def create_data_type(ctx, base_data_type: str, name: str, description: Optional[str], tags: List[str]):
     """Create a new moment annotation definition.
 
     BASE_DATA_TYPE: The base data type to create
@@ -1009,8 +1016,8 @@ def create_data_type(ctx, base_data_type: str, name: str, description: Optional[
     """
     try:
         # TODO: add support for tags
-        ann = ctx.obj.create_moment_annotation(
-            name=name, description=description, tags=[]
+        ann = ctx.obj.create_annotation(
+            annotation_type="moment", name=name, description=description, tags=tags
         )
         click.echo(json.dumps(ann))
     except HTTPError as exc:

@@ -1461,7 +1461,7 @@ class FulcraAPI:
     
     def create_tag(self, tag_name: str) -> List[Dict]:
         """
-        Creates a user defined tags.
+        Creates a user defined tag.
 
         Requires a valid access token.
 
@@ -1472,31 +1472,45 @@ class FulcraAPI:
 
         resp = self.fulcra_api("/user/v1alpha1/tag", method="POST", data={"name": tag_name})
         return json.loads(resp)
-
-
-    def create_moment_annotation(
-        self, name: str, description: Optional[str] = None, tags: List[str] = []
-    ) -> Dict:
+    
+    
+    def create_tags(self, tag_names: List[str]) -> List[Dict]:
         """
-        Create a new moment annotation definition.
+        Creates a batch of user defined tags.
 
-        Params:
-            name: The name of the annotation
-            description: Optional description of the annotation
+        If a tag already exist, the existing tag is returned.
 
-        Note:
-            The API endpoint returns a 303 See Other response. This method
-            currently doesn't handle the redirect to retrieve the created resource.
+        Requires a valid access token.
+
+        Returns:
+            The created tag; represented by a dict.
+
         """
+
+        existing_tags = self.tags()
+        result = []
+        for tag_name in tag_names:
+            try:
+                tag = next(t for t in existing_tags if t["name"] == tag_name)
+            except StopIteration:
+                tag = self.create_tag(tag_name)
+            result.append(tag)
+
+        return result
+
+    
+    def create_annotation(self, annotation_type: str, name: str, description: Optional[str], tags: List[str], unit: Optional[str] = None) -> Dict:
+        if len(tags) > 0:
+            tag_ids = [t["id"] for t in self.create_tags(tags)]
+
         annotation_body = {
             "name": name,
-            "description": description if description else "",
-            "annotation_type": "moment",
-            "tags": tags,
+            "description": description or "",
+            "annotation_type": annotation_type,
+            "tags": tag_ids,
         }
-
-        # TODO: Handle 303 redirect to return the created annotation
         resp = self.fulcra_api(
             "/user/v1alpha1/annotation", data=annotation_body, method="POST"
         )
         return json.loads(resp)
+
