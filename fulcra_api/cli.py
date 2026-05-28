@@ -901,7 +901,7 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only:
         response = [c for c in response if name.lower() in c.get("name", "").lower()]
 
     if base_types_only:
-        pattern = r"^.*Annotation$"
+        pattern = r"^.*Annotation$" # TODO: filter this based on flag from catalog items (or category)
         response = [
             c
             for c in response
@@ -915,32 +915,42 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only:
 
 
 #
-# Create functionality
+# Create data type functionality
 #
 
 
-@cli.group(help="Create custom event or metric data types")
-def create_data_type():
-    pass
-
-
-@create_data_type.command("moment", short_help="Create a new moment data type")
+@cli.command("create-data-type", short_help="Create a new base data type")
+@click.argument(
+    "base_data_type",
+    type=click.Choice(
+        [
+            "MomentAnnotation", # TODO: use the fulcradatatypes package for these?
+            # "DurationAnnotation",
+            # "BooleanAnnotation",
+            # "NumericAnnotation",
+            # "ScaleAnnotation",
+        ],
+        case_sensitive=False,
+    ),
+)
 @click.argument("name", type=str)
 @click.option(
     "-d", "--description", type=str, default=None, help="Description of the annotation"
 )
 @click.pass_context
 @requires_auth
-def create_event(ctx, name: str, description: Optional[str]):
+def create_data_type(ctx, base_data_type: str, name: str, description: Optional[str]):
     """Create a new moment annotation definition.
 
-    NAME: The name of the annotation to create
+    BASE_DATA_TYPE: The base data type to create
+
+    NAME: The given name of the data type
 
     Use -d/--description to add an optional description
     """
     try:
-        ctx.obj.create_moment_annotation(name, description)
-        click.echo(f"Created event type: {name}")
+        ann = ctx.obj.create_moment_annotation(name, description)
+        click.echo(json.dumps(ann))
     except HTTPError as exc:
         raise click.ClickException(f"Failed to create event data type: {exc}")
 
