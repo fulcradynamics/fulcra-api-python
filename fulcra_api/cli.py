@@ -901,7 +901,7 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only:
         response = [c for c in response if name.lower() in c.get("name", "").lower()]
 
     if base_types_only:
-        pattern = r"^.*Annotation$" # TODO: filter this based on flag from catalog items (or category)
+        pattern = r"^.*Annotation$"  # TODO: filter this based on flag from catalog items (or category)
         response = [
             c
             for c in response
@@ -924,7 +924,7 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only:
     "base_data_type",
     type=click.Choice(
         [
-            "MomentAnnotation", # TODO: use the fulcradatatypes package for these?
+            "MomentAnnotation",  # TODO: use the fulcradatatypes package for these?
             # "DurationAnnotation",
             # "BooleanAnnotation",
             # "NumericAnnotation",
@@ -949,7 +949,10 @@ def create_data_type(ctx, base_data_type: str, name: str, description: Optional[
     Use -d/--description to add an optional description
     """
     try:
-        ann = ctx.obj.create_moment_annotation(name, description)
+        # TODO: add support for tags
+        ann = ctx.obj.create_moment_annotation(
+            name=name, description=description, tags=[]
+        )
         click.echo(json.dumps(ann))
     except HTTPError as exc:
         raise click.ClickException(f"Failed to create event data type: {exc}")

@@ -1446,7 +1446,7 @@ class FulcraAPI:
         return json.loads(resp)
 
     def create_moment_annotation(
-        self, name: str, description: Optional[str] = None
+        self, name: str, description: Optional[str] = None, tags: List[str] = []
     ) -> Dict:
         """
         Create a new moment annotation definition.
@@ -1463,7 +1463,7 @@ class FulcraAPI:
             "name": name,
             "description": description if description else "",
             "annotation_type": "moment",
-            "tags": [],
+            "tags": tags,
         }
 
         # TODO: Handle 303 redirect to return the created annotation
