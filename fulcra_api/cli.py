@@ -1004,11 +1004,17 @@ def create_tags(ctx, names: Tuple[str, ...]):
     "-t", "--tag", "tags", type=str, multiple=True, help="Tags to attach to the data type"
 )
 @click.option(
+    "-k", "--kind", "metric_kind", type=click.Choice([
+        "cumulative",
+        "discrete",
+    ])
+)
+@click.option(
     "-v", "--value", "raw_value", type=str, help="Default value for recording the data type"
 )
 @click.pass_context
 @requires_auth
-def create_data_type(ctx, base_data_type: str, name: str, description: Optional[str], tags: List[str], raw_value: Optional[str]):
+def create_data_type(ctx, base_data_type: str, name: str, description: Optional[str], tags: List[str], metric_kind: Optional[str], raw_value: Optional[str]):
     """Create a new moment annotation definition.
 
     BASE_DATA_TYPE: The base data type to create
@@ -1021,6 +1027,8 @@ def create_data_type(ctx, base_data_type: str, name: str, description: Optional[
     value = None
     if base_data_type == "MomentAnnotation":
         annotation_type = "moment"
+        if metric_kind is not None:
+            raise click.BadOptionUsage("k", f"-k / --kind cannot be used with base data type {base_data_type}", ctx)
     elif base_data_type == "DurationAnnotation":
         annotation_type = "duration"
     elif base_data_type == "BooleanAnnotation":
@@ -1032,7 +1040,7 @@ def create_data_type(ctx, base_data_type: str, name: str, description: Optional[
     
     try:
         ann = ctx.obj.create_annotation(
-            annotation_type=annotation_type, name=name, description=description, tags=tags, value=value
+            annotation_type=annotation_type, name=name, description=description, tags=tags, metric_kind=metric_kind, value=value
         )
         click.echo(json.dumps(ann))
     except HTTPError as exc:
