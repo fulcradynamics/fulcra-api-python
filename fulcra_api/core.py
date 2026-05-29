@@ -1529,7 +1529,7 @@ class FulcraAPI:
         """download a file and return the file object"""
 
         resp = self.fulcra_api(
-            f"/input/v1/file_upload/{file_id}/download", return_raw_response=True
+            f"/input/v1/file_upload/{file_id}/download", return_http_response=True
         )
 
         return resp
