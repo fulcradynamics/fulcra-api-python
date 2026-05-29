@@ -326,7 +326,7 @@ class FulcraAPI:
         method: str = "GET",
         query: Optional[dict[str, str]] = None,
         data: Optional[dict] = None,
-        return_raw_response: bool = False,
+        return_http_response: bool = False,
     ) -> bytes | http.client.HTTPResponse:
         """
         Make a call to the given url path (e.g. `/v0/data/metric_time_series?...`)
@@ -337,7 +337,7 @@ class FulcraAPI:
             method: The HTTP method for the request (Default: GET)
             query: Key/value pairs of query params
             data: Dictionary that will get serialized into JSON as the request body
-            return_raw_response: Return a HTTPResponse object instead of bytes (default: False)
+            return_http_response: Return a HTTPResponse object instead of bytes (default: False)
 
         Returns:
             The raw response data (as bytes).  Raises an exception on failure.
@@ -374,7 +374,7 @@ class FulcraAPI:
         req = urllib.request.Request(url=url, data=ds, headers=headers, method=method)
         response = urllib.request.urlopen(req)
 
-        if return_raw_response:
+        if return_http_response:
             return response
 
         return response.read()
