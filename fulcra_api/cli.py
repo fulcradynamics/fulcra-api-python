@@ -918,6 +918,7 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only:
 # Tag functionality
 #
 
+
 @cli.command("tags", short_help="Return a list of user-defined tags")
 @click.option("-n", "--name", type=str, help="Filter results by partial name.")
 @click.option("--tag-name", type=str, help="Filter results by full tag name.")
@@ -936,7 +937,7 @@ def tags(ctx, name: Optional[str], tag_name: Optional[str], tag_id: Optional[str
             response = [
                 t for t in response if name.lower() in t.get("name", "").lower()
             ]
-        
+
         if tag_name is not None:
             response = [
                 t for t in response if tag_name.lower() == t.get("name", "").lower()
@@ -950,7 +951,7 @@ def tags(ctx, name: Optional[str], tag_name: Optional[str], tag_id: Optional[str
         click.echo(json.dumps(response))
     except HTTPError as exc:
         raise click.ClickException(f"Failed to get tags: {exc}")
-    
+
 
 @cli.command("create-tags", short_help="Create user-defined tags")
 @click.argument("names", nargs=-1)
@@ -972,9 +973,8 @@ def create_tags(ctx, names: Tuple[str, ...]):
             if exc.status == 409:
                 continue
             raise click.ClickException(f"Failed to create tag {tag_name}: {exc}")
-    
-    click.echo(json.dumps(created_tags))
 
+    click.echo(json.dumps(created_tags))
 
 
 #
@@ -991,7 +991,7 @@ def create_tags(ctx, names: Tuple[str, ...]):
             "DurationAnnotation",
             "BooleanAnnotation",
             "NumericAnnotation",
-            # "ScaleAnnotation",
+            "ScaleAnnotation",
         ],
         case_sensitive=False,
     ),
@@ -1001,23 +1001,53 @@ def create_tags(ctx, names: Tuple[str, ...]):
     "-d", "--description", type=str, default=None, help="Description of the data type"
 )
 @click.option(
-    "-t", "--tag", "tags", type=str, multiple=True, help="Tags to attach to the data type"
+    "-t",
+    "--tag",
+    "tags",
+    type=str,
+    multiple=True,
+    help="Tags to attach to the data type",
 )
 @click.option(
-    "-k", "--kind", "metric_kind", type=click.Choice([
-        "cumulative",
-        "discrete",
-    ])
+    "-k",
+    "--kind",
+    "metric_kind",
+    type=click.Choice(
+        [
+            "cumulative",
+            "discrete",
+        ]
+    ),
 )
 @click.option(
-    "-v", "--value", "raw_value", type=str, help="Default value for recording the data type"
+    "-v",
+    "--value",
+    "raw_value",
+    type=str,
+    help="Default value for recording the data type",
 )
+@click.option("-u", "--unit", "unit", type=str, help="Unit for recording the data type")
 @click.option(
-    "-u", "--unit", "unit", type=str, help="Unit for recording the data type"
+    "-s",
+    "--scale-label",
+    "scale_labels",
+    type=str,
+    multiple=True,
+    help="Used for ScaleAnnotation labels",
 )
 @click.pass_context
 @requires_auth
-def create_data_type(ctx, base_data_type: str, name: str, description: Optional[str], tags: List[str], metric_kind: Optional[str], raw_value: Optional[str], unit: Optional[str]):
+def create_data_type(
+    ctx,
+    base_data_type: str,
+    name: str,
+    description: Optional[str],
+    tags: List[str],
+    metric_kind: Optional[str],
+    raw_value: Optional[str],
+    unit: Optional[str],
+    scale_labels: List[str],
+):
     """Create a new moment annotation definition.
 
     BASE_DATA_TYPE: The base data type to create
@@ -1031,35 +1061,95 @@ def create_data_type(ctx, base_data_type: str, name: str, description: Optional[
     if base_data_type == "MomentAnnotation":
         annotation_type = "moment"
         if metric_kind is not None:
-            raise click.BadOptionUsage("metric_kind", f"-k / --kind cannot be used with base data type {base_data_type}", ctx)
+            raise click.BadOptionUsage(
+                "metric_kind",
+                f"-k / --kind cannot be used with base data type {base_data_type}",
+                ctx,
+            )
         if raw_value is not None:
-            raise click.BadOptionUsage("raw_value", f"-v / --value cannot be used with base data type {base_data_type}", ctx)
+            raise click.BadOptionUsage(
+                "raw_value",
+                f"-v / --value cannot be used with base data type {base_data_type}",
+                ctx,
+            )
         if unit is not None:
-            raise click.BadOptionUsage("unit", f"-u / --unit cannot be used with base data type {base_data_type}", ctx)
+            raise click.BadOptionUsage(
+                "unit",
+                f"-u / --unit cannot be used with base data type {base_data_type}",
+                ctx,
+            )
+        if len(scale_labels) > 0:
+            raise click.BadOptionUsage(
+                "scale_labels",
+                f"-s / --scale-labels cannot be used with base data type {base_data_type}",
+                ctx,
+            )
     elif base_data_type == "DurationAnnotation":
         annotation_type = "duration"
         if unit is not None:
-            raise click.BadOptionUsage("unit", f"-u / --unit cannot be used with base data type {base_data_type}", ctx)
+            raise click.BadOptionUsage(
+                "unit",
+                f"-u / --unit cannot be used with base data type {base_data_type}",
+                ctx,
+            )
+        if len(scale_labels) > 0:
+            raise click.BadOptionUsage(
+                "scale_labels",
+                f"-s / --scale-labels cannot be used with base data type {base_data_type}",
+                ctx,
+            )
     elif base_data_type == "BooleanAnnotation":
         annotation_type = "boolean"
         if raw_value is not None:
             value = click.types.BoolParamType().convert(raw_value, None, None)
         if unit is not None:
-            raise click.BadOptionUsage("unit", f"-u / --unit cannot be used with base data type {base_data_type}", ctx)
+            raise click.BadOptionUsage(
+                "unit",
+                f"-u / --unit cannot be used with base data type {base_data_type}",
+                ctx,
+            )
+        if len(scale_labels) > 0:
+            raise click.BadOptionUsage(
+                "scale_labels",
+                f"-s / --scale-labels cannot be used with base data type {base_data_type}",
+                ctx,
+            )
     elif base_data_type == "NumericAnnotation":
         annotation_type = "numeric"
         if raw_value is not None:
             value = click.types.FloatParamType().convert(raw_value, None, None)
+        if len(scale_labels) > 0:
+            raise click.BadOptionUsage(
+                "scale_labels",
+                f"-s / --scale-labels cannot be used with base data type {base_data_type}",
+                ctx,
+            )
+    elif base_data_type == "ScaleAnnotation":
+        if len(scale_labels) != 5:
+            raise click.BadOptionUsage(
+                "scale_labels",
+                f"-s / --scale-labels must be used with exactly 5 values with base data type {base_data_type}",
+                ctx,
+            )
+        annotation_type = "scale"
     else:
         raise click.ClickException(f"Unsupported base data type {base_data_type}")
-    
+
     try:
         ann = ctx.obj.create_annotation(
-            annotation_type=annotation_type, name=name, description=description, tags=tags, metric_kind=metric_kind, value=value, unit=unit
+            annotation_type=annotation_type,
+            name=name,
+            description=description,
+            tags=tags,
+            metric_kind=metric_kind,
+            value=value,
+            unit=unit,
+            scale_labels=scale_labels,
         )
         click.echo(json.dumps(ann))
     except HTTPError as exc:
-        raise click.ClickException(f"Failed to create event data type: {exc}")
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to create event data type: {exc}\n{error_body}")
 
 
 @cli.command("user-info", short_help="Return information about the authenticated user")

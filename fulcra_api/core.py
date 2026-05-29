@@ -1499,11 +1499,12 @@ class FulcraAPI:
         return result
 
     
-    def create_annotation(self, annotation_type: str, name: str, description: Optional[str], tags: List[str], metric_kind: Optional[str] = None, value: Optional[Any] = None, unit: Optional[str] = None) -> Dict:
+    def create_annotation(self, annotation_type: str, name: str, description: Optional[str], tags: List[str], metric_kind: Optional[str] = None, value: Optional[Any] = None, unit: Optional[str] = None, scale_labels: Optional[List[str]] = None) -> Dict:
         tag_ids = []
         if len(tags) > 0:
             tag_ids = [t["id"] for t in self.create_tags(tags)]
 
+        spec = None
         measurement_spec = None
         if annotation_type == "duration":
             measurement_spec = {
@@ -1528,6 +1529,27 @@ class FulcraAPI:
                     "value": value
                 }
             }
+        elif annotation_type == "scale":
+            spec = {
+                "scale": {
+                    "label_mapping": {
+                        "mapping_type": "string",
+                        "string": {
+                            "mapping": {(i+1):v for i,v in enumerate(scale_labels)} if scale_labels else None
+                        }
+                    }
+                }
+            }
+            measurement_spec = {
+                "measurement_type": "scale",
+                "value_type": "integer",
+                "unit": None,
+                "scale": {
+                    "value": None,
+                    "min_allowed": 1,
+                    "max_allowed": 5
+                }
+            }
 
         if metric_kind is not None and measurement_spec is not None:
             measurement_spec["metric_kind"] = metric_kind
@@ -1538,6 +1560,7 @@ class FulcraAPI:
             "annotation_type": annotation_type,
             "measurement_spec": measurement_spec,
             "tags": tag_ids,
+            "spec": spec
         }
         resp = self.fulcra_api(
             "/user/v1alpha1/annotation", data=annotation_body, method="POST"
