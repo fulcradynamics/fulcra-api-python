@@ -1515,7 +1515,6 @@ class FulcraAPI:
             measurement_spec = {
                 "measurement_type": "boolean",
                 "value_type": "boolean",
-                "metric_kind": metric_kind,
                 "unit": None,
                 "boolean": {
                     "value": value
@@ -1524,7 +1523,6 @@ class FulcraAPI:
         elif annotation_type == "numeric":
             measurement_spec = {
                 "measurement_type": "custom",
-                "metric_kind": metric_kind,
                 "unit": unit,
                 "custom": {
                     "value": value
@@ -1539,7 +1537,6 @@ class FulcraAPI:
             "description": description or "",
             "annotation_type": annotation_type,
             "measurement_spec": measurement_spec,
-            "metric_kind": metric_kind,
             "tags": tag_ids,
         }
         resp = self.fulcra_api(
