@@ -1023,6 +1023,10 @@ class FulcraAPI:
         resp = self.fulcra_api("/user/v1alpha1/info")
         return json.loads(resp)
 
+    def update_user_preferences(self, prefs: Dict):
+        resp = self.fulcra_api("user/v1alpha1/preferences", method="POST", data=prefs)
+        return json.loads(resp)
+
     def sleep_cycles(
         self,
         start_time: Union[str, datetime.datetime],
