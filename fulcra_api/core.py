@@ -1462,7 +1462,7 @@ class FulcraAPI:
 
         resp = self.fulcra_api("/user/v1alpha1/tag")
         return json.loads(resp)
-    
+
     def create_tag(self, tag_name: str) -> List[Dict]:
         """
         Creates a user defined tag.
@@ -1474,10 +1474,11 @@ class FulcraAPI:
 
         """
 
-        resp = self.fulcra_api("/user/v1alpha1/tag", method="POST", data={"name": tag_name})
+        resp = self.fulcra_api(
+            "/user/v1alpha1/tag", method="POST", data={"name": tag_name}
+        )
         return json.loads(resp)
-    
-    
+
     def create_tags(self, tag_names: List[str]) -> List[Dict]:
         """
         Creates a batch of user defined tags.
@@ -1502,8 +1503,17 @@ class FulcraAPI:
 
         return result
 
-    
-    def create_annotation(self, annotation_type: str, name: str, description: Optional[str], tags: List[str], metric_kind: Optional[str] = None, value: Optional[Any] = None, unit: Optional[str] = None, scale_labels: Optional[List[str]] = None) -> Dict:
+    def create_annotation(
+        self,
+        annotation_type: str,
+        name: str,
+        description: Optional[str],
+        tags: List[str],
+        metric_kind: Optional[str] = None,
+        value: Optional[Any] = None,
+        unit: Optional[str] = None,
+        scale_labels: Optional[List[str]] = None,
+    ) -> Dict:
         tag_ids = []
         if len(tags) > 0:
             tag_ids = [t["id"] for t in self.create_tags(tags)]
@@ -1514,24 +1524,20 @@ class FulcraAPI:
             measurement_spec = {
                 "measurement_type": "duration",
                 "value_type": "duration",
-                "unit": None
+                "unit": None,
             }
         elif annotation_type == "boolean":
             measurement_spec = {
                 "measurement_type": "boolean",
                 "value_type": "boolean",
                 "unit": None,
-                "boolean": {
-                    "value": value
-                }
+                "boolean": {"value": value},
             }
         elif annotation_type == "numeric":
             measurement_spec = {
                 "measurement_type": "custom",
                 "unit": unit,
-                "custom": {
-                    "value": value
-                }
+                "custom": {"value": value},
             }
         elif annotation_type == "scale":
             spec = {
@@ -1539,8 +1545,10 @@ class FulcraAPI:
                     "label_mapping": {
                         "mapping_type": "string",
                         "string": {
-                            "mapping": {(i+1):v for i,v in enumerate(scale_labels)} if scale_labels else None
-                        }
+                            "mapping": {(i + 1): v for i, v in enumerate(scale_labels)}
+                            if scale_labels
+                            else None
+                        },
                     }
                 }
             }
@@ -1548,11 +1556,7 @@ class FulcraAPI:
                 "measurement_type": "scale",
                 "value_type": "integer",
                 "unit": None,
-                "scale": {
-                    "value": None,
-                    "min_allowed": 1,
-                    "max_allowed": 5
-                }
+                "scale": {"value": None, "min_allowed": 1, "max_allowed": 5},
             }
 
         if metric_kind is not None and measurement_spec is not None:
@@ -1564,10 +1568,9 @@ class FulcraAPI:
             "annotation_type": annotation_type,
             "measurement_spec": measurement_spec,
             "tags": tag_ids,
-            "spec": spec
+            "spec": spec,
         }
         resp = self.fulcra_api(
             "/user/v1alpha1/annotation", data=annotation_body, method="POST"
         )
         return json.loads(resp)
-
