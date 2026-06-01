@@ -1532,7 +1532,7 @@ class FulcraAPI:
         )
         upload_resp = urllib.request.urlopen(req)
 
-        return json.loads(resp)
+        return r
 
     def download_file(self, file_id: str) -> http.client.HTTPResponse:
         """download a file and return the file object"""
