@@ -1456,37 +1456,46 @@ class FulcraAPI:
 
         return str(filepath)
 
-    def list_files(self, path: str = "/") -> dict:
-        resp = self.fulcra_api("/input/v1/file_upload", query={"path": path})
+    def list_files(self, path: str = "/", state: str = "uploaded") -> dict:
+        resp = self.fulcra_api(
+            "/input/v1/file_upload", query={"path": path, "state": state}
+        )
         return json.loads(resp)
 
     def get_file_by_version(self, version_id: str) -> dict:
         resp = self.fulcra_api(f"/input/v1/file_upload/{version_id}")
         return json.loads(resp)
 
-    def resolve_filepath(self, filepath: str) -> list[dict]:
+    def resolve_filepath(self, filepath: str, all_versions: bool = False) -> list[dict]:
         """Take a fully qualified file path and resolve it to the resource definition"""
         p = PurePath(filepath)
 
         path = p.parent
         name = p.name
 
+        if all_versions:
+            state = "uploaded,archived"
+        else:
+            state = "uploaded"
+
         resp = self.fulcra_api(
             "/input/v1/file_upload",
-            query={
-                "path": str(path),
-                "name": str(name),
-                "include_archived": "true",
-            },
+            query={"path": str(path), "name": str(name), "state": state},
         )
 
         rbody = json.loads(resp)
 
-        files = sorted(rbody["files"], key=lambda d: d["uploaded_at"], reverse=True)
+        if all_versions:
+            files = sorted(rbody["files"], key=lambda d: d["uploaded_at"], reverse=True)
 
-        # If there's no files or current versions, it doesn't exist
-        if len(files) == 0 or files[0]["state"] != "uploaded":
-            raise Exception(f"File not found in Fulcra Library: {filepath}")
+            # If there's no files or current versions, it doesn't exist
+            if len(files) == 0 or files[0]["state"] != "uploaded":
+                raise Exception(f"File not found in Fulcra: {filepath}")
+        else:
+            files = rbody["files"]
+
+            if len(files) == 0:
+                raise Exception(f"File not found in Fulcra: {filepath}")
 
         return files
 

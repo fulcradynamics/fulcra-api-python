@@ -956,15 +956,14 @@ def file_list(ctx, path: str):
             click.echo(f"{d}/")
 
     for f in results.get("files", []):
-        if f.get("state") == "uploaded":
-            size, unit = human_size(f.get("size"))
-            try:
-                dt = datetime.fromisoformat(f.get("uploaded_at"))
-            except TypeError as exc:
-                dt = datetime(1970, 1, 1, tzinfo=timezone.utc)
-            click.echo(
-                f"{str(size) + unit:7} {dt.strftime('%Y-%m-%d %I:%M%p %Z')}  {f.get('name')}"
-            )
+        size, unit = human_size(f.get("size"))
+        try:
+            dt = datetime.fromisoformat(f.get("uploaded_at"))
+        except TypeError as exc:
+            dt = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        click.echo(
+            f"{str(size) + unit:7} {dt.strftime('%Y-%m-%d %I:%M%p %Z')}  {f.get('name')}"
+        )
 
 
 @file.command("stat", short_help="Get information about a library file")
@@ -980,7 +979,7 @@ def file_stat(ctx, path: str):
     path = ctx.obj.make_filepath(path)
 
     try:
-        f = ctx.obj.resolve_filepath(path)
+        f = ctx.obj.resolve_filepath(path, all_versions=True)
     except Exception as exc:
         raise click.ClickException(exc)
 
