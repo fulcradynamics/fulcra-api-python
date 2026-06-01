@@ -1035,6 +1035,9 @@ def create_tags(ctx, names: Tuple[str, ...]):
     multiple=True,
     help="Used for ScaleAnnotation labels",
 )
+@click.option(
+    "--add-to-timeline", is_flag=True, help="Add created data type to timeline"
+)
 @click.pass_context
 @requires_auth
 def create_data_type(
@@ -1047,6 +1050,7 @@ def create_data_type(
     raw_value: Optional[str],
     unit: Optional[str],
     scale_labels: List[str],
+    add_to_timeline: bool,
 ):
     """Create a new moment annotation definition.
 
@@ -1146,10 +1150,34 @@ def create_data_type(
             unit=unit,
             scale_labels=scale_labels,
         )
+
+        if add_to_timeline:
+            pass
+            info = ctx.obj.get_user_info()
+            current_prefs = info.get("preferences", {})
+            existing_metrics_map = current_prefs.get("selected_metrics_map", {})
+
+            current_selection = existing_metrics_map.get(info["userid"], [])
+            ann_id = ann["id"]
+
+            # TODO: this is a legacy naming convention for timeline data tracks
+            updated_selection = [f"fulcra_custom_event.{ann_id}"] + current_selection
+
+            prefs_payload = {
+                "selected_metrics_map": {
+                    **existing_metrics_map,
+                    info["userid"]: updated_selection,
+                }
+            }
+
+            ctx.obj.update_user_preferences(prefs_payload)
+
         click.echo(json.dumps(ann))
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
-        raise click.ClickException(f"Failed to create event data type: {exc}\n{error_body}")
+        raise click.ClickException(
+            f"Failed to create event data type: {exc}\n{error_body}"
+        )
 
 
 @cli.command("user-info", short_help="Return information about the authenticated user")
