@@ -1152,7 +1152,6 @@ def create_data_type(
         )
 
         if add_to_timeline:
-            pass
             info = ctx.obj.get_user_info()
             current_prefs = info.get("preferences", {})
             existing_metrics_map = current_prefs.get("selected_metrics_map", {})
