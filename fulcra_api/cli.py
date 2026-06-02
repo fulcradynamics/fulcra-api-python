@@ -977,25 +977,25 @@ def create_tags(ctx, names: Tuple[str, ...]):
     click.echo(json.dumps(created_tags))
 
 
-@cli.command("delete-tag", short_help="Soft delete user-defined tag")
+@cli.command("delete-tag", short_help="Delete user-defined tag")
 @click.argument("tag_id")
 @click.pass_context
 @requires_auth
 def delete_tag(ctx, tag_id: str):
     """
-    Soft-delete a user-defined tag by tag ID.
+    Delete a user-defined tag by tag ID.
     """
 
     try:
         ctx.obj.delete_tag(tag_id)
     except HTTPError as exc:
-        raise click.ClickException(f"Failed to archive tag {tag_id}: {exc}")
+        raise click.ClickException(f"Failed to delete tag {tag_id}: {exc}")
 
     click.echo(f"Tag deleted: {tag_id}")
 
 
 #
-# Create data type functionality
+# Data type functionality
 #
 
 
@@ -1169,24 +1169,27 @@ def create_data_type(
         )
 
         if add_to_timeline:
-            info = ctx.obj.get_user_info()
-            current_prefs = info.get("preferences", {})
-            existing_metrics_map = current_prefs.get("selected_metrics_map", {})
+            try:
+                info = ctx.obj.get_user_info()
+                current_prefs = info.get("preferences", {})
+                existing_metrics_map = current_prefs.get("selected_metrics_map", {})
 
-            current_selection = existing_metrics_map.get(info["userid"], [])
-            ann_id = ann["id"]
+                current_selection = existing_metrics_map.get(info["userid"], [])
+                ann_id = ann["id"]
 
-            # TODO: this is a legacy naming convention for timeline data tracks
-            updated_selection = [f"fulcra_custom_event.{ann_id}"] + current_selection
+                # TODO: this is a legacy naming convention for timeline data tracks
+                updated_selection = [f"fulcra_custom_event.{ann_id}"] + current_selection
 
-            prefs_payload = {
-                "selected_metrics_map": {
-                    **existing_metrics_map,
-                    info["userid"]: updated_selection,
+                prefs_payload = {
+                    "selected_metrics_map": {
+                        **existing_metrics_map,
+                        info["userid"]: updated_selection,
+                    }
                 }
-            }
 
-            ctx.obj.update_user_preferences(prefs_payload)
+                ctx.obj.update_user_preferences(prefs_payload)
+            except HTTPError as exc:
+                click.echo(f"Failed to add annotation to timeline: {exc}", err=True)
 
         click.echo(json.dumps(ann))
     except HTTPError as exc:
@@ -1196,72 +1199,70 @@ def create_data_type(
         )
 
 
-@cli.command("delete-data-type", short_help="Soft delete user-defined data type")
+@cli.command("archive-data-type", short_help="Archive a user-defined data type")
 @click.argument("data_type")
 @click.pass_context
 @requires_auth
-def delete_data_type(ctx, data_type: str):
+def archive_data_type(ctx, data_type: str):
     """
-    Soft-delete a user-defined data type by ID.
+    Archive a user-defined data type by ID.
 
-    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types.
+    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types
     """
-
-    # Deal with user-configured annotation shorthand (AnnotationType/UUID)
-    ann_id = data_type
-    parts = data_type.split("/", maxsplit=2)
-    if len(parts) > 1:
-        ann_id = parts[1]
 
     try:
-        ann_id = str(UUID(ann_id))
-    except ValueError:
-        raise click.ClickException("DATA_TYPE must be <Annotation Type>/<UUID> or UUID")
-
-    filtered_types = [
-        c
-        for c in ctx.obj.v1_catalog(data_type=None)
-        if ann_id.lower() in c["id"].lower()
-    ]
-    if len(filtered_types) != 1:
+        filtered_types = ctx.obj.v1_catalog(data_type=data_type)
+    except HTTPError:
         raise click.ClickException(f"Could not find data type matching id: {data_type}")
+
+    if len(filtered_types) == 0:
+        raise click.ClickException(f"Could not find data type matching id: {data_type}")
+    elif len(filtered_types) > 1:
+        raise click.ClickException(f"Found multiple data types matching id: {data_type}")
+
+    ann_id = None
+    try:
+        parts = data_type.split("/", maxsplit=2)
+        ann_id = parts[1]
+        ann_id = str(UUID(ann_id))
+    except (ValueError, IndexError):
+        raise click.ClickException("DATA_TYPE must be <Annotation Type>/<UUID>")
 
     try:
         ctx.obj.delete_annotation(annotation_id=ann_id)
-        click.echo(f"Deleted data type: {data_type}")
+        click.echo(f"Archived data type: {data_type}")
     except HTTPError as exc:
-        raise click.ClickException(f"Failed to delete type {data_type}: {exc}")
+        raise click.ClickException(f"Failed to archive data type {data_type}: {exc}")
 
 
-@cli.command("restore-data-type", short_help="Soft delete user-defined data type")
+@cli.command("restore-data-type", short_help="Restore an archived user-defined data type")
 @click.argument("data_type")
 @click.pass_context
 @requires_auth
 def restore_data_type(ctx, data_type: str):
     """
-    Restore a soft-deleted user-defined data type by ID.
+    Restore an archived user-defined data type by ID.
 
-    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types.
+    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types
     """
 
-    # Deal with user-configured annotation shorthand (AnnotationType/UUID)
-    ann_id = data_type
-    parts = data_type.split("/", maxsplit=2)
-    if len(parts) > 1:
-        ann_id = parts[1]
-
     try:
-        ann_id = str(UUID(ann_id))
-    except ValueError:
-        raise click.ClickException("DATA_TYPE must be <Annotation Type>/<UUID> or UUID")
-
-    filtered_types = [
-        c
-        for c in ctx.obj.v1_catalog(data_type=None)
-        if ann_id.lower() in c["id"].lower()
-    ]
-    if len(filtered_types) != 1:
+        filtered_types = ctx.obj.v1_catalog(data_type=data_type)
+    except HTTPError:
         raise click.ClickException(f"Could not find data type matching id: {data_type}")
+
+    if len(filtered_types) == 0:
+        raise click.ClickException(f"Could not find data type matching id: {data_type}")
+    elif len(filtered_types) > 1:
+        raise click.ClickException(f"Found multiple data types matching id: {data_type}")
+
+    ann_id = None
+    try:
+        parts = data_type.split("/", maxsplit=2)
+        ann_id = parts[1]
+        ann_id = str(UUID(ann_id))
+    except (ValueError, IndexError):
+        raise click.ClickException("DATA_TYPE must be <Annotation Type>/<UUID>")
 
     try:
         ann = ctx.obj.restore_annotation(annotation_id=ann_id)
