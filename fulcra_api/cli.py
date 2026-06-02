@@ -939,7 +939,7 @@ def user_info(ctx):
 #
 
 
-@cli.group(help="File library sub-commands")
+@cli.group(help="File management sub-commands")
 def file():
     pass
 
@@ -973,7 +973,7 @@ def file_list(ctx, path: str):
         )
 
 
-@file.command("stat", short_help="Get information about a library file")
+@file.command("stat", short_help="Get information about a file")
 @click.argument("path", type=str)
 @click.pass_context
 @requires_auth
@@ -1002,13 +1002,13 @@ def file_stat(ctx, path: str):
         click.echo(f"- {file['id']} {file['uploaded_at']} ({file['size']} bytes)")
 
 
-@file.command("download", short_help="Download a library file")
+@file.command("download", short_help="Download a file")
 @click.argument("remote_file", type=str)
 @click.argument("local_file", type=click.File(mode="wb"), required=False, default=None)
 @click.pass_context
 @requires_auth
 def file_download(ctx, remote_file: str, local_file=None):
-    """Download a library file.
+    """Download a file.
 
     REMOTE_FILE: Full path of file to download.
 
@@ -1033,13 +1033,13 @@ def file_download(ctx, remote_file: str, local_file=None):
         click.echo(f"⬇️ fulcra:{remote_file} -> {local_file.name}")
 
 
-@file.command("upload", short_help="Upload a library file")
+@file.command("upload", short_help="Upload a file")
 @click.argument("local_file", type=click.File(mode="rb"))
 @click.argument("remote_file", type=str, default="")
 @click.pass_context
 @requires_auth
 def file_upload(ctx, local_file: click.File, remote_file: str):
-    """Upload a library file.
+    """Upload a file.
 
     LOCAL_FILE: File to upload.
 
