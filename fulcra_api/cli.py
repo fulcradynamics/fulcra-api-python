@@ -61,6 +61,13 @@ def human_size(n: int) -> tuple[int, str]:
     return n, "EiB"
 
 
+def make_filepath(path: str, filename: str = "") -> str:
+    """make file path string from given path and filename"""
+    filepath = PurePath("/", path, filename)
+
+    return str(filepath)
+
+
 def parse_time(ctx: click.Context, param: click.Parameter, value: str) -> datetime:
     """
     callback to parse a time string through dateparser and return datetime
@@ -947,7 +954,7 @@ def file_list(ctx, path: str):
     PATH: Path to list files in [Default: /]
     """
 
-    path = ctx.obj.make_filepath(path)
+    path = make_filepath(path)
 
     results = ctx.obj.list_files(path)
 
@@ -976,7 +983,7 @@ def file_stat(ctx, path: str):
     PATH: Full path of the file.
     """
 
-    path = ctx.obj.make_filepath(path)
+    path = make_filepath(path)
 
     try:
         f = ctx.obj.resolve_filepath(path, all_versions=True)
@@ -986,7 +993,7 @@ def file_stat(ctx, path: str):
     latest_version = f[0]
 
     click.echo(
-        f"{ctx.obj.make_filepath(latest_version['path'], latest_version['name'])} ({latest_version['size']} bytes)"
+        f"{make_filepath(latest_version['path'], latest_version['name'])} ({latest_version['size']} bytes)"
     )
     click.echo(f"Uploaded: {latest_version['uploaded_at']}")
     click.echo(f"Version: {latest_version['id']}")
@@ -1008,7 +1015,7 @@ def file_download(ctx, remote_file: str, local_file=None):
     LOCAL_FILE: Path to save downloaded file to, use `-` to print file contents to STDOUT. [Default: REMOTE_FILE name]
     """
 
-    remote_file = ctx.obj.make_filepath(remote_file)
+    remote_file = make_filepath(remote_file)
 
     try:
         f = ctx.obj.resolve_filepath(remote_file)
@@ -1042,9 +1049,9 @@ def file_upload(ctx, local_file: click.File, remote_file: str):
         raise click.ClickException("Cannot upload from stdin")
 
     if remote_file != "":
-        path = ctx.obj.make_filepath(remote_file)
+        path = make_filepath(remote_file)
     else:
-        path = ctx.obj.make_filepath(local_file.name)
+        path = make_filepath(local_file.name)
 
     file_size = os.path.getsize(local_file.name)
     try:
@@ -1054,9 +1061,7 @@ def file_upload(ctx, local_file: click.File, remote_file: str):
 
     try:
         new_file = ctx.obj.upload_file(local_file, file_type, file_size, path)
-        full_path = ctx.obj.make_filepath(
-            new_file["file"]["path"], new_file["file"]["name"]
-        )
+        full_path = make_filepath(new_file["file"]["path"], new_file["file"]["name"])
     except HTTPError as exc:
         raise click.ClickException(exc.fp.read())
 
@@ -1072,7 +1077,7 @@ def file_delete(ctx, path):
 
     PATH: Path of the file to delete.
     """
-    path = ctx.obj.make_filepath(path)
+    path = make_filepath(path)
 
     try:
         f = ctx.obj.resolve_filepath(path)
@@ -1102,7 +1107,7 @@ def file_restore(ctx, version_id):
         else:
             raise click.ClickException(exc)
 
-    full_file_name = ctx.obj.make_filepath(file_version["path"], file_version["name"])
+    full_file_name = make_filepath(file_version["path"], file_version["name"])
 
     new_file = ctx.obj.restore_file(file_version["id"])
 

@@ -1450,12 +1450,6 @@ class FulcraAPI:
     # File functionality
     #
 
-    def make_filepath(self, path: str, filename: str = "") -> str:
-        """make file path string from given path and filename"""
-        filepath = PurePath("/", path, filename)
-
-        return str(filepath)
-
     def list_files(self, path: str = "/", state: str = "uploaded") -> dict:
         resp = self.fulcra_api(
             "/input/v1/file_upload", query={"path": path, "state": state}
