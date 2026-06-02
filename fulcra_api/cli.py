@@ -1196,6 +1196,43 @@ def create_data_type(
         )
 
 
+@cli.command("delete-data-type", short_help="Soft delete user-defined data type")
+@click.argument("data_type")
+@click.pass_context
+@requires_auth
+def delete_data_type(ctx, data_type: str):
+    """
+    Soft-delete a user-defined data type by ID.
+
+    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types.
+    """
+
+    # Deal with user-configured annotation shorthand (AnnotationType/UUID)
+    ann_id = data_type
+    parts = data_type.split("/", maxsplit=2)
+    if len(parts) > 1:
+        ann_id = parts[1]
+
+    try:
+        ann_id = str(UUID(ann_id))
+    except ValueError:
+        raise click.ClickException("DATA_TYPE must be <Annotation Type>/<UUID> or UUID")
+
+    filtered_types = [
+        c
+        for c in ctx.obj.v1_catalog(data_type=None)
+        if ann_id.lower() in c["id"].lower()
+    ]
+    if len(filtered_types) != 1:
+        raise click.ClickException(f"Could not find data type matching id: {data_type}")
+
+    try:
+        ctx.obj.delete_annotation(annotation_id=ann_id)
+        click.echo(f"Deleted data type: {data_type}")
+    except HTTPError as exc:
+        raise click.ClickException(f"Failed to delete type {data_type}: {exc}")
+
+
 @cli.command("user-info", short_help="Return information about the authenticated user")
 @click.pass_context
 @requires_auth
