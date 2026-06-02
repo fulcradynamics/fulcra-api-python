@@ -1503,6 +1503,15 @@ class FulcraAPI:
 
         return result
 
+    def delete_tag(self, tag_id: str):
+        """
+        Soft-deletes a user-defined tag by ID.
+
+        Requires a valid access token.
+        """
+
+        self.fulcra_api(f"user/v1alpha1/tag/id/{tag_id}", method="DELETE")
+
     def create_annotation(
         self,
         annotation_type: str,
