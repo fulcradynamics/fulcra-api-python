@@ -1592,3 +1592,15 @@ class FulcraAPI:
         """
 
         self.fulcra_api(f"user/v1alpha1/annotation/{annotation_id}", method="DELETE")
+
+    def restore_annotation(self, annotation_id: str):
+        """
+        Restore a soft-deleted user-defined annotation by ID.
+
+        Requires a valid access token.
+        """
+
+        resp = self.fulcra_api(
+            f"user/v1alpha1/annotation/{annotation_id}/cancel_deletion", method="POST"
+        )
+        return json.loads(resp)
