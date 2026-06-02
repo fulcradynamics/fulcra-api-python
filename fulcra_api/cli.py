@@ -986,7 +986,7 @@ def file_stat(ctx, path: str):
     latest_version = f[0]
 
     click.echo(
-        f"{latest_version['path']}{latest_version['name']} ({latest_version['size']} bytes)"
+        f"{ctx.obj.make_filepath(latest_version['path'], latest_version['name'])} ({latest_version['size']} bytes)"
     )
     click.echo(f"Uploaded: {latest_version['uploaded_at']}")
     click.echo(f"Version: {latest_version['id']}")
