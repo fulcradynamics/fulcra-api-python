@@ -981,7 +981,7 @@ def create_tags(ctx, names: Tuple[str, ...]):
 @click.argument("tag_id")
 @click.pass_context
 @requires_auth
-def archive_tag(ctx, tag_id: str):
+def delete_tag(ctx, tag_id: str):
     """
     Soft-delete a user-defined tag by tag ID.
     """
