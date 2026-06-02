@@ -63,7 +63,7 @@ def human_size(n: int) -> tuple[int, str]:
 
 def make_filepath(path: str, filename: str = "") -> str:
     """make file path string from given path and filename"""
-    filepath = PurePath("/", path, filename)
+    filepath = pathlib.PurePath("/", path, filename)
 
     return str(filepath)
 
