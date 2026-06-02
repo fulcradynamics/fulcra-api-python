@@ -977,6 +977,23 @@ def create_tags(ctx, names: Tuple[str, ...]):
     click.echo(json.dumps(created_tags))
 
 
+@cli.command("delete-tag", short_help="Soft delete user-defined tag")
+@click.argument("tag_id")
+@click.pass_context
+@requires_auth
+def archive_tag(ctx, tag_id: str):
+    """
+    Soft-delete a user-defined tag by tag ID.
+    """
+
+    try:
+        ctx.obj.delete_tag(tag_id)
+    except HTTPError as exc:
+        raise click.ClickException(f"Failed to archive tag {tag_id}: {exc}")
+
+    click.echo(f"Tag deleted: {tag_id}")
+
+
 #
 # Create data type functionality
 #
