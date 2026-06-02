@@ -1583,3 +1583,12 @@ class FulcraAPI:
             "/user/v1alpha1/annotation", data=annotation_body, method="POST"
         )
         return json.loads(resp)
+
+    def delete_annotation(self, annotation_id: str):
+        """
+        Soft-deletes a user-defined annotation by ID.
+
+        Requires a valid access token.
+        """
+
+        self.fulcra_api(f"user/v1alpha1/annotation/{annotation_id}", method="DELETE")
