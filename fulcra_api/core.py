@@ -1464,6 +1464,34 @@ class FulcraAPI:
         resp = self.fulcra_api("/user/v1alpha1/tag")
         return json.loads(resp)
 
+    def get_tag_by_name(self, name: str) -> Dict:
+        """
+        Retrieves a user defined tag by name.
+
+        Requires a valid access token.
+
+        Returns:
+            A user-defined tag represented by a dict.
+
+        """
+
+        resp = self.fulcra_api(f"/user/v1alpha1/tag/name/{name}")
+        return json.loads(resp)
+
+    def get_tag_by_id(self, tag_id: str) -> Dict:
+        """
+        Retrieves a user defined tag by ID.
+
+        Requires a valid access token.
+
+        Returns:
+            A user-defined tag represented by a dict.
+
+        """
+
+        resp = self.fulcra_api(f"/user/v1alpha1/tag/id/{tag_id}")
+        return json.loads(resp)
+
     def create_tag(self, tag_name: str) -> List[Dict]:
         """
         Creates a user defined tag.
@@ -1605,6 +1633,7 @@ class FulcraAPI:
             f"user/v1alpha1/annotation/{annotation_id}/cancel_deletion", method="POST"
         )
         return json.loads(resp)
+
     #
     # File functionality
     #
