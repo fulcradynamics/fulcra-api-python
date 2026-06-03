@@ -979,6 +979,8 @@ def tags(ctx, name: Optional[str], tag_name: Optional[str], tag_id: Optional[str
 def tag(ctx, name: Optional[str], id: Optional[str]):
     if name and id:
         raise click.UsageError("--name and --id are mutually exclusive")
+    elif not name and not id:
+        raise click.UsageError("--name or --id option is required")
 
     try:
         if name:
