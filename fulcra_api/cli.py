@@ -1219,7 +1219,9 @@ def create_data_type(
                 ann_id = ann["id"]
 
                 # TODO: this is a legacy naming convention for timeline data tracks
-                updated_selection = [f"fulcra_custom_event.{ann_id}"] + current_selection
+                updated_selection = [
+                    f"fulcra_custom_event.{ann_id}"
+                ] + current_selection
 
                 prefs_payload = {
                     "selected_metrics_map": {
@@ -1259,7 +1261,9 @@ def archive_data_type(ctx, data_type: str):
     if len(filtered_types) == 0:
         raise click.ClickException(f"Could not find data type matching id: {data_type}")
     elif len(filtered_types) > 1:
-        raise click.ClickException(f"Found multiple data types matching id: {data_type}")
+        raise click.ClickException(
+            f"Found multiple data types matching id: {data_type}"
+        )
 
     ann_id = None
     try:
@@ -1276,7 +1280,9 @@ def archive_data_type(ctx, data_type: str):
         raise click.ClickException(f"Failed to archive data type {data_type}: {exc}")
 
 
-@cli.command("restore-data-type", short_help="Restore an archived user-defined data type")
+@cli.command(
+    "restore-data-type", short_help="Restore an archived user-defined data type"
+)
 @click.argument("data_type")
 @click.pass_context
 @requires_auth
@@ -1295,7 +1301,9 @@ def restore_data_type(ctx, data_type: str):
     if len(filtered_types) == 0:
         raise click.ClickException(f"Could not find data type matching id: {data_type}")
     elif len(filtered_types) > 1:
-        raise click.ClickException(f"Found multiple data types matching id: {data_type}")
+        raise click.ClickException(
+            f"Found multiple data types matching id: {data_type}"
+        )
 
     ann_id = None
     try:
