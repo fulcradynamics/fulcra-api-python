@@ -8,6 +8,7 @@ import os.path
 import urllib.parse
 import urllib.request
 import webbrowser
+from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
@@ -1604,3 +1605,101 @@ class FulcraAPI:
             f"user/v1alpha1/annotation/{annotation_id}/cancel_deletion", method="POST"
         )
         return json.loads(resp)
+    #
+    # File functionality
+    #
+
+    def list_files(self, path: str = "/", state: str = "uploaded") -> dict:
+        resp = self.fulcra_api(
+            "/input/v1/file_upload", query={"path": path, "state": state}
+        )
+        return json.loads(resp)
+
+    def get_file_by_version(self, version_id: str) -> dict:
+        resp = self.fulcra_api(f"/input/v1/file_upload/{version_id}")
+        return json.loads(resp)
+
+    def resolve_filepath(self, filepath: str, all_versions: bool = False) -> list[dict]:
+        """Take a fully qualified file path and resolve it to the resource definition"""
+        p = PurePath(filepath)
+
+        path = p.parent
+        name = p.name
+
+        if all_versions:
+            state = "uploaded,archived"
+        else:
+            state = "uploaded"
+
+        resp = self.fulcra_api(
+            "/input/v1/file_upload",
+            query={"path": str(path), "name": str(name), "state": state},
+        )
+
+        rbody = json.loads(resp)
+
+        if all_versions:
+            files = sorted(rbody["files"], key=lambda d: d["uploaded_at"], reverse=True)
+
+            # If there's no files or current versions, it doesn't exist
+            if len(files) == 0 or files[0]["state"] != "uploaded":
+                raise Exception(f"File not found in Fulcra: {filepath}")
+        else:
+            files = rbody["files"]
+
+            if len(files) == 0:
+                raise Exception(f"File not found in Fulcra: {filepath}")
+
+        return files
+
+    def upload_file(
+        self, data: io.BufferedReader, file_type: str, file_size: int, filepath: str
+    ) -> dict:
+
+        path = PurePath(filepath)
+
+        file_info = {
+            "content_length": file_size,
+            "content_type": file_type,
+            "name": str(path.name),
+            "path": str(path.parent),
+        }
+
+        # make request to create upload
+        resp = self.fulcra_api(
+            "/input/v1/file_upload",
+            data=file_info,
+            method="POST",
+        )
+
+        r = json.loads(resp)
+
+        # get our url back and upload data to it
+        upload_url = r["url"]
+
+        req = urllib.request.Request(
+            upload_url,
+            data=data,
+            headers={"Content-Length": file_size, "Content-Type": file_type},
+            method="POST",
+        )
+        upload_resp = urllib.request.urlopen(req)
+
+        return r
+
+    def download_file(self, file_id: str) -> http.client.HTTPResponse:
+        """download a file and return the file object"""
+
+        resp = self.fulcra_api(
+            f"/input/v1/file_upload/{file_id}/download", return_http_response=True
+        )
+
+        return resp
+
+    def delete_file(self, file_id: str):
+        self.fulcra_api(f"/input/v1/file_upload/{file_id}", method="DELETE")
+
+    def restore_file(self, file_id: str):
+        return json.loads(
+            self.fulcra_api(f"/input/v1/file_upload/{file_id}/restore", method="POST")
+        )
