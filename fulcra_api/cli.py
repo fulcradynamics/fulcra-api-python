@@ -971,6 +971,29 @@ def tags(ctx, name: Optional[str], tag_name: Optional[str], tag_id: Optional[str
         raise click.ClickException(f"Failed to get tags: {exc}")
 
 
+@cli.command("tag", short_help="Get a user-defined tag")
+@click.option("--name", type=str, help="Tag name")
+@click.option("--id", type=str, help="Tag ID")
+@click.pass_context
+@requires_auth
+def tag(ctx, name: Optional[str], id: Optional[str]):
+    if name and id:
+        raise click.UsageError("--name and --id are mutually exclusive")
+
+    try:
+        if name:
+            resp = ctx.obj.get_tag_by_name(name=name)
+            click.echo(json.dumps(resp))
+        elif id:
+            resp = ctx.obj.get_tag_by_id(tag_id=id)
+            click.echo(json.dumps(resp))
+    except HTTPError as exc:
+        if exc.status == 404:
+            click.echo(f"No tag found: {name or id}")
+        else:
+            raise click.ClickException(f"Failed to get tag: {exc}")
+
+
 @cli.command("create-tags", short_help="Create user-defined tags")
 @click.argument("names", nargs=-1)
 @click.pass_context
