@@ -16,6 +16,8 @@ import puremagic
 from .core import FulcraAPI
 from .credentials import FulcraCredentials
 
+from fulcradatatypes.models import FulcraDataTypeCatalog
+
 CONFIG_PATH = pathlib.Path.home() / ".config" / "fulcra"
 CREDS_FILE = pathlib.Path(CONFIG_PATH / "credentials.json")
 
@@ -1058,17 +1060,17 @@ def data_type():
     pass
 
 
+
+base_type_arguments = [
+    t.id for t in FulcraDataTypeCatalog.get_type_list() if "base_type" in t.categories
+]
+
+
 @data_type.command("create", short_help="Create a new base data type")
 @click.argument(
     "base_data_type",
     type=click.Choice(
-        [
-            "MomentAnnotation",  # TODO: use the fulcradatatypes package for these?
-            "DurationAnnotation",
-            "BooleanAnnotation",
-            "NumericAnnotation",
-            "ScaleAnnotation",
-        ],
+        base_type_arguments,
         case_sensitive=False,
     ),
 )
