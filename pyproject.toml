@@ -3,7 +3,7 @@ name = "fulcra-api"
 version = "0.1.32"
 description = "Python client library for Context by Fulcra"
 authors = [{ name = "Brandon Creighton", email = "brandon@fulcradynamics.com" }]
-requires-python = ">= 3.11"
+requires-python = ">= 3.12"
 readme = "README.md"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -20,6 +20,7 @@ dependencies = [
     "click>=8.2.1",
     "dateparser>=1.4.0",
     "puremagic>=1.30",
+    "fulcra-data-types",
 ]
 packages = [{ include = "fulcra_api" }]
 
@@ -42,6 +43,9 @@ default-groups = "all"
 
 [tool.uv.build-backend]
 module-root = ""
+
+[tool.uv.sources]
+fulcra-data-types = { git = "ssh://git@github.com/fulcradynamics/fulcra-data-types.git" }
 
 [build-system]
 requires = ["uv_build>=0.11.3,<0.12.0"]
