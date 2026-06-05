@@ -2,7 +2,6 @@ import json
 import os
 import pathlib
 import webbrowser
-import re
 from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, Dict, List, Optional, Tuple
@@ -16,7 +15,11 @@ import puremagic
 from .core import FulcraAPI
 from .credentials import FulcraCredentials
 
-from fulcradatatypes.models import FulcraDataTypeCatalog
+from fulcradatatypes.models import (
+    FulcraDataTypeCatalog,
+    FulcraDataClass,
+    FulcraAPIVersion,
+)
 
 CONFIG_PATH = pathlib.Path.home() / ".config" / "fulcra"
 CREDS_FILE = pathlib.Path(CONFIG_PATH / "credentials.json")
@@ -921,11 +924,7 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only:
         response = [c for c in response if name.lower() in c.get("name", "").lower()]
 
     if base_types_only:
-        response = [
-            c
-            for c in response
-            if "base_type" in c.get("categories", [])
-        ]
+        response = [c for c in response if "base_type" in c.get("categories", [])]
 
     for c in response:
         c["related_cli_commands"] = related_cli_commands(c)
@@ -1137,83 +1136,87 @@ def data_type_create(
     Use -d/--description to add an optional description
     """
 
-    value = None
-    if base_data_type == "MomentAnnotation":
-        annotation_type = "moment"
-        if metric_kind is not None:
+    filtered_data_types = [
+        t
+        for t in FulcraDataTypeCatalog.get_types_by_id(base_data_type)
+        if t.api_version == FulcraAPIVersion.v1alpha1
+    ]
+    if len(filtered_data_types) != 1:
+        raise click.ClickException(
+            f"Multiple data types found for identifier: {base_data_type}"
+        )
+
+    fulcra_data_type = filtered_data_types[0]
+    if fulcra_data_type.klass != FulcraDataClass.metric:
+        if (
+            metric_kind is not None
+        ):  # TODO: DurationAnnotation actually does support metric_kind
             raise click.BadOptionUsage(
                 "metric_kind",
                 f"-k / --kind cannot be used with base data type {base_data_type}",
                 ctx,
             )
+
         if raw_value is not None:
             raise click.BadOptionUsage(
                 "raw_value",
                 f"-v / --value cannot be used with base data type {base_data_type}",
                 ctx,
             )
+
         if unit is not None:
             raise click.BadOptionUsage(
                 "unit",
                 f"-u / --unit cannot be used with base data type {base_data_type}",
                 ctx,
             )
-        if len(scale_labels) > 0:
-            raise click.BadOptionUsage(
-                "scale_labels",
-                f"-s / --scale-labels cannot be used with base data type {base_data_type}",
-                ctx,
-            )
-    elif base_data_type == "DurationAnnotation":
-        annotation_type = "duration"
-        if unit is not None:
-            raise click.BadOptionUsage(
-                "unit",
-                f"-u / --unit cannot be used with base data type {base_data_type}",
-                ctx,
-            )
-        if len(scale_labels) > 0:
-            raise click.BadOptionUsage(
-                "scale_labels",
-                f"-s / --scale-labels cannot be used with base data type {base_data_type}",
-                ctx,
-            )
-    elif base_data_type == "BooleanAnnotation":
-        annotation_type = "boolean"
-        if raw_value is not None:
-            value = click.types.BoolParamType().convert(raw_value, None, None)
-        if unit is not None:
-            raise click.BadOptionUsage(
-                "unit",
-                f"-u / --unit cannot be used with base data type {base_data_type}",
-                ctx,
-            )
-        if len(scale_labels) > 0:
-            raise click.BadOptionUsage(
-                "scale_labels",
-                f"-s / --scale-labels cannot be used with base data type {base_data_type}",
-                ctx,
-            )
-    elif base_data_type == "NumericAnnotation":
-        annotation_type = "numeric"
-        if raw_value is not None:
-            value = click.types.FloatParamType().convert(raw_value, None, None)
-        if len(scale_labels) > 0:
-            raise click.BadOptionUsage(
-                "scale_labels",
-                f"-s / --scale-labels cannot be used with base data type {base_data_type}",
-                ctx,
-            )
-    elif base_data_type == "ScaleAnnotation":
-        if len(scale_labels) != 5:
-            raise click.BadOptionUsage(
-                "scale_labels",
-                f"-s / --scale-labels must be used with exactly 5 values with base data type {base_data_type}",
-                ctx,
-            )
-        annotation_type = "scale"
-    else:
-        raise click.ClickException(f"Unsupported base data type {base_data_type}")
+
+    # TODO: Possibly update type metadata to be able to determine that this is a scale
+    if fulcra_data_type.id == "ScaleAnnotation" and len(scale_labels) > 0:
+        raise click.BadOptionUsage(
+            "scale_labels",
+            f"-s / --scale-labels cannot be used with base data type {base_data_type}",
+            ctx,
+        )
+
+    value = None
+    match fulcra_data_type.id:
+        case "MomentAnnotation":
+            annotation_type = "moment"
+        case "DurationAnnotation":
+            annotation_type = "duration"
+        case "BooleanAnnotation":
+            annotation_type = "boolean"
+            # user-service does not accept a unit for boolean annotations
+            if unit is not None:
+                raise click.BadOptionUsage(
+                    "unit",
+                    f"-u / --unit cannot be used with base data type {base_data_type}",
+                    ctx,
+                )
+            if raw_value is not None:
+                value = click.types.BoolParamType().convert(raw_value, None, None)
+        case "NumericAnnotation":
+            annotation_type = "numeric"
+            if raw_value is not None:
+                value = click.types.FloatParamType().convert(raw_value, None, None)
+        case "ScaleAnnotation":
+            annotation_type = "scale"
+            if len(scale_labels) != 5:
+                raise click.BadOptionUsage(
+                    "scale_labels",
+                    f"-s / --scale-labels must be used with exactly 5 values with base data type {base_data_type}",
+                    ctx,
+                )
+            # user-service does not accept a unit for scale annotations
+            if unit is not None:
+                raise click.BadOptionUsage(
+                    "unit",
+                    f"-u / --unit cannot be used with base data type {base_data_type}",
+                    ctx,
+                )
+        case _:
+            raise click.ClickException(f"Unsupported base type: {base_data_type}")
 
     try:
         ann = ctx.obj.create_annotation(
