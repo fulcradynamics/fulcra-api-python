@@ -921,12 +921,10 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only:
         response = [c for c in response if name.lower() in c.get("name", "").lower()]
 
     if base_types_only:
-        pattern = r"^.*Annotation$"  # TODO: filter this based on flag from catalog items (or category)
         response = [
             c
             for c in response
-            if "user_configured" not in c.get("categories")
-            and re.match(pattern, c.get("id"))
+            if "base_type" in c.get("categories", [])
         ]
 
     for c in response:
