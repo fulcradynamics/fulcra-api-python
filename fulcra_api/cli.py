@@ -977,26 +977,32 @@ def tag_list(ctx, name: Optional[str], tag_name: Optional[str], tag_id: Optional
 
 
 @tag.command("get", short_help="Get a user-defined tag")
-@click.option("--name", type=str, help="Tag name")
-@click.option("--id", type=str, help="Tag ID")
+@click.argument("name_or_id", type=str)
 @click.pass_context
 @requires_auth
-def get_tag(ctx, name: Optional[str], id: Optional[str]):
-    if name and id:
-        raise click.UsageError("--name and --id are mutually exclusive")
-    elif not name and not id:
-        raise click.UsageError("--name or --id option is required")
+def get_tag(ctx, name_or_id: str):
+    """Get a user-defined tag by name or ID.
+
+    NAME_OR_ID: Tag name or ID
+    """
+    tag_name = name_or_id
+    tag_id = None
+    try:
+        tag_id = str(UUID(name_or_id))
+    except ValueError:
+        pass
 
     try:
-        if name:
-            resp = ctx.obj.get_tag_by_name(name=name)
+        if tag_id:
+            resp = ctx.obj.get_tag_by_id(tag_id=tag_id)
             click.echo(json.dumps(resp))
-        elif id:
-            resp = ctx.obj.get_tag_by_id(tag_id=id)
+        else:
+            resp = ctx.obj.get_tag_by_name(name=tag_name)
             click.echo(json.dumps(resp))
+
     except HTTPError as exc:
         if exc.status == 404:
-            click.echo(f"No tag found: {name or id}")
+            raise click.ClickException(f"No tag found: {tag_name or id}")
         else:
             raise click.ClickException(f"Failed to get tag: {exc}")
 
