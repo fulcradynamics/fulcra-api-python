@@ -1,6 +1,6 @@
 [project]
 name = "fulcra-api"
-version = "0.1.32"
+version = "0.1.33"
 description = "Python client library for Context by Fulcra"
 authors = [{ name = "Brandon Creighton", email = "brandon@fulcradynamics.com" }]
 requires-python = ">= 3.12"
