@@ -1300,9 +1300,7 @@ def data_type_archive(ctx, data_type: str):
         raise click.ClickException(f"Failed to archive data type {data_type}: {exc}")
 
 
-@data_type.command(
-    "restore", short_help="Restore an archived user-defined data type"
-)
+@data_type.command("restore", short_help="Restore an archived user-defined data type")
 @click.argument("data_type")
 @click.pass_context
 @requires_auth
