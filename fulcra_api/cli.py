@@ -1469,7 +1469,7 @@ def file_upload(ctx, local_file: click.File, remote_file: str):
     if remote_file != "":
         path = make_filepath(remote_file)
     else:
-        path = make_filepath(local_file.name)
+        path = make_filepath(pathlib.PurePath(local_file.name).name)
 
     file_size = os.path.getsize(local_file.name)
     try:
