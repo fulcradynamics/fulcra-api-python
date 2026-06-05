@@ -1053,7 +1053,12 @@ def tag_delete(ctx, tag_id: str):
 #
 
 
-@cli.command("create-data-type", short_help="Create a new base data type")
+@cli.group(name="data-type", help="Data type management sub-commands")
+def data_type():
+    pass
+
+
+@data_type.command("create", short_help="Create a new base data type")
 @click.argument(
     "base_data_type",
     type=click.Choice(
@@ -1111,7 +1116,7 @@ def tag_delete(ctx, tag_id: str):
 )
 @click.pass_context
 @requires_auth
-def create_data_type(
+def data_type_create(
     ctx,
     base_data_type: str,
     name: str,
@@ -1255,11 +1260,11 @@ def create_data_type(
         )
 
 
-@cli.command("archive-data-type", short_help="Archive a user-defined data type")
+@data_type.command("archive", short_help="Archive a user-defined data type")
 @click.argument("data_type")
 @click.pass_context
 @requires_auth
-def archive_data_type(ctx, data_type: str):
+def data_type_archive(ctx, data_type: str):
     """
     Archive a user-defined data type by ID.
 
@@ -1293,8 +1298,8 @@ def archive_data_type(ctx, data_type: str):
         raise click.ClickException(f"Failed to archive data type {data_type}: {exc}")
 
 
-@cli.command(
-    "restore-data-type", short_help="Restore an archived user-defined data type"
+@data_type.command(
+    "restore", short_help="Restore an archived user-defined data type"
 )
 @click.argument("data_type")
 @click.pass_context
