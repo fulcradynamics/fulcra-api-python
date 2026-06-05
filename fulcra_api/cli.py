@@ -937,13 +937,18 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only:
 #
 
 
-@cli.command("tags", short_help="Return a list of user-defined tags")
+@cli.group(help="Tag management sub-commands")
+def tag():
+    pass
+
+
+@tag.command("list", short_help="Return a list of user-defined tags")
 @click.option("-n", "--name", type=str, help="Filter results by partial name.")
 @click.option("--tag-name", type=str, help="Filter results by full tag name.")
 @click.option("--tag-id", type=str, help="Filter results by tag ID.")
 @click.pass_context
 @requires_auth
-def tags(ctx, name: Optional[str], tag_name: Optional[str], tag_id: Optional[str]):
+def tag_list(ctx, name: Optional[str], tag_name: Optional[str], tag_id: Optional[str]):
     """
     Return a list of user-defined tags that can be used when creating and recording custom data types.
     """
@@ -971,12 +976,12 @@ def tags(ctx, name: Optional[str], tag_name: Optional[str], tag_id: Optional[str
         raise click.ClickException(f"Failed to get tags: {exc}")
 
 
-@cli.command("tag", short_help="Get a user-defined tag")
+@tag.command("get", short_help="Get a user-defined tag")
 @click.option("--name", type=str, help="Tag name")
 @click.option("--id", type=str, help="Tag ID")
 @click.pass_context
 @requires_auth
-def tag(ctx, name: Optional[str], id: Optional[str]):
+def get_tag(ctx, name: Optional[str], id: Optional[str]):
     if name and id:
         raise click.UsageError("--name and --id are mutually exclusive")
     elif not name and not id:
@@ -996,11 +1001,11 @@ def tag(ctx, name: Optional[str], id: Optional[str]):
             raise click.ClickException(f"Failed to get tag: {exc}")
 
 
-@cli.command("create-tags", short_help="Create user-defined tags")
+@tag.command("create", short_help="Create user-defined tags")
 @click.argument("names", nargs=-1)
 @click.pass_context
 @requires_auth
-def create_tags(ctx, names: Tuple[str, ...]):
+def tag_create(ctx, names: Tuple[str, ...]):
     """
     Create case-insensitive user-defined tags by name that can be used when creating and recording custom data types.
     """
@@ -1020,11 +1025,11 @@ def create_tags(ctx, names: Tuple[str, ...]):
     click.echo(json.dumps(created_tags))
 
 
-@cli.command("delete-tag", short_help="Delete user-defined tag")
+@tag.command("delete", short_help="Delete user-defined tag")
 @click.argument("tag_id")
 @click.pass_context
 @requires_auth
-def delete_tag(ctx, tag_id: str):
+def tag_delete(ctx, tag_id: str):
     """
     Delete a user-defined tag by tag ID.
     """
