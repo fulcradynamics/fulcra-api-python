@@ -977,10 +977,14 @@ class FulcraAPI:
         resp = self.fulcra_api("/data/v0/metrics_catalog")
         return json.loads(resp)
 
-    def v1_catalog(self, data_type: Optional[str]) -> List[Dict]:
+    def v1_catalog(
+        self, data_type: Optional[str], category: Optional[str]
+    ) -> List[Dict]:
         params = {}
         if data_type:
             params["data_type"] = data_type
+        if category:
+            params["category"] = category
 
         query_params = urllib.parse.urlencode(params, doseq=True)
 
