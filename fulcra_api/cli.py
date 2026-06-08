@@ -907,7 +907,8 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only:
     """
 
     try:
-        response = ctx.obj.v1_catalog(data_type)
+        category = "base_type" if base_types_only else None
+        response = ctx.obj.v1_catalog(data_type=data_type, category=category)
     except HTTPError as exc:
         if exc.code == 404:
             raise click.ClickException("Type not found")
@@ -916,9 +917,6 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only:
 
     if name:
         response = [c for c in response if name.lower() in c.get("name", "").lower()]
-
-    if base_types_only:
-        response = [c for c in response if "base_type" in c.get("categories", [])]
 
     for c in response:
         c["related_cli_commands"] = related_cli_commands(c)
