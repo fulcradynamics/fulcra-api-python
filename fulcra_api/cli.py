@@ -15,12 +15,6 @@ import puremagic
 from .core import FulcraAPI
 from .credentials import FulcraCredentials
 
-from fulcradatatypes.models import (
-    FulcraDataTypeCatalog,
-    FulcraDataClass,
-    FulcraAPIVersion,
-)
-
 CONFIG_PATH = pathlib.Path.home() / ".config" / "fulcra"
 CREDS_FILE = pathlib.Path(CONFIG_PATH / "credentials.json")
 
@@ -1057,19 +1051,10 @@ def data_type():
     pass
 
 
-
-base_type_arguments = [
-    t.id for t in FulcraDataTypeCatalog.get_type_list() if "base_type" in t.categories
-]
-
-
-@data_type.command("create", short_help="Create a new base data type")
+@data_type.command("create", short_help="Create a new data type")
 @click.argument(
     "base_data_type",
-    type=click.Choice(
-        base_type_arguments,
-        case_sensitive=False,
-    ),
+    type=str,
 )
 @click.argument("name", type=str)
 @click.option(
@@ -1129,25 +1114,32 @@ def data_type_create(
 ):
     """Create a new moment annotation definition.
 
-    BASE_DATA_TYPE: The base data type to create
+    BASE_DATA_TYPE: The base data type to create from
 
     NAME: The given name of the data type
 
     Use -d/--description to add an optional description
     """
 
-    filtered_data_types = [
-        t
-        for t in FulcraDataTypeCatalog.get_types_by_id(base_data_type)
-        if t.api_version == FulcraAPIVersion.v1alpha1
+    try:
+        catalog_resp = ctx.obj.v1_catalog(base_data_type)
+    except HTTPError as exc:
+        raise click.ClickException(f"Failed to validate BASE_DATA_TYPE: {exc}")
+
+    filtered_base_data_types = [
+        c
+        for c in catalog_resp
+        if "base_type" in c.get("categories", [])
+        and c.get("api_version", "") == "v1alpha1"
     ]
-    if len(filtered_data_types) != 1:
+
+    if len(filtered_base_data_types) != 1:
         raise click.ClickException(
-            f"Multiple data types found for identifier: {base_data_type}"
+            f"Multiple base data types found for identifier: {base_data_type}"
         )
 
-    fulcra_data_type = filtered_data_types[0]
-    if fulcra_data_type.klass != FulcraDataClass.metric:
+    fulcra_data_type = filtered_base_data_types[0]
+    if fulcra_data_type.get("klass", "") != "metric":
         if (
             metric_kind is not None
         ):  # TODO: DurationAnnotation actually does support metric_kind
@@ -1172,7 +1164,7 @@ def data_type_create(
             )
 
     # TODO: Possibly update type metadata to be able to determine that this is a scale
-    if fulcra_data_type.id == "ScaleAnnotation" and len(scale_labels) > 0:
+    if fulcra_data_type["id"] == "ScaleAnnotation" and len(scale_labels) > 0:
         raise click.BadOptionUsage(
             "scale_labels",
             f"-s / --scale-labels cannot be used with base data type {base_data_type}",
@@ -1180,7 +1172,7 @@ def data_type_create(
         )
 
     value = None
-    match fulcra_data_type.id:
+    match fulcra_data_type["id"]:
         case "MomentAnnotation":
             annotation_type = "moment"
         case "DurationAnnotation":
