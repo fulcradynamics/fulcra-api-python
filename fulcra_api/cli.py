@@ -1112,9 +1112,9 @@ def data_type_create(
     scale_labels: List[str],
     add_to_timeline: bool,
 ):
-    """Create a new moment annotation definition.
+    """Create a new data type from a base data type.
 
-    BASE_DATA_TYPE: The base data type to create from
+    BASE_DATA_TYPE: The base data type to create from. Use fulcra catalog --base-types-only for valid options
 
     NAME: The given name of the data type
 
