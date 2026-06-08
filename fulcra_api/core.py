@@ -9,7 +9,7 @@ import urllib.parse
 import urllib.request
 import webbrowser
 from pathlib import PurePath
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -977,10 +977,14 @@ class FulcraAPI:
         resp = self.fulcra_api("/data/v0/metrics_catalog")
         return json.loads(resp)
 
-    def v1_catalog(self, data_type: Optional[str]) -> List[Dict]:
+    def v1_catalog(
+        self, data_type: Optional[str], category: Optional[str]
+    ) -> List[Dict]:
         params = {}
         if data_type:
             params["data_type"] = data_type
+        if category:
+            params["category"] = category
 
         query_params = urllib.parse.urlencode(params, doseq=True)
 
@@ -1022,6 +1026,10 @@ class FulcraAPI:
                 {'userid': 'a24a9667-c2c6-4bbf-9a0f-4Bej0afcb521', 'created': '2024-08-20T19:51:09.123456Z', 'preferences': {'timezone': 'America/Los_Angeles'}}
         """
         resp = self.fulcra_api("/user/v1alpha1/info")
+        return json.loads(resp)
+
+    def update_user_preferences(self, prefs: Dict):
+        resp = self.fulcra_api("user/v1alpha1/preferences", method="POST", data=prefs)
         return json.loads(resp)
 
     def sleep_cycles(
@@ -1444,6 +1452,190 @@ class FulcraAPI:
             params["filter"].append(f"source_id:{source}")
 
         resp = self.fulcra_v1_api("metric", "ScaleAnnotation", params)
+        return json.loads(resp)
+
+    def tags(self) -> List[Dict]:
+        """
+        Retrieves user defined tags.
+
+        Requires a valid access token.
+
+        Returns:
+            A list of user tags; each is represented by a dict.
+
+        """
+
+        resp = self.fulcra_api("/user/v1alpha1/tag")
+        return json.loads(resp)
+
+    def get_tag_by_name(self, name: str) -> Dict:
+        """
+        Retrieves a user defined tag by name.
+
+        Requires a valid access token.
+
+        Returns:
+            A user-defined tag represented by a dict.
+
+        """
+
+        resp = self.fulcra_api(f"/user/v1alpha1/tag/name/{name}")
+        return json.loads(resp)
+
+    def get_tag_by_id(self, tag_id: str) -> Dict:
+        """
+        Retrieves a user defined tag by ID.
+
+        Requires a valid access token.
+
+        Returns:
+            A user-defined tag represented by a dict.
+
+        """
+
+        resp = self.fulcra_api(f"/user/v1alpha1/tag/id/{tag_id}")
+        return json.loads(resp)
+
+    def create_tag(self, tag_name: str) -> List[Dict]:
+        """
+        Creates a user defined tag.
+
+        Requires a valid access token.
+
+        Returns:
+            The created tag; represented by a dict.
+
+        """
+
+        resp = self.fulcra_api(
+            "/user/v1alpha1/tag", method="POST", data={"name": tag_name}
+        )
+        return json.loads(resp)
+
+    def create_tags(self, tag_names: List[str]) -> List[Dict]:
+        """
+        Creates a batch of user defined tags.
+
+        If a tag already exist, the existing tag is returned.
+
+        Requires a valid access token.
+
+        Returns:
+            The created tag; represented by a dict.
+
+        """
+
+        existing_tags = self.tags()
+        result = []
+        for tag_name in tag_names:
+            try:
+                tag = next(t for t in existing_tags if t["name"] == tag_name)
+            except StopIteration:
+                tag = self.create_tag(tag_name)
+            result.append(tag)
+
+        return result
+
+    def delete_tag(self, tag_id: str):
+        """
+        Soft-deletes a user-defined tag by ID.
+
+        Requires a valid access token.
+        """
+
+        self.fulcra_api(f"user/v1alpha1/tag/id/{tag_id}", method="DELETE")
+
+    def create_annotation(
+        self,
+        annotation_type: str,
+        name: str,
+        description: Optional[str],
+        tags: List[str],
+        metric_kind: Optional[str] = None,
+        value: Optional[Any] = None,
+        unit: Optional[str] = None,
+        scale_labels: Optional[List[str]] = None,
+    ) -> Dict:
+        tag_ids = []
+        if len(tags) > 0:
+            tag_ids = [t["id"] for t in self.create_tags(tags)]
+
+        spec = None
+        measurement_spec = None
+        if annotation_type == "duration":
+            measurement_spec = {
+                "measurement_type": "duration",
+                "value_type": "duration",
+                "unit": None,
+            }
+        elif annotation_type == "boolean":
+            measurement_spec = {
+                "measurement_type": "boolean",
+                "value_type": "boolean",
+                "unit": None,
+                "boolean": {"value": value},
+            }
+        elif annotation_type == "numeric":
+            measurement_spec = {
+                "measurement_type": "custom",
+                "unit": unit,
+                "custom": {"value": value},
+            }
+        elif annotation_type == "scale":
+            spec = {
+                "scale": {
+                    "label_mapping": {
+                        "mapping_type": "string",
+                        "string": {
+                            "mapping": {(i + 1): v for i, v in enumerate(scale_labels)}
+                            if scale_labels
+                            else None
+                        },
+                    }
+                }
+            }
+            measurement_spec = {
+                "measurement_type": "scale",
+                "value_type": "integer",
+                "unit": None,
+                "scale": {"value": None, "min_allowed": 1, "max_allowed": 5},
+            }
+
+        if metric_kind is not None and measurement_spec is not None:
+            measurement_spec["metric_kind"] = metric_kind
+
+        annotation_body = {
+            "name": name,
+            "description": description or "",
+            "annotation_type": annotation_type,
+            "measurement_spec": measurement_spec,
+            "tags": tag_ids,
+            "spec": spec,
+        }
+        resp = self.fulcra_api(
+            "/user/v1alpha1/annotation", data=annotation_body, method="POST"
+        )
+        return json.loads(resp)
+
+    def delete_annotation(self, annotation_id: str):
+        """
+        Soft-deletes a user-defined annotation by ID.
+
+        Requires a valid access token.
+        """
+
+        self.fulcra_api(f"user/v1alpha1/annotation/{annotation_id}", method="DELETE")
+
+    def restore_annotation(self, annotation_id: str):
+        """
+        Restore a soft-deleted user-defined annotation by ID.
+
+        Requires a valid access token.
+        """
+
+        resp = self.fulcra_api(
+            f"user/v1alpha1/annotation/{annotation_id}/cancel_deletion", method="POST"
+        )
         return json.loads(resp)
 
     #

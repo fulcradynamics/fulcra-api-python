@@ -896,9 +896,10 @@ def get_records(
 )
 @click.option("-d", "--data-type", type=str, help="Data Type to look up by ID.")
 @click.option("-n", "--name", type=str, help="Filter results by partial name.")
+@click.option("--base-types-only", is_flag=True)
 @click.pass_context
 @requires_auth
-def catalog(ctx, data_type: Optional[str], name: Optional[str]):
+def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only: bool):
     """
     Return a list of Fulcra Data Types that can be queried with `get-records`, `metric-time-series`, and other commands.
 
@@ -906,7 +907,8 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str]):
     """
 
     try:
-        response = ctx.obj.v1_catalog(data_type)
+        category = "base_type" if base_types_only else None
+        response = ctx.obj.v1_catalog(data_type=data_type, category=category)
     except HTTPError as exc:
         if exc.code == 404:
             raise click.ClickException("Type not found")
@@ -919,6 +921,412 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str]):
     for c in response:
         c["related_cli_commands"] = related_cli_commands(c)
         click.echo(json.dumps(c))
+
+
+#
+# Tag functionality
+#
+
+
+@cli.group(help="Tag management sub-commands")
+def tag():
+    pass
+
+
+@tag.command("list", short_help="Return a list of user-defined tags")
+@click.option("-n", "--name", type=str, help="Filter results by partial name.")
+@click.option("--tag-name", type=str, help="Filter results by full tag name.")
+@click.option("--tag-id", type=str, help="Filter results by tag ID.")
+@click.pass_context
+@requires_auth
+def tag_list(ctx, name: Optional[str], tag_name: Optional[str], tag_id: Optional[str]):
+    """
+    Return a list of user-defined tags that can be used when creating and recording custom data types.
+    """
+
+    try:
+        response = ctx.obj.tags()
+
+        if name:
+            response = [
+                t for t in response if name.lower() in t.get("name", "").lower()
+            ]
+
+        if tag_name is not None:
+            response = [
+                t for t in response if tag_name.lower() == t.get("name", "").lower()
+            ]
+
+        if tag_id is not None:
+            response = [
+                t for t in response if tag_id.lower() == t.get("id", "").lower()
+            ]
+
+        click.echo(json.dumps(response))
+    except HTTPError as exc:
+        raise click.ClickException(f"Failed to get tags: {exc}")
+
+
+@tag.command("get", short_help="Get a user-defined tag")
+@click.argument("name_or_id", type=str)
+@click.pass_context
+@requires_auth
+def get_tag(ctx, name_or_id: str):
+    """Get a user-defined tag by name or ID.
+
+    NAME_OR_ID: Tag name or ID
+    """
+    tag_name = name_or_id
+    tag_id = None
+    try:
+        tag_id = str(UUID(name_or_id))
+    except ValueError:
+        pass
+
+    try:
+        if tag_id:
+            resp = ctx.obj.get_tag_by_id(tag_id=tag_id)
+            click.echo(json.dumps(resp))
+        else:
+            resp = ctx.obj.get_tag_by_name(name=tag_name)
+            click.echo(json.dumps(resp))
+
+    except HTTPError as exc:
+        if exc.status == 404:
+            raise click.ClickException(f"No tag found: {tag_name or id}")
+        else:
+            raise click.ClickException(f"Failed to get tag: {exc}")
+
+
+@tag.command("create", short_help="Create user-defined tags")
+@click.argument("names", nargs=-1)
+@click.pass_context
+@requires_auth
+def tag_create(ctx, names: Tuple[str, ...]):
+    """
+    Create case-insensitive user-defined tags by name that can be used when creating and recording custom data types.
+    """
+
+    created_tags = []
+
+    for name in names:
+        tag_name = name.lower()
+        try:
+            resp = ctx.obj.create_tag(tag_name)
+            created_tags.append(resp)
+        except HTTPError as exc:
+            if exc.status == 409:
+                continue
+            raise click.ClickException(f"Failed to create tag {tag_name}: {exc}")
+
+    click.echo(json.dumps(created_tags))
+
+
+@tag.command("delete", short_help="Delete user-defined tag")
+@click.argument("tag_id")
+@click.pass_context
+@requires_auth
+def tag_delete(ctx, tag_id: str):
+    """
+    Delete a user-defined tag by tag ID.
+    """
+
+    try:
+        ctx.obj.delete_tag(tag_id)
+    except HTTPError as exc:
+        raise click.ClickException(f"Failed to delete tag {tag_id}: {exc}")
+
+    click.echo(f"Tag deleted: {tag_id}")
+
+
+#
+# Data type functionality
+#
+
+
+@cli.group(name="data-type", help="Data type management sub-commands")
+def data_type():
+    pass
+
+
+@data_type.command("create", short_help="Create a new data type")
+@click.argument(
+    "base_data_type",
+    type=str,
+)
+@click.argument("name", type=str)
+@click.option(
+    "-d", "--description", type=str, default=None, help="Description of the data type"
+)
+@click.option(
+    "-t",
+    "--tag",
+    "tags",
+    type=str,
+    multiple=True,
+    help="Tags to attach to the data type",
+)
+@click.option(
+    "-k",
+    "--kind",
+    "metric_kind",
+    type=click.Choice(
+        [
+            "cumulative",
+            "discrete",
+        ]
+    ),
+)
+@click.option(
+    "-v",
+    "--value",
+    "raw_value",
+    type=str,
+    help="Default value for recording the data type",
+)
+@click.option("-u", "--unit", "unit", type=str, help="Unit for recording the data type")
+@click.option(
+    "-s",
+    "--scale-label",
+    "scale_labels",
+    type=str,
+    multiple=True,
+    help="Used for ScaleAnnotation labels",
+)
+@click.option(
+    "--add-to-timeline", is_flag=True, help="Add created data type to timeline"
+)
+@click.pass_context
+@requires_auth
+def data_type_create(
+    ctx,
+    base_data_type: str,
+    name: str,
+    description: Optional[str],
+    tags: List[str],
+    metric_kind: Optional[str],
+    raw_value: Optional[str],
+    unit: Optional[str],
+    scale_labels: List[str],
+    add_to_timeline: bool,
+):
+    """Create a new data type from a base data type.
+
+    BASE_DATA_TYPE: The base data type to create from. Use fulcra catalog --base-types-only for valid options
+
+    NAME: The given name of the data type
+
+    Use -d/--description to add an optional description
+    """
+
+    try:
+        catalog_resp = ctx.obj.v1_catalog(base_data_type)
+    except HTTPError as exc:
+        raise click.ClickException(f"Failed to validate BASE_DATA_TYPE: {exc}")
+
+    filtered_base_data_types = [
+        c
+        for c in catalog_resp
+        if "base_type" in c.get("categories", [])
+        and c.get("api_version", "") == "v1alpha1"
+    ]
+
+    if len(filtered_base_data_types) != 1:
+        raise click.ClickException(
+            f"Multiple base data types found for identifier: {base_data_type}"
+        )
+
+    fulcra_data_type = filtered_base_data_types[0]
+    if fulcra_data_type.get("klass", "") != "metric":
+        if (
+            metric_kind is not None
+        ):  # TODO: DurationAnnotation actually does support metric_kind
+            raise click.BadOptionUsage(
+                "metric_kind",
+                f"-k / --kind cannot be used with base data type {base_data_type}",
+                ctx,
+            )
+
+        if raw_value is not None:
+            raise click.BadOptionUsage(
+                "raw_value",
+                f"-v / --value cannot be used with base data type {base_data_type}",
+                ctx,
+            )
+
+        if unit is not None:
+            raise click.BadOptionUsage(
+                "unit",
+                f"-u / --unit cannot be used with base data type {base_data_type}",
+                ctx,
+            )
+
+    # TODO: Possibly update type metadata to be able to determine that this is a scale
+    if fulcra_data_type["id"] == "ScaleAnnotation" and len(scale_labels) > 0:
+        raise click.BadOptionUsage(
+            "scale_labels",
+            f"-s / --scale-labels cannot be used with base data type {base_data_type}",
+            ctx,
+        )
+
+    value = None
+    match fulcra_data_type["id"]:
+        case "MomentAnnotation":
+            annotation_type = "moment"
+        case "DurationAnnotation":
+            annotation_type = "duration"
+        case "BooleanAnnotation":
+            annotation_type = "boolean"
+            # user-service does not accept a unit for boolean annotations
+            if unit is not None:
+                raise click.BadOptionUsage(
+                    "unit",
+                    f"-u / --unit cannot be used with base data type {base_data_type}",
+                    ctx,
+                )
+            if raw_value is not None:
+                value = click.types.BoolParamType().convert(raw_value, None, None)
+        case "NumericAnnotation":
+            annotation_type = "numeric"
+            if raw_value is not None:
+                value = click.types.FloatParamType().convert(raw_value, None, None)
+        case "ScaleAnnotation":
+            annotation_type = "scale"
+            if len(scale_labels) != 5:
+                raise click.BadOptionUsage(
+                    "scale_labels",
+                    f"-s / --scale-labels must be used with exactly 5 values with base data type {base_data_type}",
+                    ctx,
+                )
+            # user-service does not accept a unit for scale annotations
+            if unit is not None:
+                raise click.BadOptionUsage(
+                    "unit",
+                    f"-u / --unit cannot be used with base data type {base_data_type}",
+                    ctx,
+                )
+        case _:
+            raise click.ClickException(f"Unsupported base type: {base_data_type}")
+
+    try:
+        ann = ctx.obj.create_annotation(
+            annotation_type=annotation_type,
+            name=name,
+            description=description,
+            tags=tags,
+            metric_kind=metric_kind,
+            value=value,
+            unit=unit,
+            scale_labels=scale_labels,
+        )
+
+        if add_to_timeline:
+            try:
+                info = ctx.obj.get_user_info()
+                current_prefs = info.get("preferences", {})
+                existing_metrics_map = current_prefs.get("selected_metrics_map", {})
+
+                current_selection = existing_metrics_map.get(info["userid"], [])
+                ann_id = ann["id"]
+
+                # TODO: this is a legacy naming convention for timeline data tracks
+                updated_selection = [
+                    f"fulcra_custom_event.{ann_id}"
+                ] + current_selection
+
+                prefs_payload = {
+                    "selected_metrics_map": {
+                        **existing_metrics_map,
+                        info["userid"]: updated_selection,
+                    }
+                }
+
+                ctx.obj.update_user_preferences(prefs_payload)
+            except HTTPError as exc:
+                click.echo(f"Failed to add annotation to timeline: {exc}", err=True)
+
+        click.echo(json.dumps(ann))
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(
+            f"Failed to create event data type: {exc}\n{error_body}"
+        )
+
+
+@data_type.command("archive", short_help="Archive a user-defined data type")
+@click.argument("data_type")
+@click.pass_context
+@requires_auth
+def data_type_archive(ctx, data_type: str):
+    """
+    Archive a user-defined data type by ID.
+
+    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types
+    """
+
+    try:
+        filtered_types = ctx.obj.v1_catalog(data_type=data_type)
+    except HTTPError:
+        raise click.ClickException(f"Could not find data type matching id: {data_type}")
+
+    if len(filtered_types) == 0:
+        raise click.ClickException(f"Could not find data type matching id: {data_type}")
+    elif len(filtered_types) > 1:
+        raise click.ClickException(
+            f"Found multiple data types matching id: {data_type}"
+        )
+
+    ann_id = None
+    try:
+        parts = data_type.split("/", maxsplit=2)
+        ann_id = parts[1]
+        ann_id = str(UUID(ann_id))
+    except (ValueError, IndexError):
+        raise click.ClickException("DATA_TYPE must be <Annotation Type>/<UUID>")
+
+    try:
+        ctx.obj.delete_annotation(annotation_id=ann_id)
+        click.echo(f"Archived data type: {data_type}")
+    except HTTPError as exc:
+        raise click.ClickException(f"Failed to archive data type {data_type}: {exc}")
+
+
+@data_type.command("restore", short_help="Restore an archived user-defined data type")
+@click.argument("data_type")
+@click.pass_context
+@requires_auth
+def restore_data_type(ctx, data_type: str):
+    """
+    Restore an archived user-defined data type by ID.
+
+    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types
+    """
+
+    try:
+        filtered_types = ctx.obj.v1_catalog(data_type=data_type)
+    except HTTPError:
+        raise click.ClickException(f"Could not find data type matching id: {data_type}")
+
+    if len(filtered_types) == 0:
+        raise click.ClickException(f"Could not find data type matching id: {data_type}")
+    elif len(filtered_types) > 1:
+        raise click.ClickException(
+            f"Found multiple data types matching id: {data_type}"
+        )
+
+    ann_id = None
+    try:
+        parts = data_type.split("/", maxsplit=2)
+        ann_id = parts[1]
+        ann_id = str(UUID(ann_id))
+    except (ValueError, IndexError):
+        raise click.ClickException("DATA_TYPE must be <Annotation Type>/<UUID>")
+
+    try:
+        ann = ctx.obj.restore_annotation(annotation_id=ann_id)
+        click.echo(json.dumps(ann))
+    except HTTPError as exc:
+        raise click.ClickException(f"Failed to restore data type {data_type}: {exc}")
 
 
 @cli.command("user-info", short_help="Return information about the authenticated user")
