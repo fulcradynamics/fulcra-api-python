@@ -178,7 +178,9 @@ def apple_location_updates(ctx, start_time: datetime, end_time: datetime):
         click.echo(json.dumps(c))
 
 
-@click.command("apple-location-visits", short_help="Return Apple location visit records")
+@click.command(
+    "apple-location-visits", short_help="Return Apple location visit records"
+)
 @time_range
 @click.pass_context
 @requires_auth
@@ -676,10 +678,17 @@ def get_records(
 )
 @click.option("-d", "--data-type", type=str, help="Data Type to look up by ID.")
 @click.option("-n", "--name", type=str, help="Filter results by partial name.")
-@click.option("--base-types-only", is_flag=True)
+@click.option("--base-types-only", is_flag=True, default=False)
+@click.option("-c", "--category", type=str, help="Filter by category.")
 @click.pass_context
 @requires_auth
-def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only: bool):
+def catalog(
+    ctx,
+    base_types_only: bool,
+    data_type: str | None = None,
+    name: str | None = None,
+    category: str | None = None,
+):
     """
     Return a list of Fulcra Data Types that can be queried with `get-records`, `metric-time-series`, and other commands.
 
@@ -687,8 +696,14 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only:
     """
 
     try:
-        category = "base_type" if base_types_only else None
-        response = ctx.obj.v1_catalog(data_type=data_type, category=category)
+        if base_types_only:
+            catalog_category = "base_type"
+        elif category:
+            catalog_category = category
+        else:
+            catalog_category = None
+
+        response = ctx.obj.v1_catalog(data_type=data_type, category=catalog_category)
     except HTTPError as exc:
         if exc.code == 404:
             raise click.ClickException("Type not found")
@@ -703,7 +718,9 @@ def catalog(ctx, data_type: Optional[str], name: Optional[str], base_types_only:
         click.echo(json.dumps(c))
 
 
-@click.command("user-info", short_help="Return information about the authenticated user")
+@click.command(
+    "user-info", short_help="Return information about the authenticated user"
+)
 @click.pass_context
 @requires_auth
 def user_info(ctx):
