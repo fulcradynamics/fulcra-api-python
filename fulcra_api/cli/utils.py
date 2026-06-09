@@ -2,6 +2,7 @@ import os
 import pathlib
 from datetime import datetime, timezone
 from functools import wraps
+from urllib.error import HTTPError
 
 import click
 import dateparser
@@ -67,6 +68,18 @@ def parse_time(ctx: click.Context, param: click.Parameter, value: str) -> dateti
     if dt is None:
         raise click.UsageError("Invalid time format")
     return dt
+
+
+def resolve_tag(api, label: str) -> str:
+    """Resolve a tag label to its UUID, creating the tag if it doesn't exist."""
+    try:
+        tag = api.get_tag_by_name(name=label.lower())
+        return tag["id"]
+    except HTTPError as exc:
+        if exc.status != 404:
+            raise
+    tag = api.create_tag(label.lower())
+    return tag["id"]
 
 
 def related_cli_commands(dt: dict) -> list[str]:
