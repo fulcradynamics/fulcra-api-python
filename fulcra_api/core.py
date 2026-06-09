@@ -978,7 +978,7 @@ class FulcraAPI:
         return json.loads(resp)
 
     def v1_catalog(
-        self, data_type: Optional[str], category: Optional[str]
+        self, data_type: Optional[str] = None, category: Optional[str] = None
     ) -> List[Dict]:
         params = {}
         if data_type:
