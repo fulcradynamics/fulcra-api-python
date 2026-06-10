@@ -6,17 +6,18 @@ from ..core import FulcraAPI
 from ..credentials import FulcraCredentials
 from .auth import auth
 from .commands import (
+    apple_location_updates,
+    apple_location_visits,
     catalog,
     get_records,
     google_location_updates,
-    apple_location_updates,
-    apple_location_visits,
     list_apple_workouts,
     list_calendar_events,
     list_calendars,
     location_at_time,
     location_time_series,
     metric_time_series,
+    record,
     sleep_cycles,
     sleep_cycles_aggregated,
     sleep_stages,
@@ -65,3 +66,4 @@ cli.add_command(sleep_cycles_aggregated)
 cli.add_command(get_records)
 cli.add_command(catalog)
 cli.add_command(user_info)
+cli.add_command(record)

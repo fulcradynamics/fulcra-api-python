@@ -1736,3 +1736,6 @@ class FulcraAPI:
         return json.loads(
             self.fulcra_api(f"/input/v1/file_upload/{file_id}/restore", method="POST")
         )
+
+    def write_record(self, payload: dict):
+        self.fulcra_api(f"/ingest/v1/record", method="POST", data=payload)

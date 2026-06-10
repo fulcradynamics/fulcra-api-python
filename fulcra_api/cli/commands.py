@@ -1,12 +1,18 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 from urllib.error import HTTPError
 from uuid import UUID
 
 import click
 
-from .utils import parse_time, related_cli_commands, requires_auth, time_range
+from .utils import (
+    parse_time,
+    related_cli_commands,
+    requires_auth,
+    resolve_tag,
+    time_range,
+)
 
 
 @click.command("calendars", short_help="Return Apple calendars")
@@ -731,3 +737,155 @@ def user_info(ctx):
         raise click.ClickException(exc) from exc
 
     click.echo(json.dumps(resp))
+
+
+@click.command("record", short_help="Record data to Fulcra")
+@click.argument("data_type")
+@click.argument("value", required=False)
+@click.option(
+    "--tag",
+    "tags",
+    multiple=True,
+    default=None,
+    help="Tag a record. Can be used multiple times.",
+)
+@click.option(
+    "--source",
+    "sources",
+    multiple=True,
+    default=[],
+    help="Record source. Can be used multiple times. Source chain is determined from order of usage.",
+)
+@click.option(
+    "--id",
+    "record_id",
+    type=UUID,
+    default=None,
+    help="Unique record ID. [Default: random]",
+)
+@click.option(
+    "--time",
+    type=click.DateTime(formats=["%Y-%m-%dT%H:%M:%S%z"]),
+    default=None,
+    help="Set recorded time. [Default: now]",
+)
+@click.option(
+    "--end-time",
+    type=click.DateTime(formats=["%Y-%m-%dT%H:%M:%S%z"]),
+    default=None,
+    help="Set end of recorded time span. [Default: value of --time]",
+)
+@click.option("--unit", help="Set unit for the recorded metric value.")
+@click.option("--note", help="Add a note string to the event or metric record.")
+@click.pass_context
+@requires_auth
+def record(
+    ctx,
+    data_type: str,
+    value: str | None = None,
+    tags: List[str] | None = None,
+    sources: List[str] | None = None,
+    record_id: UUID | None = None,
+    time: datetime | None = None,
+    end_time: datetime | None = None,
+    unit: str | None = None,
+    note: str | None = None,
+):
+    """Write a record for a data type"""
+
+    print(time)
+    print(end_time)
+    return
+
+    # Look up our data type
+    try:
+        data_type = ctx.obj.v1_catalog(data_type)
+    except HTTPError as exc:
+        if exc.code == 404:
+            raise click.ClickException("Type not found")
+        else:
+            raise click.ClickException(exc)
+
+    # Let's just assume the first data type is the correct one for now
+    dt = data_type[0]
+
+    # We don't support recording v0 types for now
+    if dt["api_version"] == "v0":
+        raise click.ClickException("v0 data types are not supported")
+
+    # Argument validation for metrics
+    if dt["class"] == "metric" and value is None:
+        raise click.BadArgumentUsage("VALUE is required for metric data types")
+
+    # Everything recorded from the CLI gets marked as such in the source chain
+    record_source = ["com.fulcradynamics.cli"]
+
+    # If this is a custom data type we need to get base type & definition ID
+    if "user_configured" in dt["categories"]:
+        dt_id, custom_id = dt["id"].split("/")
+        record_source.append(dt["metadata"]["fulcra_source_id"])
+    else:
+        dt_id = dt["id"]
+
+    payload = {
+        "specversion": 1,
+        "metadata": {
+            "data_type": dt_id,
+            "source": record_source + list(sources),
+        },
+    }
+
+    # Resolve/create our tags
+    resolved_tags = []
+    if tags:
+        for tag in tags:
+            resolved_tags.append(resolve_tag(ctx.obj, tag))
+
+    if len(resolved_tags) > 0:
+        payload["metadata"]["tags"] = resolved_tags
+
+    if dt["api_version"] == "v1alpha1":
+        # v1alpha1 record types expect a JSON data payload
+        payload["metadata"]["content_type"] = "application/json"
+
+        data = {}
+
+        if note:
+            data["note"] = note
+
+        if dt["class"] == "metric":
+            data["value"] = value
+
+            if unit:
+                data["unit"] = unit
+            elif dt.get("unit", "") != "":
+                data["unit"] = dt.get("unit")
+
+        payload["data"] = json.dumps(data)
+
+    # Set record ID
+    if record_id:
+        payload["metadata"]["id"] = str(record_id)
+
+    # Set recorded_at time/span
+    if time is None:
+        time = datetime.now(timezone.utc)
+
+    if end_time is None:
+        payload["metadata"]["recorded_at"] = time.astimezone(timezone.utc).isoformat()
+
+    if time and end_time:
+        payload["metadata"]["recorded_at"] = {
+            "start_time": time.astimezone(timezone.utc).isoformat(),
+            "end_time": end_time.astimezone(timezone.utc).isoformat(),
+        }
+
+    try:
+        ctx.obj.write_record(payload)
+        click.echo(
+            f"✍️ Recorded {dt['name']} ({dt['id']}){f': {value}' if value else ''}"
+        )
+    except HTTPError as exc:
+        raise click.ClickException(
+            f"Got HTTP {exc.code} response: {exc.fp.read().decode('UTF-8')}"
+        )
