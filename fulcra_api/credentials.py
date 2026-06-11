@@ -33,6 +33,7 @@ class FulcraCredentials:
                 "refresh_token_expiration": self.refresh_token_expiration.isoformat()
                 if self.refresh_token_expiration
                 else None,
+                "id_token": self.id_token,
                 "id_token_expiration": self.id_token_expiration.isoformat()
                 if self.id_token_expiration
                 else None,
