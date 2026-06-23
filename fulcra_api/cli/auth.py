@@ -1,4 +1,5 @@
 import webbrowser
+import json
 
 import click
 
@@ -33,6 +34,51 @@ def login(ctx):
 
     try:
         creds = ctx.obj.oidc.authorize_via_device_flow(prompt_callback=prompt)
+    except Exception as exc:
+        print(exc)
+        raise click.ClickException("Authorization failed, try again.") from exc
+
+    click.echo("✅ Authorization successful!")
+
+    save_creds(creds)
+
+
+@auth.command("start-login", short_help="Authenticate to Fulcra")
+@click.pass_context
+def start_login(ctx):
+    """Gets a URL, code, and device code to authenticate to the Fulcra platform.
+
+    Starts the OAuth Device Authorization Flow isused to authenticate a user to the Fulcra Life API. Returns a JSON object containing a URL the user can open in their browser, a code they should verify when authenticating, and device code that can be used with `fulcra auth finish-login` to complete the CLI authentication once the user has finished the browser flow.
+    """
+
+    try:
+        device_code, uri, code = ctx.obj.oidc.get_device_code()
+    except Exception as exc:
+        print(exc)
+        raise click.ClickException("Authorization failed, try again.") from exc
+
+    click.echo(json.dumps({
+        "url": uri,
+        "code": code,
+        "device_code": device_code,
+    }))
+
+@auth.command("finish-login", short_help="Authenticate to Fulcra")
+@click.argument("device-code", type=str)
+@click.pass_context
+def finish_login(ctx, device_code: str):
+    """Completes authentication to the Fulcra platform.
+
+    Completes the OAuth Device Authorization Flow isused to authenticate a user to the Fulcra Life API, started by the `fulcra auth start-login` command. The user must complete the browser authentication flow before running this command.
+
+    Credentials are persisted on the filesystem at ~/.config/fulcra/credentials.json
+    """
+
+    try:
+        creds = ctx.obj.oidc.get_token(
+            "urn:ietf:params:oauth:grant-type:device_code",
+            {"device_code": device_code},
+        )
     except Exception as exc:
         print(exc)
         raise click.ClickException("Authorization failed, try again.") from exc
