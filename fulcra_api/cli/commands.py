@@ -793,10 +793,6 @@ def record(
 ):
     """Write a record for a data type"""
 
-    print(time)
-    print(end_time)
-    return
-
     # Look up our data type
     try:
         data_type = ctx.obj.v1_catalog(data_type)
@@ -823,7 +819,7 @@ def record(
     # If this is a custom data type we need to get base type & definition ID
     if "user_configured" in dt["categories"]:
         dt_id, custom_id = dt["id"].split("/")
-        record_source.append(dt["metadata"]["fulcra_source_id"])
+        record_source.append(f"com.fulcradynamics.annotation.{custom_id}")
     else:
         dt_id = dt["id"]
 
