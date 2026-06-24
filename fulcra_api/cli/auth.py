@@ -1,5 +1,5 @@
 import webbrowser
-import json
+import sys
 
 import click
 
@@ -12,80 +12,67 @@ def auth():
 
 
 @auth.command(short_help="Authenticate to Fulcra")
+@click.option("-i", "--interactive", default=False, is_flag=True, help="Run interactively. A URL will be presented to load in browser. A new browser session will be automatically launched on supported platforms, and this command will poll for a valid token from the completion of the flow for up to two minutes.")
+@click.option("-d", "--device-code", type=str, default=None, help="Finish authentication with a device code after the browser auth flow is completed")
 @click.pass_context
-def login(ctx):
+def login(ctx, interactive: bool, device_code: str | None):
     """Authenticates to the Fulcra Platform.
 
-    The OAuth Device Authorization Flow isused to authenticate a user to the Fulcra Life API. A URL will be presented to load in browser. A new browser session will be automatically launched on supported platforms.
-
-    Once run this command will poll for a valid token from the completion of the flow for up to two minutes.
+    The OAuth Device Authorization Flow isused to authenticate a user to the Fulcra Life API. A web auth URL, web auth verification code, and a device code will be returned. Call `fulcra-api auth login --device-code <DEVICE CODE>` to complete authentication after finishing the web auth flow.
 
     Credentials are persisted on the filesystem at ~/.config/fulcra/credentials.json
     """
 
-    def prompt(device_code: str, uri: str, code: str):
-        webbrowser.open_new_tab(uri)
-        click.echo(
-            f"✨ Use your browser to log into Fulcra. If your browser does not automatically open, visit this URL: {uri}"
-        )
-        click.echo(
-            f"❗ Ensure the following code matches what's displayed in your browser: {code}"
-        )
+    if interactive and device_code is not None:
+        raise click.ClickException("--interactive and --device-code are mutually exclusive")
 
-    try:
-        creds = ctx.obj.oidc.authorize_via_device_flow(prompt_callback=prompt)
-    except Exception as exc:
-        print(exc)
-        raise click.ClickException("Authorization failed, try again.") from exc
+    if interactive:
+        def prompt(device_code: str, uri: str, code: str):
+            webbrowser.open_new_tab(uri)
+            click.echo(
+                f"✨ Use your browser to log into Fulcra. If your browser does not automatically open, visit this URL: {uri}"
+            )
+            click.echo(
+                f"❗ Ensure the following code matches what's displayed in your browser: {code}"
+            )
 
-    click.echo("✅ Authorization successful!")
+        try:
+            creds = ctx.obj.oidc.authorize_via_device_flow(prompt_callback=prompt)
+        except Exception as exc:
+            print(exc)
+            raise click.ClickException("Authorization failed, try again.") from exc
 
-    save_creds(creds)
+        click.echo("✅ Authorization successful!")
 
+        save_creds(creds)
+        return
+    
+    if device_code is not None:
+        try:
+            creds = ctx.obj.oidc.get_token(
+                "urn:ietf:params:oauth:grant-type:device_code",
+                {"device_code": device_code},
+            )
+        except Exception as exc:
+            print(exc)
+            raise click.ClickException("Authorization failed, try again.") from exc
 
-@auth.command("start-login", short_help="Authenticate to Fulcra")
-@click.pass_context
-def start_login(ctx):
-    """Gets a URL, code, and device code to authenticate to the Fulcra platform.
+        click.echo("✅ Authorization successful!")
 
-    Starts the OAuth Device Authorization Flow isused to authenticate a user to the Fulcra Life API. Returns a JSON object containing a URL the user can open in their browser, a code they should verify when authenticating, and device code that can be used with `fulcra auth finish-login` to complete the CLI authentication once the user has finished the browser flow.
-    """
-
+        save_creds(creds)
+        return
+    
     try:
         device_code, uri, code = ctx.obj.oidc.get_device_code()
     except Exception as exc:
         print(exc)
         raise click.ClickException("Authorization failed, try again.") from exc
 
-    click.echo(json.dumps({
-        "url": uri,
-        "code": code,
-        "device_code": device_code,
-    }))
-
-@auth.command("finish-login", short_help="Authenticate to Fulcra")
-@click.argument("device-code", type=str)
-@click.pass_context
-def finish_login(ctx, device_code: str):
-    """Completes authentication to the Fulcra platform.
-
-    Completes the OAuth Device Authorization Flow isused to authenticate a user to the Fulcra Life API, started by the `fulcra auth start-login` command. The user must complete the browser authentication flow before running this command.
-
-    Credentials are persisted on the filesystem at ~/.config/fulcra/credentials.json
-    """
-
-    try:
-        creds = ctx.obj.oidc.get_token(
-            "urn:ietf:params:oauth:grant-type:device_code",
-            {"device_code": device_code},
-        )
-    except Exception as exc:
-        print(exc)
-        raise click.ClickException("Authorization failed, try again.") from exc
-
-    click.echo("✅ Authorization successful!")
-
-    save_creds(creds)
+    click.echo(f"Web auth URL: {uri}")
+    click.echo(f"Web auth code: {code}")
+    click.echo(f"Device code: {device_code}\n")
+    click.echo("Open the web auth URL in a browser, verify the web auth code, and complete the web auth flow. After finishing the web auth flow, complete authentication with the device code by running:\n")
+    click.echo(f"fulcra-api auth login --device-code {device_code}")
 
 
 @auth.command("print-access-token", short_help="Print Fulcra oauth2 access token")
