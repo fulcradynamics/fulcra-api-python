@@ -68,10 +68,11 @@ def login(ctx, interactive: bool, device_code: str | None):
         print(exc)
         raise click.ClickException("Authorization failed, try again.") from exc
 
+    click.echo("Open the web auth URL in a browser, verify the web auth code, and complete the web auth flow.\n")
     click.echo(f"Web auth URL: {uri}")
-    click.echo(f"Web auth code: {code}")
-    click.echo(f"Device code: {device_code}\n")
-    click.echo("Open the web auth URL in a browser, verify the web auth code, and complete the web auth flow. After finishing the web auth flow, complete authentication with the device code by running:\n")
+    click.echo(f"- Web auth code: {code}")
+    click.echo(f"- Device code: {device_code}\n")
+    click.echo("After finishing the web auth flow, complete authentication with the device code by running:\n")
     click.echo(f"fulcra-api auth login --device-code {device_code}")
 
 
