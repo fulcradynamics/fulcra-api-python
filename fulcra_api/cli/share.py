@@ -11,12 +11,12 @@ def share():
     pass
 
 
-@share.command("list-outgoing", short_help="List datashares you've created")
+@share.command("list-outgoing", short_help="List shares you've created")
 @click.pass_context
 @requires_auth
 def list_outgoing(ctx):
     """
-    List all datashares that you have created to share your data with others.
+    List all shares that you have created to share your data with others.
     """
     try:
         results = ctx.obj.get_datashares()
@@ -27,12 +27,12 @@ def list_outgoing(ctx):
         click.echo(json.dumps(datashare))
 
 
-@share.command("list-incoming", short_help="List datasets shared with you")
+@share.command("list-incoming", short_help="List shares you've received")
 @click.pass_context
 @requires_auth
 def list_incoming(ctx):
     """
-    List all datasets that others have shared with you.
+    List all shares that others have shared with you.
     """
     try:
         results = ctx.obj.get_shared_datasets()
@@ -43,45 +43,45 @@ def list_incoming(ctx):
         click.echo(json.dumps(dataset))
 
 
-@share.command("create", short_help="Create a new datashare")
+@share.command("create", short_help="Create a new share")
 @click.pass_context
 @requires_auth
 def create(ctx):
     """
-    Create a new datashare to share your data with other users.
+    Create a new share to share your data with other users.
     """
     click.echo("create command - not yet implemented")
 
 
-@share.command("delete", short_help="Delete a datashare you created")
-@click.argument("datashare_id")
+@share.command("delete", short_help="Delete a share you created")
+@click.argument("share_id")
 @click.pass_context
 @requires_auth
-def delete(ctx, datashare_id: str):
+def delete(ctx, share_id: str):
     """
-    Delete a datashare that you created.
+    Delete a share that you created.
 
-    DATASHARE_ID: UUID of the datashare to delete
+    SHARE_ID: UUID of the share to delete
     """
     try:
-        ctx.obj.delete_datashare(datashare_id)
-        click.echo(f"Datashare {datashare_id} deleted successfully")
+        ctx.obj.delete_datashare(share_id)
+        click.echo(f"Share {share_id} deleted successfully")
     except HTTPError as exc:
         raise click.ClickException(exc)
 
 
-@share.command("leave", short_help="Leave a dataset shared with you")
-@click.argument("permission_id")
+@share.command("leave", short_help="Leave a share")
+@click.argument("share_id")
 @click.pass_context
 @requires_auth
-def leave(ctx, permission_id: str):
+def leave(ctx, share_id: str):
     """
-    Leave a dataset that was shared with you (revoke your access).
+    Leave a share that was shared with you (revoke your access).
 
-    PERMISSION_ID: UUID of the dataset permission to revoke
+    SHARE_ID: UUID of the share permission to revoke
     """
     try:
-        ctx.obj.delete_dataset_permission(permission_id)
-        click.echo(f"Successfully left dataset (permission {permission_id} revoked)")
+        ctx.obj.delete_dataset_permission(share_id)
+        click.echo(f"Successfully left share {share_id}")
     except HTTPError as exc:
         raise click.ClickException(exc)
