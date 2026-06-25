@@ -411,6 +411,25 @@ class FulcraAPI:
             The raw response data (as bytes).  Raises an exception on failure.
         """
         return self.fulcra_api(f"/data/v1alpha1/{path}", query=params)
+
+    def get_token_claims(self) -> Dict:
+        """
+        Decode and return all claims from the access token.
+
+        Returns:
+            A dict containing all JWT claims from the access token.
+        """
+        if (
+            self.fulcra_credentials is None
+            or self.fulcra_credentials.access_token is None
+        ):
+            raise Exception("Authorization must occur before retrieving token claims.")
+        segs = self.fulcra_credentials.access_token.split(".")
+        if len(segs) < 2:
+            raise Exception("Authorized token is in an incorrect format.")
+        payload = segs[1] + "=="  # add extra padding to prevent b64decode from breaking
+        return json.loads(base64.b64decode(payload))
+
     def get_fulcra_userid(self) -> str:
         """
         Retrieve the currently authorized Fulcra UserID.
@@ -418,17 +437,8 @@ class FulcraAPI:
         Returns:
             the Fulcra UserID of the currently-authorized user.
         """
-        if (
-            self.fulcra_credentials is None
-            or self.fulcra_credentials.access_token is None
-        ):
-            raise Exception("Authorization must occur before retrieving user ID.")
-        segs = self.fulcra_credentials.access_token.split(".")
-        if len(segs) < 2:
-            raise Exception("Authorized token is in an incorrect format.")
-        payload = segs[1] + "=="  # add extra padding to prevent b64decode from breaking
-        jd = json.loads(base64.b64decode(payload))
-        return jd["fulcradynamics.com/userid"]
+        claims = self.get_token_claims()
+        return claims["fulcradynamics.com/userid"]
 
     def calendars(
         self,
@@ -1046,10 +1056,15 @@ class FulcraAPI:
             {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
         ]
 
+        # Get user name and picture from token claims
+        claims = self.get_token_claims()
+        user_name = claims.get("name")
+        user_picture = claims.get("picture")
+
         datashare_body = {
             "datashare_name": datashare_name,
-            "fulcra_user_name": None,
-            "fulcra_user_picture": None,
+            "fulcra_user_name": user_name,
+            "fulcra_user_picture": user_picture,
             "time_start": time_start.isoformat() if time_start else None,
             "time_end": time_end.isoformat() if time_end else None,
             "fulcra_data_types": fulcra_data_types,
