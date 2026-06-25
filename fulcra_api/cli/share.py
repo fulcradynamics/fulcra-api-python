@@ -1,3 +1,6 @@
+import json
+from urllib.error import HTTPError
+
 import click
 
 from .utils import requires_auth
@@ -15,7 +18,13 @@ def list_outgoing(ctx):
     """
     List all datashares that you have created to share your data with others.
     """
-    click.echo("list-outgoing command - not yet implemented")
+    try:
+        results = ctx.obj.get_datashares()
+    except HTTPError as exc:
+        raise click.ClickException(exc)
+
+    for datashare in results:
+        click.echo(json.dumps(datashare))
 
 
 @share.command("list-incoming", short_help="List datasets shared with you")
@@ -25,7 +34,13 @@ def list_incoming(ctx):
     """
     List all datasets that others have shared with you.
     """
-    click.echo("list-incoming command - not yet implemented")
+    try:
+        results = ctx.obj.get_shared_datasets()
+    except HTTPError as exc:
+        raise click.ClickException(exc)
+
+    for dataset in results:
+        click.echo(json.dumps(dataset))
 
 
 @share.command("create", short_help="Create a new datashare")
@@ -48,7 +63,11 @@ def delete(ctx, datashare_id: str):
 
     DATASHARE_ID: UUID of the datashare to delete
     """
-    click.echo(f"delete command - not yet implemented (datashare_id: {datashare_id})")
+    try:
+        ctx.obj.delete_datashare(datashare_id)
+        click.echo(f"Datashare {datashare_id} deleted successfully")
+    except HTTPError as exc:
+        raise click.ClickException(exc)
 
 
 @share.command("leave", short_help="Leave a dataset shared with you")
@@ -61,4 +80,8 @@ def leave(ctx, permission_id: str):
 
     PERMISSION_ID: UUID of the dataset permission to revoke
     """
-    click.echo(f"leave command - not yet implemented (permission_id: {permission_id})")
+    try:
+        ctx.obj.delete_dataset_permission(permission_id)
+        click.echo(f"Successfully left dataset (permission {permission_id} revoked)")
+    except HTTPError as exc:
+        raise click.ClickException(exc)
