@@ -1076,6 +1076,65 @@ class FulcraAPI:
         )
         return json.loads(resp)
 
+    def update_datashare(
+        self,
+        datashare_id: str,
+        datashare_name: Optional[str] = None,
+        fulcra_data_types: Optional[List[str]] = None,
+        allowed_user_ids: Optional[List[str]] = None,
+        share_all_data: Optional[bool] = None,
+        time_start: Optional[datetime.datetime] = None,
+        time_end: Optional[datetime.datetime] = None,
+    ) -> Dict:
+        """
+        Updates an existing datashare.
+
+        Args:
+            datashare_id: UUID of the datashare to update
+            datashare_name: Optional new name for the datashare
+            fulcra_data_types: Optional new list of data type IDs to share
+            allowed_user_ids: Optional new list of Fulcra user IDs to share with
+            share_all_data: Optional new value for whether to share all data types
+            time_start: Optional new start time for data range
+            time_end: Optional new end time for data range
+
+        Returns:
+            A dict containing the updated datashare information.
+
+        Examples:
+                >>> updated = fulcra_client.update_datashare(
+                ...     datashare_id="cf362f80-ef41-4c08-b5e3-b18bd3d1524b",
+                ...     datashare_name="Updated Research Share",
+                ...     fulcra_data_types=["HeartRate", "StepCount", "SleepAnalysis"]
+                ... )
+        """
+        datashare_body = {}
+
+        if datashare_name is not None:
+            datashare_body["datashare_name"] = datashare_name
+
+        if fulcra_data_types is not None:
+            datashare_body["fulcra_data_types"] = fulcra_data_types
+
+        if allowed_user_ids is not None:
+            datashare_body["permissions"] = [
+                {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
+            ]
+
+        if share_all_data is not None:
+            datashare_body["share_all_data"] = share_all_data
+
+        if time_start is not None:
+            datashare_body["time_start"] = time_start.isoformat()
+
+        if time_end is not None:
+            datashare_body["time_end"] = time_end.isoformat()
+
+        resp = self.fulcra_api(
+            f"/user/v1alpha1/datashare/{datashare_id}", data=datashare_body, method="PUT"
+        )
+        return json.loads(resp)
+
     def get_datashares(self) -> List[Dict]:
         """
         Retrieves all datashares created by the authenticated user.
