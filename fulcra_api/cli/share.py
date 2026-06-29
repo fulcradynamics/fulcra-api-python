@@ -90,7 +90,14 @@ def create(ctx, name, data_types, user_ids, start_time, end_time, share_all):
             catalog = ctx.obj.v1_catalog()
             valid_data_type_ids = {item["id"] for item in catalog}
 
-            invalid_types = [dt for dt in data_types if dt not in valid_data_type_ids]
+            # TEMPORARY: Allow "calendars" and "calendar_events" even though they're not
+            # in the v1 catalog yet. Remove this special case once they're added to the catalog.
+            temporary_allowed_types = {"calendars", "calendar_events"}
+
+            invalid_types = [
+                dt for dt in data_types
+                if dt not in valid_data_type_ids and dt not in temporary_allowed_types
+            ]
             if invalid_types:
                 raise click.ClickException(
                     f"Invalid data type(s): {', '.join(invalid_types)}. "
