@@ -2,6 +2,7 @@ import webbrowser
 import sys
 
 import click
+import datetime
 
 from .utils import requires_auth, save_creds
 
@@ -14,8 +15,10 @@ def auth():
 @auth.command(short_help="Authenticate to Fulcra")
 @click.option("-u", "--get-auth-url", default=False, is_flag=True, help="Run non-interactively. A web auth URL, web auth verification code, and a device code will be returned. Call `fulcra-api auth login --device-code <DEVICE CODE>` to complete authentication after finishing the web auth flow.")
 @click.option("-d", "--device-code", type=str, default=None, help="Finish authentication with a device code after the browser auth flow is completed")
+@click.option("-p", "--poll-timeout", type=click.FloatRange(min=0), default=120.0, help="Number of seconds to poll while waiting for the web auth flow to be completed. Ignored if --get-auth-url is passed.")
+@click.option("-i", "--poll-interval", type=click.FloatRange(min=0.5), default=0.5, help="Number of seconds between polling attempts. Ignored if --get-auth-url is passed.")
 @click.pass_context
-def login(ctx, get_auth_url: bool, device_code: str | None):
+def login(ctx, get_auth_url: bool, device_code: str | None, poll_timeout: float, poll_interval: float):
     """Authenticates to the Fulcra Platform.
 
     The OAuth Device Authorization Flow isused to authenticate a user to the Fulcra Life API. Run interactively. A URL will be presented to load in browser. A new browser session will be automatically launched on supported platforms, and this command will poll for a valid token from the completion of the flow for up to two minutes.
@@ -43,12 +46,13 @@ def login(ctx, get_auth_url: bool, device_code: str | None):
     
     if device_code is not None:
         try:
-            creds = ctx.obj.oidc.get_token(
-                "urn:ietf:params:oauth:grant-type:device_code",
-                {"device_code": device_code},
+            creds = ctx.obj.oidc.poll_for_token(
+                device_code=device_code,
+                poll_timeout=datetime.timedelta(seconds=poll_timeout),
+                poll_interval=datetime.timedelta(seconds=poll_interval)
             )
+            
         except Exception as exc:
-            print(exc)
             raise click.ClickException("Authorization failed, try again.") from exc
 
         click.echo("✅ Authorization successful!")
@@ -66,7 +70,11 @@ def login(ctx, get_auth_url: bool, device_code: str | None):
         )
 
     try:
-        creds = ctx.obj.oidc.authorize_via_device_flow(prompt_callback=prompt)
+        creds = ctx.obj.oidc.authorize_via_device_flow(
+            prompt_callback=prompt,
+            poll_timeout=datetime.timedelta(seconds=poll_timeout),
+            poll_interval=datetime.timedelta(seconds=poll_interval),
+        )
     except Exception as exc:
         print(exc)
         raise click.ClickException("Authorization failed, try again.") from exc
