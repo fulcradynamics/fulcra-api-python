@@ -34,10 +34,22 @@ class FulcraOIDCProvider:
         if prompt_callback is not None:
             prompt_callback(device_code, uri, code)
 
+        return self.poll_for_token(
+            device_code=device_code,
+            poll_timeout=poll_timeout,
+            poll_interval=poll_interval,
+        )
+
+    
+    def poll_for_token(
+        self,
+        device_code: str,
+        poll_timeout: datetime.timedelta = datetime.timedelta(seconds=120),
+        poll_interval: datetime.timedelta = datetime.timedelta(seconds=0.5),
+    ) -> FulcraCredentials:
         end_at = datetime.datetime.now() + poll_timeout
         creds = None
-        while datetime.datetime.now() < end_at:
-            time.sleep(poll_interval.seconds)
+        while True:
             try:
                 creds = self.get_token(
                     "urn:ietf:params:oauth:grant-type:device_code",
@@ -45,12 +57,16 @@ class FulcraOIDCProvider:
                 )
                 break
             except Exception:
+                if datetime.datetime.now() > end_at:
+                    break
+                time.sleep(poll_interval.seconds)
                 continue
 
         if creds is None:
             raise Exception("Authorization failed")
 
         return creds
+
 
     def authorize_via_authorization_code_flow(
         self,
