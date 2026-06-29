@@ -56,14 +56,11 @@ class FulcraOIDCProvider:
                     {"device_code": device_code},
                 )
                 break
-            except Exception:
+            except Exception as e:
                 if datetime.datetime.now() > end_at:
-                    break
+                    raise e
                 time.sleep(poll_interval.total_seconds())
                 continue
-
-        if creds is None:
-            raise Exception("Authorization failed")
 
         return creds
 
