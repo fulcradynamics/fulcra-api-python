@@ -59,7 +59,7 @@ class FulcraOIDCProvider:
             except Exception:
                 if datetime.datetime.now() > end_at:
                     break
-                time.sleep(poll_interval.seconds)
+                time.sleep(poll_interval.total_seconds())
                 continue
 
         if creds is None:
