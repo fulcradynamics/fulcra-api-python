@@ -411,6 +411,7 @@ class FulcraAPI:
             The raw response data (as bytes).  Raises an exception on failure.
         """
         return self.fulcra_api(f"/data/v1alpha1/{path}", query=params)
+
     def get_fulcra_userid(self) -> str:
         """
         Retrieve the currently authorized Fulcra UserID.
