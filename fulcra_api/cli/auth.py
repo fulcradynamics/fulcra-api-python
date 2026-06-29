@@ -53,7 +53,7 @@ def login(ctx, get_auth_url: bool, device_code: str | None, poll_timeout: float,
             )
             
         except Exception as exc:
-            raise click.ClickException("Authorization failed, try again.") from exc
+            raise click.ClickException(f"Authorization failed, try again: {exc}") from exc
 
         click.echo("✅ Authorization successful!")
 
@@ -76,8 +76,7 @@ def login(ctx, get_auth_url: bool, device_code: str | None, poll_timeout: float,
             poll_interval=datetime.timedelta(seconds=poll_interval),
         )
     except Exception as exc:
-        print(exc)
-        raise click.ClickException("Authorization failed, try again.") from exc
+        raise click.ClickException(f"Authorization failed, try again: {exc}") from exc
 
     click.echo("✅ Authorization successful!")
 
