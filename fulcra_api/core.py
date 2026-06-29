@@ -397,6 +397,20 @@ class FulcraAPI:
         # query_params = urllib.parse.urlencode(params, doseq=True)
         return self.fulcra_api(f"/data/v1alpha1/{data_class}/{data_type}", query=params)
 
+    def fulcra_v1_api_path(self, path: str, params: dict = {}) -> bytes:
+        """
+        Make a call to the v1 API using a full path.
+
+        Supports annotation shorthands with UUIDs (e.g., "metric/MomentAnnotation/<uuid>").
+
+        Params:
+            path: The full path after /data/v1alpha1/ (e.g., "metric/MomentAnnotation" or "metric/MomentAnnotation/<uuid>")
+            params: Additional params to add to the query
+
+        Returns:
+            The raw response data (as bytes).  Raises an exception on failure.
+        """
+        return self.fulcra_api(f"/data/v1alpha1/{path}", query=params)
     def get_fulcra_userid(self) -> str:
         """
         Retrieve the currently authorized Fulcra UserID.
