@@ -636,27 +636,23 @@ def get_records(
                 "metric": dt["id"],
             }
         elif dt["api_version"] == "v1alpha1" and dt["class"] == "metric":
-            query_func = ctx.obj.fulcra_v1_api
+            query_func = ctx.obj.fulcra_v1_api_path
+            path = f"{dt['class']}/{dt['id']}"
+            if user_annotation_id:
+                path = f"{path}/{user_annotation_id}"
             kwargs = {
-                "data_class": dt["class"],
-                "data_type": dt["id"],
+                "path": path,
                 "params": {"start_time": start_time, "end_time": end_time},
             }
-            if user_annotation_id:
-                kwargs["params"]["filter"] = (
-                    f"source:com.fulcradynamics.annotation.{user_annotation_id}"
-                )
         elif dt["api_version"] == "v1alpha1" and dt["class"] == "event":
-            query_func = ctx.obj.fulcra_v1_api
+            query_func = ctx.obj.fulcra_v1_api_path
+            path = f"{dt['class']}/{dt['id']}"
+            if user_annotation_id:
+                path = f"{path}/{user_annotation_id}"
             kwargs = {
-                "data_class": dt["class"],
-                "data_type": dt["id"],
+                "path": path,
                 "params": {"start_time": start_time, "end_time": end_time},
             }
-            if user_annotation_id:
-                kwargs["params"]["filter"] = (
-                    f"source:com.fulcradynamics.annotation.{user_annotation_id}"
-                )
         else:
             raise click.ClickException(
                 f"Could not derive API endpoint for data type '{dt['id']}'"
