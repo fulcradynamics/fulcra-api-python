@@ -578,6 +578,7 @@ def sleep_cycles_aggregated(
 @click.command("get-records", short_help="Return raw sample records for a data type")
 @click.argument("data_type")
 @time_range
+@click.option("--user-id", type=str, default=None, help="Fulcra user ID to query data for (requires an active datashare from that user).")
 @click.pass_context
 @requires_auth
 def get_records(
@@ -585,6 +586,7 @@ def get_records(
     data_type: str,
     start_time: datetime,
     end_time: datetime,
+    user_id: str | None,
 ):
     """Return raw sample records of DATA_TYPE across TIME_RANGE.
 
@@ -635,28 +637,26 @@ def get_records(
                 "end_time": end_time,
                 "metric": dt["id"],
             }
+            if user_id:
+                kwargs["fulcra_userid"] = user_id
         elif dt["api_version"] == "v1alpha1" and dt["class"] == "metric":
-            query_func = ctx.obj.fulcra_v1_api
-            kwargs = {
-                "data_class": dt["class"],
-                "data_type": dt["id"],
-                "params": {"start_time": start_time, "end_time": end_time},
-            }
+            query_func = ctx.obj.fulcra_v1_api_path
+            path = f"{dt['class']}/{dt['id']}"
             if user_annotation_id:
-                kwargs["params"]["filter"] = (
-                    f"source:com.fulcradynamics.annotation.{user_annotation_id}"
-                )
+                path = f"{path}/{user_annotation_id}"
+            params = {"start_time": start_time, "end_time": end_time}
+            if user_id:
+                params["fulcra_userid"] = user_id
+            kwargs = {"path": path, "params": params}
         elif dt["api_version"] == "v1alpha1" and dt["class"] == "event":
-            query_func = ctx.obj.fulcra_v1_api
-            kwargs = {
-                "data_class": dt["class"],
-                "data_type": dt["id"],
-                "params": {"start_time": start_time, "end_time": end_time},
-            }
+            query_func = ctx.obj.fulcra_v1_api_path
+            path = f"{dt['class']}/{dt['id']}"
             if user_annotation_id:
-                kwargs["params"]["filter"] = (
-                    f"source:com.fulcradynamics.annotation.{user_annotation_id}"
-                )
+                path = f"{path}/{user_annotation_id}"
+            params = {"start_time": start_time, "end_time": end_time}
+            if user_id:
+                params["fulcra_userid"] = user_id
+            kwargs = {"path": path, "params": params}
         else:
             raise click.ClickException(
                 f"Could not derive API endpoint for data type '{dt['id']}'"
