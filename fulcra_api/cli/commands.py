@@ -734,7 +734,7 @@ def user_info(ctx):
 
 
 @click.command(
-    "data-updates", short_help="Info on data updates that occurred during a period"
+    "data-updates", short_help="Return data/file updates that occurred during a period"
 )
 @time_range
 @click.pass_context
