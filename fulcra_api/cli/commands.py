@@ -731,3 +731,25 @@ def user_info(ctx):
         raise click.ClickException(exc) from exc
 
     click.echo(json.dumps(resp))
+
+
+@click.command(
+    "data-updates", short_help="Info on data updates that occurred during a period"
+)
+@time_range
+@click.pass_context
+@requires_auth
+def data_updates(ctx, start_time: datetime, end_time: datetime):
+    """Return a summary of the data that was updated across TIME_RANGE.
+
+    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+
+    The result contains the data types that had records processed (along with
+    the number of records processed for each) and any uploaded files that changed.
+    """
+    try:
+        resp = ctx.obj.data_updates(start_time, end_time)
+    except HTTPError as exc:
+        raise click.ClickException(exc) from exc
+
+    click.echo(json.dumps(resp))

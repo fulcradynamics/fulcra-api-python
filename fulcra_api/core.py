@@ -996,6 +996,46 @@ class FulcraAPI:
         resp = self.fulcra_api(uri)
         return json.loads(resp)
 
+    def data_updates(
+        self,
+        start_time: str | datetime.datetime,
+        end_time: str | datetime.datetime,
+    ) -> dict:
+        """
+        Retrieve a summary of the data that was updated during the specified
+        time range for the authenticated user.
+
+        This reports the data types that had records processed during the range
+        (along with the number of records processed for each), as well as any
+        uploaded files that changed.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
+
+        Returns:
+            A dict with two keys:
+
+            - `data_types`: a dict mapping each data type to the number of records processed for it
+            - `file_changes`: a list of files that were added, changed, or removed
+
+        Examples:
+            To see what data was updated during a given range:
+
+            >>> updates = fulcra.data_updates(
+            ...     start_time="2026-02-01 00:00:00Z",
+            ...     end_time="2026-02-03 00:00:00Z"
+            ... )
+            >>> updates["data_types"]
+            {'StepCount': 412, 'HeartRate': 1875}
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+        }
+        resp = self.fulcra_api("/data/v1/updates", query=params)
+        return json.loads(resp)
+
     def get_shared_datasets(self) -> List[Dict]:
         """
         Retrieves datasets that have been shared with the currently authenticated user
