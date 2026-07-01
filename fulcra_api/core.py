@@ -1063,7 +1063,7 @@ class FulcraAPI:
 
         datashare_body = {
             "datashare_name": datashare_name,
-            "fulcra_user_name": user_name,
+            "fulcra_user_name": user_name if user_name else self.get_fulcra_userid(),
             "fulcra_user_picture": user_picture,
             "time_start": time_start.isoformat() if time_start else None,
             "time_end": time_end.isoformat() if time_end else None,
@@ -1071,6 +1071,7 @@ class FulcraAPI:
             "share_all_data": share_all_data,
             "permissions": permissions,
         }
+
         resp = self.fulcra_api(
             "/user/v1alpha1/datashares", data=datashare_body, method="POST"
         )
