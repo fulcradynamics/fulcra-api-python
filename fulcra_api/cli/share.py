@@ -40,7 +40,8 @@ def list_incoming(ctx):
     except HTTPError as exc:
         raise click.ClickException(exc)
 
-    for dataset in results:
+    authenticated_userid = ctx.obj.get_fulcra_userid()
+    for dataset in [r for r in results if r.get("permission_id") != authenticated_userid]:
         click.echo(json.dumps(dataset))
 
 
