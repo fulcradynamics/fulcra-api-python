@@ -412,6 +412,24 @@ class FulcraAPI:
         """
         return self.fulcra_api(f"/data/v1alpha1/{path}", query=params)
 
+    def get_token_claims(self) -> Dict:
+        """
+        Decode and return all claims from the access token.
+
+        Returns:
+            A dict containing all JWT claims from the access token.
+        """
+        if (
+            self.fulcra_credentials is None
+            or self.fulcra_credentials.access_token is None
+        ):
+            raise Exception("Authorization must occur before retrieving token claims.")
+        segs = self.fulcra_credentials.access_token.split(".")
+        if len(segs) < 2:
+            raise Exception("Authorized token is in an incorrect format.")
+        payload = segs[1] + "=="  # add extra padding to prevent b64decode from breaking
+        return json.loads(base64.b64decode(payload))
+
     def get_fulcra_userid(self) -> str:
         """
         Retrieve the currently authorized Fulcra UserID.
@@ -419,17 +437,8 @@ class FulcraAPI:
         Returns:
             the Fulcra UserID of the currently-authorized user.
         """
-        if (
-            self.fulcra_credentials is None
-            or self.fulcra_credentials.access_token is None
-        ):
-            raise Exception("Authorization must occur before retrieving user ID.")
-        segs = self.fulcra_credentials.access_token.split(".")
-        if len(segs) < 2:
-            raise Exception("Authorized token is in an incorrect format.")
-        payload = segs[1] + "=="  # add extra padding to prevent b64decode from breaking
-        jd = json.loads(base64.b64decode(payload))
-        return jd["fulcradynamics.com/userid"]
+        claims = self.get_token_claims()
+        return claims["fulcradynamics.com/userid"]
 
     def calendars(
         self,
@@ -1011,6 +1020,152 @@ class FulcraAPI:
         resp = self.fulcra_api(uri)
         return json.loads(resp)
 
+    def create_datashare(
+        self,
+        datashare_name: str,
+        fulcra_data_types: List[str],
+        allowed_user_ids: List[str],
+        share_all_data: bool = False,
+        time_start: Optional[datetime.datetime] = None,
+        time_end: Optional[datetime.datetime] = None,
+    ) -> Dict:
+        """
+        Creates a new datashare to share your data with other users.
+
+        User name and picture are automatically populated from the authenticated user's info.
+
+        Args:
+            datashare_name: Name for this datashare
+            fulcra_data_types: List of data type IDs to share
+            allowed_user_ids: List of Fulcra user IDs to share with
+            share_all_data: Whether to share all data types (default: False)
+            time_start: Optional start time for data range
+            time_end: Optional end time for data range
+
+        Returns:
+            A dict containing the created datashare information.
+
+        Examples:
+                >>> datashare = fulcra_client.create_datashare(
+                ...     datashare_name="My Research Share",
+                ...     fulcra_data_types=["HeartRate", "StepCount"],
+                ...     allowed_user_ids=["a24a9667-c2c6-4bbf-9a0f-4Bej0afcb521"]
+                ... )
+        """
+        permissions = [
+            {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
+        ]
+
+        # Get user name and picture from token claims
+        claims = self.get_token_claims()
+        user_name = claims.get("name")
+        user_picture = claims.get("picture")
+
+        datashare_body = {
+            "datashare_name": datashare_name,
+            "fulcra_user_name": user_name if user_name else self.get_fulcra_userid(),
+            "fulcra_user_picture": user_picture,
+            "time_start": time_start.isoformat() if time_start else None,
+            "time_end": time_end.isoformat() if time_end else None,
+            "fulcra_data_types": fulcra_data_types,
+            "share_all_data": share_all_data,
+            "permissions": permissions,
+        }
+
+        resp = self.fulcra_api(
+            "/user/v1alpha1/datashares", data=datashare_body, method="POST"
+        )
+        return json.loads(resp)
+
+    def update_datashare(
+        self,
+        datashare_id: str,
+        datashare_name: Optional[str] = None,
+        fulcra_data_types: Optional[List[str]] = None,
+        allowed_user_ids: Optional[List[str]] = None,
+        share_all_data: Optional[bool] = None,
+        time_start: Optional[datetime.datetime] = None,
+        time_end: Optional[datetime.datetime] = None,
+    ) -> Dict:
+        """
+        Updates an existing datashare.
+
+        Args:
+            datashare_id: UUID of the datashare to update
+            datashare_name: Optional new name for the datashare
+            fulcra_data_types: Optional new list of data type IDs to share
+            allowed_user_ids: Optional new list of Fulcra user IDs to share with
+            share_all_data: Optional new value for whether to share all data types
+            time_start: Optional new start time for data range
+            time_end: Optional new end time for data range
+
+        Returns:
+            A dict containing the updated datashare information.
+
+        Examples:
+                >>> updated = fulcra_client.update_datashare(
+                ...     datashare_id="cf362f80-ef41-4c08-b5e3-b18bd3d1524b",
+                ...     datashare_name="Updated Research Share",
+                ...     fulcra_data_types=["HeartRate", "StepCount", "SleepAnalysis"]
+                ... )
+        """
+        datashare_body = {}
+
+        if datashare_name is not None:
+            datashare_body["datashare_name"] = datashare_name
+
+        if fulcra_data_types is not None:
+            datashare_body["fulcra_data_types"] = fulcra_data_types
+
+        if allowed_user_ids is not None:
+            datashare_body["permissions"] = [
+                {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
+            ]
+
+        if share_all_data is not None:
+            datashare_body["share_all_data"] = share_all_data
+
+        if time_start is not None:
+            datashare_body["time_start"] = time_start.isoformat()
+
+        if time_end is not None:
+            datashare_body["time_end"] = time_end.isoformat()
+
+        resp = self.fulcra_api(
+            f"/user/v1alpha1/datashare/{datashare_id}", data=datashare_body, method="PUT"
+        )
+        return json.loads(resp)
+
+    def get_datashares(self) -> List[Dict]:
+        """
+        Retrieves all datashares created by the authenticated user.
+
+        Returns a list of datashares that you have created to share your data
+        with others.
+
+        Returns:
+            A list of datashare dicts.
+
+        Examples:
+                >>> datashares = fulcra_client.get_datashares()
+                >>> datashares[0]
+                {'datashare_id': '...', 'datashare_name': 'My Share', ...}
+        """
+        resp = self.fulcra_api("/user/v1alpha1/datashares")
+        return json.loads(resp)
+
+    def delete_datashare(self, datashare_id: str):
+        """
+        Deletes a datashare that you created.
+
+        Args:
+            datashare_id: UUID of the datashare to delete
+
+        Examples:
+                >>> fulcra_client.delete_datashare("cf362f80-ef41-4c08-b5e3-b18bd3d1524b")
+        """
+        self.fulcra_api(f"/user/v1alpha1/datashare/{datashare_id}", method="DELETE")
+
     def get_shared_datasets(self) -> List[Dict]:
         """
         Retrieves datasets that have been shared with the currently authenticated user
@@ -1023,6 +1178,20 @@ class FulcraAPI:
         """
         resp = self.fulcra_api("/user/v1alpha1/datasets")
         return json.loads(resp)
+
+    def delete_dataset_permission(self, permission_id: str):
+        """
+        Revokes your permission to access a dataset that was shared with you.
+
+        Args:
+            permission_id: UUID of the dataset permission to revoke
+
+        Examples:
+                >>> fulcra_client.delete_dataset_permission("cf362f80-ef41-4c08-b5e3-b18bd3d1524b")
+        """
+        self.fulcra_api(
+            f"/user/v1alpha1/dataset/permission/{permission_id}", method="DELETE"
+        )
 
     def get_user_info(self) -> Dict:
         """
