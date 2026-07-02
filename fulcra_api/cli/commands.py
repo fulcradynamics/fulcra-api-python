@@ -578,7 +578,12 @@ def sleep_cycles_aggregated(
 @click.command("get-records", short_help="Return raw sample records for a data type")
 @click.argument("data_type")
 @time_range
-@click.option("--user-id", type=str, default=None, help="Fulcra user ID to query data for (requires an active datashare from that user).")
+@click.option(
+    "--user-id",
+    type=str,
+    default=None,
+    help="Fulcra user ID to query data for (requires an active datashare from that user).",
+)
 @click.pass_context
 @requires_auth
 def get_records(
