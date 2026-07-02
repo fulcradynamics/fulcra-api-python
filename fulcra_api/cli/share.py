@@ -41,6 +41,8 @@ def list_incoming(ctx):
         raise click.ClickException(exc)
 
     authenticated_userid = ctx.obj.get_fulcra_userid()
+    # filter out dataset that is automatically generated for each user; it reflects that
+    # they share all data with themselves
     for dataset in [r for r in results if r.get("permission_id") != authenticated_userid]:
         click.echo(json.dumps(dataset))
 
