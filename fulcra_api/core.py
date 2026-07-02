@@ -397,7 +397,7 @@ class FulcraAPI:
         # query_params = urllib.parse.urlencode(params, doseq=True)
         return self.fulcra_api(f"/data/v1alpha1/{data_class}/{data_type}", query=params)
 
-    def fulcra_v1_api_path(self, path: str, params: dict = {}) -> bytes:
+    def fulcra_v1_api_path(self, path: str, params: Optional[dict[str, str]] = None) -> bytes:
         """
         Make a call to the v1 API using a full path.
 
@@ -410,7 +410,7 @@ class FulcraAPI:
         Returns:
             The raw response data (as bytes).  Raises an exception on failure.
         """
-        return self.fulcra_api(f"/data/v1alpha1/{path}", query=params)
+        return self.fulcra_api(f"/data/v1alpha1/{path}", query=params if params else {})
 
     def get_token_claims(self) -> Dict:
         """

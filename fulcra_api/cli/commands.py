@@ -635,9 +635,10 @@ def get_records(
     results = []
 
     for dt in data_type:
+        record_type = dt.get("record_spec", {}).get("type")
         if (
             dt["api_version"] == "v0"
-            and dt.get("record_spec", {}).get("type") == "metric"
+            and record_type == "metric"
         ):
             query_func = ctx.obj.metric_samples
             kwargs = {
@@ -647,18 +648,18 @@ def get_records(
             }
             if user_id:
                 kwargs["fulcra_userid"] = user_id
-        elif dt["api_version"] == "v1alpha1" and dt["class"] == "metric":
+        elif dt["api_version"] == "v1alpha1" and record_type == "metric":
             query_func = ctx.obj.fulcra_v1_api_path
-            path = f"{dt['class']}/{dt['id']}"
+            path = f"{record_type}/{dt['id']}"
             if user_annotation_id:
                 path = f"{path}/{user_annotation_id}"
             params = {"start_time": start_time, "end_time": end_time}
             if user_id:
                 params["fulcra_userid"] = user_id
             kwargs = {"path": path, "params": params}
-        elif dt["api_version"] == "v1alpha1" and dt["class"] == "event":
+        elif dt["api_version"] == "v1alpha1" and record_type == "event":
             query_func = ctx.obj.fulcra_v1_api_path
-            path = f"{dt['class']}/{dt['id']}"
+            path = f"{record_type}/{dt['id']}"
             if user_annotation_id:
                 path = f"{path}/{user_annotation_id}"
             params = {"start_time": start_time, "end_time": end_time}
