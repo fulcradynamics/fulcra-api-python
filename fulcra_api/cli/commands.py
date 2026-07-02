@@ -623,7 +623,10 @@ def get_records(
     results = []
 
     for dt in data_type:
-        if dt["api_version"] == "v0" and dt["class"] == "metric":
+        if (
+            dt["api_version"] == "v0"
+            and dt.get("record_spec", {}).get("type") == "metric"
+        ):
             query_func = ctx.obj.metric_samples
             kwargs = {
                 "start_time": start_time,
@@ -634,7 +637,7 @@ def get_records(
                 kwargs["fulcra_userid"] = user_id
         elif dt["api_version"] == "v1alpha1":
             query_func = ctx.obj.fulcra_v1_api_path
-            path = f"{dt['class']}/{dt['id']}"
+            path = f"{dt['record_spec']['type']}/{dt['id']}"
             params = {"start_time": start_time, "end_time": end_time}
             if user_id:
                 params["fulcra_userid"] = user_id
