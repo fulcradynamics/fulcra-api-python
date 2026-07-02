@@ -612,6 +612,18 @@ def get_records(
     fulcra get-records StepCount "1 day"
     """
 
+    # Deal with user-configured annotation shorthand (AnnotationType/UUID)
+    user_annotation_id = None
+    parts = data_type.split("/", maxsplit=2)
+    if len(parts) > 1:
+        data_type = parts[0]
+        try:
+            user_annotation_id = UUID(parts[1])
+        except ValueError:
+            raise click.ClickException(
+                "User configured annotation shorthand must be <Annotation Type>/<UUID>"
+            )
+
     try:
         data_type = ctx.obj.v1_catalog(data_type)
     except HTTPError as exc:
@@ -635,9 +647,20 @@ def get_records(
             }
             if user_id:
                 kwargs["fulcra_userid"] = user_id
-        elif dt["api_version"] == "v1alpha1":
+        elif dt["api_version"] == "v1alpha1" and dt["class"] == "metric":
             query_func = ctx.obj.fulcra_v1_api_path
-            path = f"{dt['record_spec']['type']}/{dt['id']}"
+            path = f"{dt['class']}/{dt['id']}"
+            if user_annotation_id:
+                path = f"{path}/{user_annotation_id}"
+            params = {"start_time": start_time, "end_time": end_time}
+            if user_id:
+                params["fulcra_userid"] = user_id
+            kwargs = {"path": path, "params": params}
+        elif dt["api_version"] == "v1alpha1" and dt["class"] == "event":
+            query_func = ctx.obj.fulcra_v1_api_path
+            path = f"{dt['class']}/{dt['id']}"
+            if user_annotation_id:
+                path = f"{path}/{user_annotation_id}"
             params = {"start_time": start_time, "end_time": end_time}
             if user_id:
                 params["fulcra_userid"] = user_id
