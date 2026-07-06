@@ -98,7 +98,7 @@ def data_type_create(
         )
 
     fulcra_data_type = filtered_base_data_types[0]
-    if fulcra_data_type.get("klass", "") != "metric":
+    if fulcra_data_type.get("record_spec", {}).get("type") != "metric":
         if (
             metric_kind is not None
         ):  # TODO: DurationAnnotation actually does support metric_kind
