@@ -372,12 +372,27 @@ class FulcraAPI:
             ds = None
 
         req = urllib.request.Request(url=url, data=ds, headers=headers, method=method)
-        response = urllib.request.urlopen(req)
 
-        if return_http_response:
-            return response
+        from urllib.error import HTTPError
 
-        return response.read()
+        try:
+            response = urllib.request.urlopen(req)
+
+            if return_http_response:
+                return response
+
+            return response.read()
+        except HTTPError as exc:
+            # Handle 303 See Other - follow the redirect with a GET request
+            if exc.status == 303:
+                location = exc.headers.get("Location")
+                if location:
+                    # Extract the path from the location (could be full URL or just path)
+                    parsed = urllib.parse.urlparse(location)
+                    path = parsed.path if parsed.path else location
+                    # Follow the redirect with a GET request
+                    return self.fulcra_api(path, method="GET", return_http_response=return_http_response)
+            raise
 
     def fulcra_v1_api(
         self, data_class: str, data_type: str, params: dict = {}
