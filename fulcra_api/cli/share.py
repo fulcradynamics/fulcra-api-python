@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from typing import Any, Dict
 from urllib.error import HTTPError
 
 import click
@@ -175,3 +176,197 @@ def leave(ctx, share_id: str):
         click.echo(f"Successfully left share {share_id}")
     except HTTPError as exc:
         raise click.ClickException(exc)
+
+
+@share.command("update", short_help="Update an existing share")
+@click.argument("share_id")
+@click.option(
+    "--add-data-type",
+    "add_data_types",
+    multiple=True,
+    help="Add a data type to the share (can be specified multiple times)",
+)
+@click.option(
+    "--remove-data-type",
+    "remove_data_types",
+    multiple=True,
+    help="Remove a data type from the share (can be specified multiple times)",
+)
+@click.option(
+    "--set-data-type",
+    "set_data_types",
+    multiple=True,
+    help="Replace all data types with this list (can be specified multiple times)",
+)
+@click.option(
+    "--add-user-id",
+    "add_user_ids",
+    multiple=True,
+    help="Add a user to share with (can be specified multiple times)",
+)
+@click.option(
+    "--remove-user-id",
+    "remove_user_ids",
+    multiple=True,
+    help="Remove a user from the share (can be specified multiple times)",
+)
+@click.option(
+    "--set-user-id",
+    "set_user_ids",
+    multiple=True,
+    help="Replace all users with this list (can be specified multiple times)",
+)
+@click.option(
+    "--share-all-data",
+    "share_all_data",
+    is_flag=True,
+    flag_value=True,
+    default=None,
+    help="Enable sharing all data types",
+)
+@click.option(
+    "--no-share-all-data",
+    "share_all_data",
+    is_flag=True,
+    flag_value=False,
+    default=None,
+    help="Disable sharing all data types",
+)
+@click.pass_context
+@requires_auth
+def update(
+    ctx,
+    share_id: str,
+    add_data_types,
+    remove_data_types,
+    set_data_types,
+    add_user_ids,
+    remove_user_ids,
+    set_user_ids,
+    share_all_data,
+):
+    """
+    Update an existing share by modifying data types, users, or settings.
+
+    SHARE_ID: UUID of the share to update
+
+    Examples:
+
+    \b
+    Add data types to a share:
+    fulcra share update <share-id> --add-data-type HeartRate --add-data-type StepCount
+
+    \b
+    Remove data types from a share:
+    fulcra share update <share-id> --remove-data-type HeartRate
+
+    \b
+    Replace all data types:
+    fulcra share update <share-id> --set-data-type SleepAnalysis --set-data-type HeartRate
+
+    \b
+    Add users and remove data types in one command:
+    fulcra share update <share-id> --add-user-id <user-uuid> --remove-data-type StepCount
+
+    \b
+    Disable share-all-data mode:
+    fulcra share update <share-id> --no-share-all-data
+    """
+    # Validate that at least one option is specified
+    has_any_option = any([
+        add_data_types,
+        remove_data_types,
+        set_data_types,
+        add_user_ids,
+        remove_user_ids,
+        set_user_ids,
+        share_all_data is not None,
+    ])
+
+    if not has_any_option:
+        raise click.UsageError(
+            "Must specify at least one option to update"
+        )
+
+    # Validate mutual exclusivity for data types
+    if set_data_types and (add_data_types or remove_data_types):
+        raise click.UsageError(
+            "--set-data-type cannot be used with --add-data-type or --remove-data-type"
+        )
+
+    # Validate mutual exclusivity for user IDs
+    if set_user_ids and (add_user_ids or remove_user_ids):
+        raise click.UsageError(
+            "--set-user-id cannot be used with --add-user-id or --remove-user-id"
+        )
+
+    try:
+        # Prepare update arguments
+        update_kwargs: Dict[str, Any] = {"datashare_id": share_id}
+
+        # Handle data types
+        if set_data_types:
+            # Set mode: replace all data types
+            update_kwargs["fulcra_data_types"] = list(set_data_types)
+        elif add_data_types or remove_data_types:
+            # Add/remove mode: fetch current and modify
+            shares = ctx.obj.get_datashares()
+            current_share = next((s for s in shares if s.get("datashare_id") == share_id), None)
+
+            if not current_share:
+                raise click.ClickException(f"Share {share_id} not found")
+
+            current_data_types = set(current_share.get("fulcra_data_types", []))
+
+            for dt in add_data_types:
+                if dt in current_data_types:
+                    click.echo(f"Warning: {dt} already in share, skipping", err=True)
+                else:
+                    current_data_types.add(dt)
+
+            for dt in remove_data_types:
+                if dt not in current_data_types:
+                    click.echo(f"Warning: {dt} not in share, skipping", err=True)
+                else:
+                    current_data_types.remove(dt)
+
+            update_kwargs["fulcra_data_types"] = list(current_data_types)
+
+        # Handle user IDs
+        if set_user_ids:
+            # Set mode: replace all users
+            update_kwargs["allowed_user_ids"] = list(set_user_ids)
+        elif add_user_ids or remove_user_ids:
+            # Add/remove mode: fetch current and modify
+            shares = ctx.obj.get_datashares()
+            current_share = next((s for s in shares if s.get("datashare_id") == share_id), None)
+
+            if not current_share:
+                raise click.ClickException(f"Share {share_id} not found")
+
+            current_user_ids = set(p["allowed_fulcra_userid"] for p in current_share.get("permissions", []))
+
+            for uid in add_user_ids:
+                if uid in current_user_ids:
+                    click.echo(f"Warning: {uid} already in share, skipping", err=True)
+                else:
+                    current_user_ids.add(uid)
+
+            for uid in remove_user_ids:
+                if uid not in current_user_ids:
+                    click.echo(f"Warning: {uid} not in share, skipping", err=True)
+                else:
+                    current_user_ids.remove(uid)
+
+            update_kwargs["allowed_user_ids"] = list(current_user_ids)
+
+        # Handle share_all_data flag
+        if share_all_data is not None:
+            update_kwargs["share_all_data"] = share_all_data
+
+        # Update the share
+        result = ctx.obj.update_datashare(**update_kwargs)
+        click.echo(json.dumps(result))
+
+    except HTTPError as exc:
+        raise click.ClickException(f"Failed to update share: {exc}")
