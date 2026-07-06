@@ -406,7 +406,7 @@ class FulcraAPI:
         Supports annotation shorthands with UUIDs (e.g., "metric/MomentAnnotation/<uuid>").
 
         Params:
-            path: The full path after /data/v1alpha1/ (e.g., "metric/MomentAnnotation" or "metric/MomentAnnotation/<uuid>")
+            path: The full path after /data/v1alpha1/ (e.g., "event/MomentAnnotation" or "metric/NumericAnnotation/<uuid>")
             params: Additional params to add to the query
 
         Returns:
