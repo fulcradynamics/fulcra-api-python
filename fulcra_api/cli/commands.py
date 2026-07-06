@@ -636,10 +636,7 @@ def get_records(
 
     for dt in data_type:
         record_type = dt.get("record_spec", {}).get("type")
-        if (
-            dt["api_version"] == "v0"
-            and record_type == "metric"
-        ):
+        if dt["api_version"] == "v0" and record_type == "metric":
             query_func = ctx.obj.metric_samples
             kwargs = {
                 "start_time": start_time,
