@@ -7,6 +7,7 @@ from ..credentials import FulcraCredentials
 from .auth import auth
 from .commands import (
     catalog,
+    data_updates,
     get_records,
     google_location_updates,
     apple_location_updates,
@@ -65,3 +66,4 @@ cli.add_command(sleep_cycles_aggregated)
 cli.add_command(get_records)
 cli.add_command(catalog)
 cli.add_command(user_info)
+cli.add_command(data_updates)
