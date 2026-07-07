@@ -23,7 +23,10 @@ def list_outgoing(ctx):
     try:
         results = ctx.obj.get_datashares()
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(
+            f"Failed to retrieve outgoing shares: {exc}\n{error_body}"
+        )
 
     for datashare in results:
         click.echo(json.dumps(datashare))
@@ -39,7 +42,10 @@ def list_incoming(ctx):
     try:
         results = ctx.obj.get_shared_datasets()
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(
+            f"Failed to retrieve incoming shares: {exc}\n{error_body}"
+        )
 
     authenticated_userid = ctx.obj.get_fulcra_userid()
     # filter out dataset that is automatically generated for each user; it reflects that
@@ -111,7 +117,8 @@ def create(ctx, name, data_types, user_ids, start_time, end_time, share_all):
                     f"Use 'fulcra catalog' to see valid data types."
                 )
         except HTTPError as exc:
-            raise click.ClickException(f"Failed to fetch catalog: {exc}")
+            error_body = exc.read().decode("utf-8")
+            raise click.ClickException(f"Failed to fetch catalog: {exc}\n{error_body}")
 
     # Parse time arguments if provided
     parsed_start_time = None
@@ -144,7 +151,8 @@ def create(ctx, name, data_types, user_ids, start_time, end_time, share_all):
         )
         click.echo(json.dumps(result))
     except HTTPError as exc:
-        raise click.ClickException(f"Failed to create share: {exc}")
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to create share: {exc}\n{error_body}")
 
 
 @share.command("delete", short_help="Delete a share you created")
@@ -161,7 +169,8 @@ def delete(ctx, share_id: str):
         ctx.obj.delete_datashare(share_id)
         click.echo(f"Share {share_id} deleted successfully")
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to delete share: {exc}\n{error_body}")
 
 
 @share.command("leave", short_help="Leave a share")
@@ -178,7 +187,8 @@ def leave(ctx, share_id: str):
         ctx.obj.delete_dataset_permission(share_id)
         click.echo(f"Successfully left share {share_id}")
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to leave share: {exc}\n{error_body}")
 
 
 @share.command("update", short_help="Update an existing share")
@@ -465,4 +475,5 @@ def update(
         click.echo(json.dumps(result))
 
     except HTTPError as exc:
-        raise click.ClickException(f"Failed to update share: {exc}")
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to update share: {exc}\n{error_body}")
