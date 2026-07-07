@@ -44,7 +44,9 @@ def list_incoming(ctx):
     authenticated_userid = ctx.obj.get_fulcra_userid()
     # filter out dataset that is automatically generated for each user; it reflects that
     # they share all data with themselves
-    for dataset in [r for r in results if r.get("permission_id") != authenticated_userid]:
+    for dataset in [
+        r for r in results if r.get("permission_id") != authenticated_userid
+    ]:
         click.echo(json.dumps(dataset))
 
 
@@ -82,11 +84,11 @@ def create(ctx, name, data_types, user_ids, start_time, end_time, share_all):
 
     \b
     Share specific data types with a user:
-    fulcra share create --name "Research Study" --data-type HeartRate --data-type StepCount --user-id <user-uuid>
+    fulcra share create --name "Research Study" --data-type HeartRate --data-type StepCount --user-id <USER-UUID>
 
     \b
     Share all data types:
-    fulcra share create --name "Full Access" --share-all --user-id <user-uuid>
+    fulcra share create --name "Full Access" --share-all --user-id <USER-UUID>
     """
     # Validate data types against catalog
     if not share_all:
@@ -99,7 +101,8 @@ def create(ctx, name, data_types, user_ids, start_time, end_time, share_all):
             temporary_allowed_types = {"calendars", "calendar_events"}
 
             invalid_types = [
-                dt for dt in data_types
+                dt
+                for dt in data_types
                 if dt not in valid_data_type_ids and dt not in temporary_allowed_types
             ]
             if invalid_types:
@@ -288,56 +291,56 @@ def update(
 
     \b
     Update share name:
-    fulcra share update <share-id> --name "New Share Name"
+    fulcra share update <SHARE-UUID> --name "New Share Name"
 
     \b
     Add data types to a share:
-    fulcra share update <share-id> --add-data-type HeartRate --add-data-type StepCount
+    fulcra share update <SHARE-UUID> --add-data-type HeartRate --add-data-type StepCount
 
     \b
     Remove data types from a share:
-    fulcra share update <share-id> --remove-data-type HeartRate
+    fulcra share update <SHARE-UUID> --remove-data-type HeartRate
 
     \b
     Replace all data types:
-    fulcra share update <share-id> --set-data-type SleepAnalysis --set-data-type HeartRate
+    fulcra share update <SHARE-UUID> --set-data-type SleepAnalysis --set-data-type HeartRate
 
     \b
     Add users and remove data types in one command:
-    fulcra share update <share-id> --add-user-id <user-uuid> --remove-data-type StepCount
+    fulcra share update <SHARE-UUID> --add-user-id <USER-UUID> --remove-data-type StepCount
 
     \b
     Disable share-all-data mode:
-    fulcra share update <share-id> --no-share-all-data
+    fulcra share update <SHARE-UUID> --no-share-all-data
 
     \b
     Set time range:
-    fulcra share update <share-id> --start-time 2026-01-01T00:00:00 --end-time 2026-12-31T23:59:59
+    fulcra share update <SHARE-UUID> --start-time 2026-01-01T00:00:00 --end-time 2026-12-31T23:59:59
 
     \b
     Make share open-ended:
-    fulcra share update <share-id> --no-start-time --no-end-time
+    fulcra share update <SHARE-UUID> --no-start-time --no-end-time
     """
     # Validate that at least one option is specified
-    has_any_option = any([
-        name,
-        add_data_types,
-        remove_data_types,
-        set_data_types,
-        add_user_ids,
-        remove_user_ids,
-        set_user_ids,
-        share_all_data is not None,
-        start_time_value,
-        no_start_time,
-        end_time_value,
-        no_end_time,
-    ])
+    has_any_option = any(
+        [
+            name,
+            add_data_types,
+            remove_data_types,
+            set_data_types,
+            add_user_ids,
+            remove_user_ids,
+            set_user_ids,
+            share_all_data is not None,
+            start_time_value,
+            no_start_time,
+            end_time_value,
+            no_end_time,
+        ]
+    )
 
     if not has_any_option:
-        raise click.UsageError(
-            "Must specify at least one option to update"
-        )
+        raise click.UsageError("Must specify at least one option to update")
 
     # Validate mutual exclusivity for data types
     if set_data_types and (add_data_types or remove_data_types):
@@ -353,20 +356,18 @@ def update(
 
     # Validate mutual exclusivity for start time
     if start_time_value and no_start_time:
-        raise click.UsageError(
-            "--start-time cannot be used with --no-start-time"
-        )
+        raise click.UsageError("--start-time cannot be used with --no-start-time")
 
     # Validate mutual exclusivity for end time
     if end_time_value and no_end_time:
-        raise click.UsageError(
-            "--end-time cannot be used with --no-end-time"
-        )
+        raise click.UsageError("--end-time cannot be used with --no-end-time")
 
     try:
         # Fetch current share
         shares = ctx.obj.get_datashares()
-        current_share = next((s for s in shares if s.get("datashare_id") == share_id), None)
+        current_share = next(
+            (s for s in shares if s.get("datashare_id") == share_id), None
+        )
         if not current_share:
             raise click.ClickException(f"Share {share_id} not found")
 
@@ -375,10 +376,16 @@ def update(
             "datashare_id": share_id,
             "datashare_name": current_share.get("datashare_name"),
             "fulcra_data_types": current_share.get("fulcra_data_types"),
-            "allowed_user_ids": [p["allowed_fulcra_userid"] for p in current_share.get("permissions", [])],
+            "allowed_user_ids": [
+                p["allowed_fulcra_userid"] for p in current_share.get("permissions", [])
+            ],
             "share_all_data": current_share.get("share_all_data"),
-            "time_start": datetime.fromisoformat(current_share["time_start"]) if current_share.get("time_start") else None,
-            "time_end": datetime.fromisoformat(current_share["time_end"]) if current_share.get("time_end") else None,
+            "time_start": datetime.fromisoformat(current_share["time_start"])
+            if current_share.get("time_start")
+            else None,
+            "time_end": datetime.fromisoformat(current_share["time_end"])
+            if current_share.get("time_end")
+            else None,
         }
 
         # Override with provided values
