@@ -7,6 +7,8 @@ from uuid import UUID
 import click
 import puremagic
 
+from ..core import FulcraAPI
+from . import pass_fulcra_api
 from .utils import human_size, make_filepath, requires_auth
 
 
@@ -17,9 +19,9 @@ def file():
 
 @file.command("list", short_help="List files")
 @click.argument("path", type=str, default="/")
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def file_list(ctx, path: str):
+def file_list(fulcra_api: FulcraAPI, path: str):
     """List uploaded files.
 
     PATH: Path to list files in [Default: /]
@@ -27,7 +29,7 @@ def file_list(ctx, path: str):
 
     path = make_filepath(path)
 
-    results = ctx.obj.list_files(path)
+    results = fulcra_api.list_files(path)
 
     if results.get("folders") is not None:
         for d in results.get("folders", []):
@@ -46,9 +48,9 @@ def file_list(ctx, path: str):
 
 @file.command("stat", short_help="Get information about a file")
 @click.argument("path", type=str)
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def file_stat(ctx, path: str):
+def file_stat(fulcra_api: FulcraAPI, path: str):
     """Returns information about an uploaded file, including size, date uploaded, and all previously uploaded versions of the file.
 
     PATH: Full path of the file.
@@ -57,7 +59,7 @@ def file_stat(ctx, path: str):
     path = make_filepath(path)
 
     try:
-        f = ctx.obj.resolve_filepath(path, all_versions=True)
+        f = fulcra_api.resolve_filepath(path, all_versions=True)
     except Exception as exc:
         raise click.ClickException(exc)
 
@@ -78,9 +80,9 @@ def file_stat(ctx, path: str):
 @file.command("download", short_help="Download a file")
 @click.argument("remote_file", type=str)
 @click.argument("local_file", type=click.File(mode="wb"), required=False, default=None)
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def file_download(ctx, remote_file: str, local_file=None):
+def file_download(fulcra_api: FulcraAPI, remote_file: str, local_file=None):
     """Download a file.
 
     REMOTE_FILE: Full path of file to download.
@@ -91,11 +93,11 @@ def file_download(ctx, remote_file: str, local_file=None):
     remote_file = make_filepath(remote_file)
 
     try:
-        f = ctx.obj.resolve_filepath(remote_file)
+        f = fulcra_api.resolve_filepath(remote_file)
     except Exception as exc:
         raise click.ClickException(exc)
 
-    resp = ctx.obj.download_file(f[0].get("id"))
+    resp = fulcra_api.download_file(f[0].get("id"))
 
     if local_file is None:
         local_file = click.open_file(pathlib.PurePath(f[0].get("name")).name, mode="wb")
@@ -109,9 +111,9 @@ def file_download(ctx, remote_file: str, local_file=None):
 @file.command("upload", short_help="Upload a file")
 @click.argument("local_file", type=click.File(mode="rb"))
 @click.argument("remote_file", type=str, default="")
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def file_upload(ctx, local_file: click.File, remote_file: str):
+def file_upload(fulcra_api: FulcraAPI, local_file: click.File, remote_file: str):
     """Upload a file.
 
     LOCAL_FILE: File to upload.
@@ -133,7 +135,7 @@ def file_upload(ctx, local_file: click.File, remote_file: str):
         file_type = "application/octet-stream"
 
     try:
-        new_file = ctx.obj.upload_file(local_file, file_type, file_size, path)
+        new_file = fulcra_api.upload_file(local_file, file_type, file_size, path)
         full_path = make_filepath(new_file["file"]["path"], new_file["file"]["name"])
     except HTTPError as exc:
         raise click.ClickException(exc.fp.read())
@@ -143,9 +145,9 @@ def file_upload(ctx, local_file: click.File, remote_file: str):
 
 @file.command("delete", short_help="Delete a file")
 @click.argument("path", type=str)
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def file_delete(ctx, path):
+def file_delete(fulcra_api: FulcraAPI, path):
     """Delete a file.
 
     PATH: Path of the file to delete.
@@ -153,27 +155,27 @@ def file_delete(ctx, path):
     path = make_filepath(path)
 
     try:
-        f = ctx.obj.resolve_filepath(path)
+        f = fulcra_api.resolve_filepath(path)
     except Exception as exc:
         raise click.ClickException(exc)
 
-    ctx.obj.delete_file(f[0].get("id"))
+    fulcra_api.delete_file(f[0].get("id"))
 
     click.echo(f"❌ fulcra:{path}")
 
 
 @file.command("restore", short_help="Restore a file")
 @click.argument("version_id", type=UUID)
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def file_restore(ctx, version_id):
+def file_restore(fulcra_api: FulcraAPI, version_id):
     """Restore a previous version of a file.
 
     VERSION_ID: UUID of the file version you want to restore. Versions are returned via the `file stat` command.
     """
 
     try:
-        file_version = ctx.obj.get_file_by_version(version_id)
+        file_version = fulcra_api.get_file_by_version(version_id)
     except HTTPError as exc:
         if exc.status == 404:
             raise click.ClickException(f"File version {version_id} not found")
@@ -182,7 +184,7 @@ def file_restore(ctx, version_id):
 
     full_file_name = make_filepath(file_version["path"], file_version["name"])
 
-    new_file = ctx.obj.restore_file(file_version["id"])
+    new_file = fulcra_api.restore_file(file_version["id"])
 
     click.echo(
         f"fulcra:{full_file_name}  {file_version['id']} ({file_version['uploaded_at']}) ➡️ {new_file['id']} ({new_file['uploaded_at']})"
