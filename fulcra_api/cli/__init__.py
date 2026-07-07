@@ -28,6 +28,9 @@ from .files import file
 from .tags import tag
 from .utils import ensure_config_directory, load_creds, save_creds
 
+# Create a pass decorator for FulcraAPI to enable type hints in subcommands
+pass_fulcra_api = click.make_pass_decorator(FulcraAPI)
+
 
 @click.group()
 @click.option("--beta", is_flag=True, default=False, help="Enable beta features")
