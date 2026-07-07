@@ -4,7 +4,9 @@ from urllib.error import HTTPError
 
 import click
 
-from .utils import requires_auth
+from fulcra_api.core import FulcraAPI
+
+from .utils import pass_fulcra_api, requires_auth
 
 
 @click.group(help="Tag management sub-commands")
@@ -16,15 +18,20 @@ def tag():
 @click.option("-n", "--name", type=str, help="Filter results by partial name.")
 @click.option("--tag-name", type=str, help="Filter results by full tag name.")
 @click.option("--tag-id", type=str, help="Filter results by tag ID.")
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def tag_list(ctx, name: Optional[str], tag_name: Optional[str], tag_id: Optional[str]):
+def tag_list(
+    fulcra_api: FulcraAPI,
+    name: Optional[str],
+    tag_name: Optional[str],
+    tag_id: Optional[str],
+):
     """
     Return a list of user-defined tags that can be used when creating and recording custom data types.
     """
 
     try:
-        response = ctx.obj.tags()
+        response = fulcra_api.tags()
 
         if name:
             response = [
@@ -48,9 +55,9 @@ def tag_list(ctx, name: Optional[str], tag_name: Optional[str], tag_id: Optional
 
 @tag.command("get", short_help="Get a user-defined tag")
 @click.argument("name_or_id", type=str)
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def get_tag(ctx, name_or_id: str):
+def get_tag(fulcra_api: FulcraAPI, name_or_id: str):
     """Get a user-defined tag by name or ID.
 
     NAME_OR_ID: Tag name or ID
@@ -66,10 +73,10 @@ def get_tag(ctx, name_or_id: str):
 
     try:
         if tag_id:
-            resp = ctx.obj.get_tag_by_id(tag_id=tag_id)
+            resp = fulcra_api.get_tag_by_id(tag_id=tag_id)
             click.echo(json.dumps(resp))
         else:
-            resp = ctx.obj.get_tag_by_name(name=tag_name)
+            resp = fulcra_api.get_tag_by_name(name=tag_name)
             click.echo(json.dumps(resp))
 
     except HTTPError as exc:
@@ -81,9 +88,9 @@ def get_tag(ctx, name_or_id: str):
 
 @tag.command("create", short_help="Create user-defined tags")
 @click.argument("names", nargs=-1)
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def tag_create(ctx, names: Tuple[str, ...]):
+def tag_create(fulcra_api: FulcraAPI, names: Tuple[str, ...]):
     """
     Create case-insensitive user-defined tags by name that can be used when creating and recording custom data types.
     """
@@ -93,7 +100,7 @@ def tag_create(ctx, names: Tuple[str, ...]):
     for name in names:
         tag_name = name.lower()
         try:
-            resp = ctx.obj.create_tag(tag_name)
+            resp = fulcra_api.create_tag(tag_name)
             created_tags.append(resp)
         except HTTPError as exc:
             if exc.status == 409:
@@ -105,15 +112,15 @@ def tag_create(ctx, names: Tuple[str, ...]):
 
 @tag.command("delete", short_help="Delete user-defined tag")
 @click.argument("tag_id")
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def tag_delete(ctx, tag_id: str):
+def tag_delete(fulcra_api: FulcraAPI, tag_id: str):
     """
     Delete a user-defined tag by tag ID.
     """
 
     try:
-        ctx.obj.delete_tag(tag_id)
+        fulcra_api.delete_tag(tag_id)
     except HTTPError as exc:
         raise click.ClickException(f"Failed to delete tag {tag_id}: {exc}")
 

@@ -27,7 +27,7 @@ from .data_types import data_type
 from .files import file
 from .share import share
 from .tags import tag
-from .utils import ensure_config_directory, load_creds, save_creds
+from .utils import ensure_config_directory, load_creds, save_creds, pass_fulcra_api
 
 
 @click.group()
