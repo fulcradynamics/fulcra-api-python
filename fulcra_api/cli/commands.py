@@ -655,11 +655,7 @@ def get_records(
     for dt in data_type:
         record_type = dt.get("record_spec", {}).get("type")
         if dt["api_version"] == "v0" and record_type == "metric":
-<<<<<<< HEAD
-            query_func = ctx.obj.metric_samples
-=======
             query_func = fulcra_api.metric_samples
->>>>>>> main
             kwargs = {
                 "start_time": start_time,
                 "end_time": end_time,
