@@ -180,6 +180,7 @@ def leave(ctx, share_id: str):
 
 @share.command("update", short_help="Update an existing share")
 @click.argument("share_id")
+@click.option("--name", type=str, help="Update the share name")
 @click.option(
     "--add-data-type",
     "add_data_types",
@@ -232,11 +233,38 @@ def leave(ctx, share_id: str):
     default=None,
     help="Disable sharing all data types",
 )
+@click.option(
+    "--start-time",
+    "start_time_value",
+    type=str,
+    help="Set start time for data range (ISO8601 format)",
+)
+@click.option(
+    "--no-start-time",
+    "no_start_time",
+    is_flag=True,
+    default=False,
+    help="Remove start time (make share open-ended at start)",
+)
+@click.option(
+    "--end-time",
+    "end_time_value",
+    type=str,
+    help="Set end time for data range (ISO8601 format)",
+)
+@click.option(
+    "--no-end-time",
+    "no_end_time",
+    is_flag=True,
+    default=False,
+    help="Remove end time (make share open-ended at end)",
+)
 @click.pass_context
 @requires_auth
 def update(
     ctx,
     share_id: str,
+    name,
     add_data_types,
     remove_data_types,
     set_data_types,
@@ -244,6 +272,10 @@ def update(
     remove_user_ids,
     set_user_ids,
     share_all_data,
+    start_time_value,
+    no_start_time,
+    end_time_value,
+    no_end_time,
 ):
     """
     Update an existing share by modifying data types, users, or settings.
@@ -251,6 +283,10 @@ def update(
     SHARE_ID: UUID of the share to update
 
     Examples:
+
+    \b
+    Update share name:
+    fulcra share update <share-id> --name "New Share Name"
 
     \b
     Add data types to a share:
@@ -271,9 +307,18 @@ def update(
     \b
     Disable share-all-data mode:
     fulcra share update <share-id> --no-share-all-data
+
+    \b
+    Set time range:
+    fulcra share update <share-id> --start-time 2026-01-01T00:00:00 --end-time 2026-12-31T23:59:59
+
+    \b
+    Make share open-ended:
+    fulcra share update <share-id> --no-start-time --no-end-time
     """
     # Validate that at least one option is specified
     has_any_option = any([
+        name,
         add_data_types,
         remove_data_types,
         set_data_types,
@@ -281,6 +326,10 @@ def update(
         remove_user_ids,
         set_user_ids,
         share_all_data is not None,
+        start_time_value,
+        no_start_time,
+        end_time_value,
+        no_end_time,
     ])
 
     if not has_any_option:
@@ -300,23 +349,47 @@ def update(
             "--set-user-id cannot be used with --add-user-id or --remove-user-id"
         )
 
+    # Validate mutual exclusivity for start time
+    if start_time_value and no_start_time:
+        raise click.UsageError(
+            "--start-time cannot be used with --no-start-time"
+        )
+
+    # Validate mutual exclusivity for end time
+    if end_time_value and no_end_time:
+        raise click.UsageError(
+            "--end-time cannot be used with --no-end-time"
+        )
+
     try:
-        # Prepare update arguments
-        update_kwargs: Dict[str, Any] = {"datashare_id": share_id}
+        # Fetch current share
+        shares = ctx.obj.get_datashares()
+        current_share = next((s for s in shares if s.get("datashare_id") == share_id), None)
+        if not current_share:
+            raise click.ClickException(f"Share {share_id} not found")
+
+        # Initialize update arguments with all current values
+        update_kwargs: Dict[str, Any] = {
+            "datashare_id": share_id,
+            "datashare_name": current_share.get("datashare_name"),
+            "fulcra_data_types": current_share.get("fulcra_data_types"),
+            "allowed_user_ids": [p["allowed_fulcra_userid"] for p in current_share.get("permissions", [])],
+            "share_all_data": current_share.get("share_all_data"),
+            "time_start": datetime.fromisoformat(current_share["time_start"]) if current_share.get("time_start") else None,
+            "time_end": datetime.fromisoformat(current_share["time_end"]) if current_share.get("time_end") else None,
+        }
+
+        # Override with provided values
+
+        # Handle name
+        if name:
+            update_kwargs["datashare_name"] = name
 
         # Handle data types
         if set_data_types:
-            # Set mode: replace all data types
             update_kwargs["fulcra_data_types"] = list(set_data_types)
         elif add_data_types or remove_data_types:
-            # Add/remove mode: fetch current and modify
-            shares = ctx.obj.get_datashares()
-            current_share = next((s for s in shares if s.get("datashare_id") == share_id), None)
-
-            if not current_share:
-                raise click.ClickException(f"Share {share_id} not found")
-
-            current_data_types = set(current_share.get("fulcra_data_types", []))
+            current_data_types = set(update_kwargs["fulcra_data_types"] or [])
 
             for dt in add_data_types:
                 if dt in current_data_types:
@@ -334,17 +407,9 @@ def update(
 
         # Handle user IDs
         if set_user_ids:
-            # Set mode: replace all users
             update_kwargs["allowed_user_ids"] = list(set_user_ids)
         elif add_user_ids or remove_user_ids:
-            # Add/remove mode: fetch current and modify
-            shares = ctx.obj.get_datashares()
-            current_share = next((s for s in shares if s.get("datashare_id") == share_id), None)
-
-            if not current_share:
-                raise click.ClickException(f"Share {share_id} not found")
-
-            current_user_ids = set(p["allowed_fulcra_userid"] for p in current_share.get("permissions", []))
+            current_user_ids = set(update_kwargs["allowed_user_ids"] or [])
 
             for uid in add_user_ids:
                 if uid in current_user_ids:
@@ -363,6 +428,28 @@ def update(
         # Handle share_all_data flag
         if share_all_data is not None:
             update_kwargs["share_all_data"] = share_all_data
+
+        # Handle start time
+        if start_time_value:
+            try:
+                update_kwargs["time_start"] = datetime.fromisoformat(start_time_value)
+            except ValueError:
+                raise click.ClickException(
+                    f"Invalid start time format: {start_time_value}. Use ISO8601 format."
+                )
+        elif no_start_time:
+            update_kwargs["time_start"] = None
+
+        # Handle end time
+        if end_time_value:
+            try:
+                update_kwargs["time_end"] = datetime.fromisoformat(end_time_value)
+            except ValueError:
+                raise click.ClickException(
+                    f"Invalid end time format: {end_time_value}. Use ISO8601 format."
+                )
+        elif no_end_time:
+            update_kwargs["time_end"] = None
 
         # Update the share
         result = ctx.obj.update_datashare(**update_kwargs)

@@ -391,7 +391,9 @@ class FulcraAPI:
                     parsed = urllib.parse.urlparse(location)
                     path = parsed.path if parsed.path else location
                     # Follow the redirect with a GET request
-                    return self.fulcra_api(path, method="GET", return_http_response=return_http_response)
+                    return self.fulcra_api(
+                        path, method="GET", return_http_response=return_http_response
+                    )
             raise
 
     def fulcra_v1_api(
@@ -1049,8 +1051,6 @@ class FulcraAPI:
         """
         Creates a new datashare to share your data with other users.
 
-        User name and picture are automatically populated from the authenticated user's info.
-
         Args:
             datashare_name: Name for this datashare
             fulcra_data_types: List of data type IDs to share
@@ -1073,15 +1073,8 @@ class FulcraAPI:
             {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
         ]
 
-        # Get user name and picture from token claims
-        claims = self.get_token_claims()
-        user_name = claims.get("name")
-        user_picture = claims.get("picture")
-
         datashare_body = {
             "datashare_name": datashare_name,
-            "fulcra_user_name": user_name if user_name else self.get_fulcra_userid(),
-            "fulcra_user_picture": user_picture,
             "time_start": time_start.isoformat() if time_start else None,
             "time_end": time_end.isoformat() if time_end else None,
             "fulcra_data_types": fulcra_data_types,
@@ -1097,56 +1090,59 @@ class FulcraAPI:
     def update_datashare(
         self,
         datashare_id: str,
-        datashare_name: Optional[str] = None,
-        fulcra_data_types: Optional[List[str]] = None,
-        allowed_user_ids: Optional[List[str]] = None,
-        share_all_data: Optional[bool] = None,
-        time_start: Optional[datetime.datetime] = None,
-        time_end: Optional[datetime.datetime] = None,
+        datashare_name: str,
+        fulcra_data_types: List[str],
+        allowed_user_ids: List[str],
+        share_all_data: bool,
+        time_start: Optional[datetime.datetime],
+        time_end: Optional[datetime.datetime],
     ) -> Dict:
         """
-        Updates an existing datashare.
+        Updates an existing datashare with a complete replacement of all fields.
+
+        Note: This method requires all fields to be provided. The CLI handles fetching
+        current values and building the complete update. Direct API users should fetch
+        the current share via get_datashares() first if they only want to modify
+        specific fields.
 
         Args:
             datashare_id: UUID of the datashare to update
-            datashare_name: Optional new name for the datashare
-            fulcra_data_types: Optional new list of data type IDs to share
-            allowed_user_ids: Optional new list of Fulcra user IDs to share with
-            share_all_data: Optional new value for whether to share all data types
-            time_start: Optional new start time for data range
-            time_end: Optional new end time for data range
+            datashare_name: Name for the datashare
+            fulcra_data_types: List of data type IDs to share
+            allowed_user_ids: List of Fulcra user IDs to share with
+            share_all_data: Whether to share all data types
+            time_start: Start time for data range, or None for open-ended
+            time_end: End time for data range, or None for open-ended
 
         Returns:
             A dict containing the updated datashare information.
 
         Examples:
+                >>> # Fetch current share first
+                >>> shares = fulcra_client.get_datashares()
+                >>> current = next(s for s in shares if s["datashare_id"] == share_id)
+                >>>
+                >>> # Update with modified values
                 >>> updated = fulcra_client.update_datashare(
-                ...     datashare_id="cf362f80-ef41-4c08-b5e3-b18bd3d1524b",
+                ...     datashare_id=share_id,
                 ...     datashare_name="Updated Research Share",
-                ...     fulcra_data_types=["HeartRate", "StepCount", "SleepAnalysis"]
+                ...     fulcra_data_types=["HeartRate", "StepCount"],
+                ...     allowed_user_ids=current["permissions"],
+                ...     share_all_data=current["share_all_data"],
+                ...     time_start=None,
+                ...     time_end=None
                 ... )
         """
-        datashare_body = {}
-
-        if datashare_name is not None:
-            datashare_body["datashare_name"] = datashare_name
-
-        if fulcra_data_types is not None:
-            datashare_body["fulcra_data_types"] = fulcra_data_types
-
-        if allowed_user_ids is not None:
-            datashare_body["permissions"] = [
+        datashare_body = {
+            "datashare_name": datashare_name,
+            "fulcra_data_types": fulcra_data_types,
+            "share_all_data": share_all_data,
+            "time_start": time_start.isoformat() if time_start else None,
+            "time_end": time_end.isoformat() if time_end else None,
+            "permissions": [
                 {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
-            ]
-
-        if share_all_data is not None:
-            datashare_body["share_all_data"] = share_all_data
-
-        if time_start is not None:
-            datashare_body["time_start"] = time_start.isoformat()
-
-        if time_end is not None:
-            datashare_body["time_end"] = time_end.isoformat()
+            ],
+        }
 
         resp = self.fulcra_api(
             f"/user/v1alpha1/datashare/{datashare_id}",
