@@ -142,8 +142,8 @@ def create(ctx, name, data_types, user_ids, start_time, end_time, share_all):
     try:
         result = ctx.obj.create_datashare(
             datashare_name=name,
-            fulcra_data_types=list(data_types),
-            allowed_user_ids=list(user_ids),
+            fulcra_data_types=sorted(data_types),
+            allowed_user_ids=sorted(user_ids),
             share_all_data=share_all,
             time_start=parsed_start_time,
             time_end=parsed_end_time,
@@ -405,7 +405,7 @@ def update(
 
         # Handle data types
         if set_data_types:
-            update_kwargs["fulcra_data_types"] = list(set_data_types)
+            update_kwargs["fulcra_data_types"] = sorted(set_data_types)
         elif add_data_types or remove_data_types:
             current_data_types = set(update_kwargs["fulcra_data_types"] or [])
 
@@ -421,11 +421,11 @@ def update(
                 else:
                     current_data_types.remove(dt)
 
-            update_kwargs["fulcra_data_types"] = list(current_data_types)
+            update_kwargs["fulcra_data_types"] = sorted(current_data_types)
 
         # Handle user IDs
         if set_user_ids:
-            update_kwargs["allowed_user_ids"] = list(set_user_ids)
+            update_kwargs["allowed_user_ids"] = sorted(set_user_ids)
         elif add_user_ids or remove_user_ids:
             current_user_ids = set(update_kwargs["allowed_user_ids"] or [])
 
@@ -441,7 +441,7 @@ def update(
                 else:
                     current_user_ids.remove(uid)
 
-            update_kwargs["allowed_user_ids"] = list(current_user_ids)
+            update_kwargs["allowed_user_ids"] = sorted(current_user_ids)
 
         # Handle share_all_data flag
         if share_all_data is not None:
