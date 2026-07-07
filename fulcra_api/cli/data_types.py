@@ -141,7 +141,6 @@ def data_type_create(
                 raise click.BadOptionUsage(
                     "unit",
                     f"-u / --unit cannot be used with base data type {base_data_type}",
-                    ctx,
                 )
             if raw_value is not None:
                 value = click.types.BoolParamType().convert(raw_value, None, None)
@@ -155,14 +154,12 @@ def data_type_create(
                 raise click.BadOptionUsage(
                     "scale_labels",
                     f"-s / --scale-labels must be used with exactly 5 values with base data type {base_data_type}",
-                    ctx,
                 )
             # user-service does not accept a unit for scale annotations
             if unit is not None:
                 raise click.BadOptionUsage(
                     "unit",
                     f"-u / --unit cannot be used with base data type {base_data_type}",
-                    ctx,
                 )
         case _:
             raise click.ClickException(f"Unsupported base type: {base_data_type}")
