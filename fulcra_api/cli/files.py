@@ -8,8 +8,7 @@ import click
 import puremagic
 
 from ..core import FulcraAPI
-from . import pass_fulcra_api
-from .utils import human_size, make_filepath, requires_auth
+from .utils import human_size, make_filepath, pass_fulcra_api, requires_auth
 
 
 @click.group(help="File management sub-commands")

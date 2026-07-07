@@ -5,8 +5,7 @@ import webbrowser
 import click
 
 from ..core import FulcraAPI
-from . import pass_fulcra_api
-from .utils import requires_auth, save_creds
+from .utils import pass_fulcra_api, requires_auth, save_creds
 
 
 @click.group(help="Authentication sub-commands")

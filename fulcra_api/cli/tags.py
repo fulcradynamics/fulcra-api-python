@@ -5,8 +5,7 @@ from urllib.error import HTTPError
 import click
 
 from ..core import FulcraAPI
-from . import pass_fulcra_api
-from .utils import requires_auth
+from .utils import pass_fulcra_api, requires_auth
 
 
 @click.group(help="Tag management sub-commands")

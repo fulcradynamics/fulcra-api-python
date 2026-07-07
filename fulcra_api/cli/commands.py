@@ -7,8 +7,7 @@ from uuid import UUID
 import click
 
 from ..core import FulcraAPI
-from . import pass_fulcra_api
-from .utils import parse_time, related_cli_commands, requires_auth, time_range
+from .utils import parse_time, pass_fulcra_api, related_cli_commands, requires_auth, time_range
 
 
 @click.command("calendars", short_help="Return Apple calendars")
