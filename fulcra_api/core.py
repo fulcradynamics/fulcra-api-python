@@ -374,7 +374,9 @@ class FulcraAPI:
             if content_type == "application/x-jsonl":
                 # Convert to JSONL (newline-delimited JSON)
                 if isinstance(data, list):
-                    ds = "\n".join(json.dumps(record) for record in data).encode("UTF-8")
+                    ds = "\n".join(json.dumps(record) for record in data).encode(
+                        "UTF-8"
+                    )
                 else:
                     # Single dict as JSONL
                     ds = json.dumps(data).encode("UTF-8")
@@ -1778,7 +1780,6 @@ class FulcraAPI:
     def upload_file(
         self, data: io.BufferedReader, file_type: str, file_size: int, filepath: str
     ) -> dict:
-
         path = PurePath(filepath)
 
         file_info = {

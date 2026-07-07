@@ -351,9 +351,7 @@ def record_data_type_cmd(ctx, data_type: str, file, api_version: str | None):
                     record = json.loads(line)
                     records.append(record)
                 except json.JSONDecodeError as e:
-                    raise click.ClickException(
-                        f"Invalid JSON on line {line_num}: {e}"
-                    )
+                    raise click.ClickException(f"Invalid JSON on line {line_num}: {e}")
         else:
             # Try parsing as JSON array
             try:
@@ -439,8 +437,7 @@ def delete_records_cmd(ctx, data_type: str, record_ids: tuple, api_version: str 
 
         # Create DeletedRecord tombstones for each record
         tombstones = [
-            {"record_id": record_id, "data_type": base_type}
-            for record_id in record_ids
+            {"record_id": record_id, "data_type": base_type} for record_id in record_ids
         ]
 
         # Record the tombstones
