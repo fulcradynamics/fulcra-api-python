@@ -372,8 +372,25 @@ def record_data_type_cmd(ctx, data_type: str, file, api_version: str | None):
         if not records:
             raise click.ClickException("No valid records found in input")
 
-        # Record data
-        kwargs = {"data_type": data_type, "records": records}
+        # Handle user-created annotation types (BaseType/UUID format)
+        annotation_source = None
+        base_type = data_type
+        if "/" in data_type:
+            parts = data_type.split("/", maxsplit=1)
+            base_type = parts[0]
+            annotation_uuid = parts[1].lower()
+            annotation_source = f"com.fulcradynamics.annotation.{annotation_uuid}"
+
+        # Add annotation source to records if needed
+        if annotation_source:
+            for record in records:
+                sources = record.get("sources", [])
+                if annotation_source not in sources:
+                    sources.append(annotation_source)
+                    record["sources"] = sources
+
+        # Record data using base type
+        kwargs = {"data_type": base_type, "records": records}
         if api_version is not None:
             kwargs["api_version"] = api_version
 
@@ -417,9 +434,12 @@ def delete_records_cmd(ctx, data_type: str, record_ids: tuple, api_version: str 
     fulcra data-type delete-records NumericAnnotation/<uuid> <id1> <id2> <id3>
     """
     try:
+        # Extract base type (strip UUID if present)
+        base_type = data_type.split("/")[0] if "/" in data_type else data_type
+
         # Create DeletedRecord tombstones for each record
         tombstones = [
-            {"record_id": record_id, "data_type": data_type}
+            {"record_id": record_id, "data_type": base_type}
             for record_id in record_ids
         ]
 
