@@ -1096,7 +1096,7 @@ class FulcraAPI:
         share_all_data: bool,
         time_start: Optional[datetime.datetime],
         time_end: Optional[datetime.datetime],
-    ) -> Dict:
+    ) -> dict:
         """
         Updates an existing datashare with a complete replacement of all fields.
 
