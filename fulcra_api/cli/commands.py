@@ -6,17 +6,19 @@ from uuid import UUID
 
 import click
 
+from ..core import FulcraAPI
+from . import pass_fulcra_api
 from .utils import parse_time, related_cli_commands, requires_auth, time_range
 
 
 @click.command("calendars", short_help="Return Apple calendars")
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def list_calendars(ctx):
+def list_calendars(fulcra_api: FulcraAPI):
     """Return Apple Calendar records."""
 
     try:
-        results = ctx.obj.calendars()
+        results = fulcra_api.calendars()
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -26,15 +28,15 @@ def list_calendars(ctx):
 
 @click.command("calendar-events", short_help="Return Apple calendar events")
 @time_range
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def list_calendar_events(ctx, start_time: datetime, end_time: datetime):
+def list_calendar_events(fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime):
     """Return Apple Calendar Event records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
     try:
-        results = ctx.obj.calendar_events(start_time, end_time)
+        results = fulcra_api.calendar_events(start_time, end_time)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -44,16 +46,16 @@ def list_calendar_events(ctx, start_time: datetime, end_time: datetime):
 
 @click.command("apple-workouts", short_help="Return Apple workouts")
 @time_range
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def list_apple_workouts(ctx, start_time: datetime, end_time: datetime):
+def list_apple_workouts(fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime):
     """Return Apple Workout records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
 
     try:
-        results = ctx.obj.apple_workouts(start_time, end_time)
+        results = fulcra_api.apple_workouts(start_time, end_time)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -88,10 +90,10 @@ def list_apple_workouts(ctx, start_time: datetime, end_time: datetime):
     default=None,
     help="Aggregate functions (max, min, delta, mean, uniques, allpoints, rollingmean) to apply to time series window, can be passed multiple times.",
 )
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
 def metric_time_series(
-    ctx,
+    fulcra_api: FulcraAPI,
     metric: str,
     start_time: datetime,
     end_time: datetime,
@@ -109,7 +111,7 @@ def metric_time_series(
 
     """
     try:
-        data_type = ctx.obj.v1_catalog(metric)
+        data_type = fulcra_api.v1_catalog(metric)
     except HTTPError as exc:
         if exc.code == 404:
             raise click.ClickException("Type not found")
@@ -118,10 +120,10 @@ def metric_time_series(
 
     if data_type[0]["api_version"] != "v0" or data_type[0]["class"] != "metric":
         raise click.ClickException(
-            f"{data_type[0]['id']} cannot be returned with metric-time-series, use `{ctx.find_root().info_name} get-records {metric}` instead to return raw sample records."
+            f"{data_type[0]['id']} cannot be returned with metric-time-series, use `fulcra get-records {metric}` instead to return raw sample records."
         )
 
-    df = ctx.obj.metric_time_series(
+    df = fulcra_api.metric_time_series(
         start_time,
         end_time,
         metric,
@@ -140,16 +142,16 @@ def metric_time_series(
     "google-location-updates", short_help="Return Google Maps location update records"
 )
 @time_range
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def google_location_updates(ctx, start_time: datetime, end_time: datetime):
+def google_location_updates(fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime):
     """Return raw Google location update sample records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
 
     try:
-        results = ctx.obj.gmaps_location_updates(start_time, end_time)
+        results = fulcra_api.gmaps_location_updates(start_time, end_time)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -161,16 +163,16 @@ def google_location_updates(ctx, start_time: datetime, end_time: datetime):
     "apple-location-updates", short_help="Return Apple location update records"
 )
 @time_range
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def apple_location_updates(ctx, start_time: datetime, end_time: datetime):
+def apple_location_updates(fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime):
     """Return raw Apple location update sample records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
 
     try:
-        results = ctx.obj.apple_location_updates(start_time, end_time)
+        results = fulcra_api.apple_location_updates(start_time, end_time)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -182,16 +184,16 @@ def apple_location_updates(ctx, start_time: datetime, end_time: datetime):
     "apple-location-visits", short_help="Return Apple location visit records"
 )
 @time_range
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def apple_location_visits(ctx, start_time: datetime, end_time: datetime):
+def apple_location_visits(fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime):
     """Return raw Apple location visit sample records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
 
     try:
-        results = ctx.obj.apple_location_visits(start_time, end_time)
+        results = fulcra_api.apple_location_visits(start_time, end_time)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -224,10 +226,10 @@ def apple_location_visits(ctx, start_time: datetime, end_time: datetime):
     default=False,
     help="Reverse geolocate coordinates.",
 )
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
 def location_time_series(
-    ctx,
+    fulcra_api: FulcraAPI,
     start_time: datetime,
     end_time: datetime,
     change_meters: int,
@@ -240,7 +242,7 @@ def location_time_series(
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
     try:
-        results = ctx.obj.location_time_series(
+        results = fulcra_api.location_time_series(
             start_time, end_time, change_meters, sample_rate, look_back, reverse_geocode
         )
     except HTTPError as exc:
@@ -272,10 +274,10 @@ def location_time_series(
     default=False,
     help="Reverse geolocate coordinates.",
 )
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
 def location_at_time(
-    ctx,
+    fulcra_api: FulcraAPI,
     time: datetime,
     window_size: int,
     include_after: bool,
@@ -289,7 +291,7 @@ def location_at_time(
     """
 
     try:
-        results = ctx.obj.location_at_time(
+        results = fulcra_api.location_at_time(
             time, window_size, include_after, reverse_geocode
         )
     except HTTPError as exc:
@@ -342,10 +344,10 @@ def location_at_time(
     default=False,
     help="Do not clip the data to the requested date range.",
 )
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
 def sleep_stages(
-    ctx,
+    fulcra_api: FulcraAPI,
     start_time: datetime,
     end_time: datetime,
     cycle_gap: str,
@@ -392,7 +394,7 @@ def sleep_stages(
         kwargs["clip_to_range"] = False
 
     try:
-        df = ctx.obj.sleep_stages(**kwargs)
+        df = fulcra_api.sleep_stages(**kwargs)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -432,10 +434,10 @@ def sleep_stages(
     default=False,
     help="Do not clip the data to the requested date range.",
 )
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
 def sleep_cycles(
-    ctx,
+    fulcra_api: FulcraAPI,
     start_time: datetime,
     end_time: datetime,
     cycle_gap: Optional[str],
@@ -463,7 +465,7 @@ def sleep_cycles(
         kwargs["clip_to_range"] = False
 
     try:
-        df = ctx.obj.sleep_cycles(**kwargs)
+        df = fulcra_api.sleep_cycles(**kwargs)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -523,10 +525,10 @@ def sleep_cycles(
     default=False,
     help="Do not clip the data to the requested date range.",
 )
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
 def sleep_cycles_aggregated(
-    ctx,
+    fulcra_api: FulcraAPI,
     start_time: datetime,
     end_time: datetime,
     cycle_gap: Optional[str],
@@ -565,7 +567,7 @@ def sleep_cycles_aggregated(
         kwargs["agg_functions"] = list(function)
 
     try:
-        df = ctx.obj.sleep_agg(**kwargs)
+        df = fulcra_api.sleep_agg(**kwargs)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -584,10 +586,10 @@ def sleep_cycles_aggregated(
     default=None,
     help="Fulcra user ID to query data for (requires an active datashare from that user).",
 )
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
 def get_records(
-    ctx,
+    fulcra_api: FulcraAPI,
     data_type: str,
     start_time: datetime,
     end_time: datetime,
@@ -625,7 +627,7 @@ def get_records(
             )
 
     try:
-        data_type = ctx.obj.v1_catalog(data_type)
+        data_type = fulcra_api.v1_catalog(data_type)
     except HTTPError as exc:
         if exc.code == 404:
             raise click.ClickException("Type not found")
@@ -640,7 +642,7 @@ def get_records(
             dt["api_version"] == "v0"
             and record_type == "metric"
         ):
-            query_func = ctx.obj.metric_samples
+            query_func = fulcra_api.metric_samples
             kwargs = {
                 "start_time": start_time,
                 "end_time": end_time,
@@ -649,7 +651,7 @@ def get_records(
             if user_id:
                 kwargs["fulcra_userid"] = user_id
         elif dt["api_version"] == "v1alpha1" and record_type == "metric":
-            query_func = ctx.obj.fulcra_v1_api_path
+            query_func = fulcra_api.fulcra_v1_api_path
             path = f"{record_type}/{dt['id']}"
             if user_annotation_id:
                 path = f"{path}/{user_annotation_id}"
@@ -658,7 +660,7 @@ def get_records(
                 params["fulcra_userid"] = user_id
             kwargs = {"path": path, "params": params}
         elif dt["api_version"] == "v1alpha1" and record_type == "event":
-            query_func = ctx.obj.fulcra_v1_api_path
+            query_func = fulcra_api.fulcra_v1_api_path
             path = f"{record_type}/{dt['id']}"
             if user_annotation_id:
                 path = f"{path}/{user_annotation_id}"
@@ -689,10 +691,10 @@ def get_records(
 @click.option("-n", "--name", type=str, help="Filter results by partial name.")
 @click.option("--base-types-only", is_flag=True, default=False)
 @click.option("-c", "--category", type=str, help="Filter by category.")
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
 def catalog(
-    ctx,
+    fulcra_api: FulcraAPI,
     base_types_only: bool,
     data_type: str | None = None,
     name: str | None = None,
@@ -712,7 +714,7 @@ def catalog(
         else:
             catalog_category = None
 
-        response = ctx.obj.v1_catalog(data_type=data_type, category=catalog_category)
+        response = fulcra_api.v1_catalog(data_type=data_type, category=catalog_category)
     except HTTPError as exc:
         if exc.code == 404:
             raise click.ClickException("Type not found")
@@ -730,12 +732,12 @@ def catalog(
 @click.command(
     "user-info", short_help="Return information about the authenticated user"
 )
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def user_info(ctx):
+def user_info(fulcra_api: FulcraAPI):
     """Return user information object for authenticated user"""
     try:
-        resp = ctx.obj.get_user_info()
+        resp = fulcra_api.get_user_info()
     except HTTPError as exc:
         raise click.ClickException(exc) from exc
 
@@ -746,9 +748,9 @@ def user_info(ctx):
     "data-updates", short_help="Return data/file updates that occurred during a period"
 )
 @time_range
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def data_updates(ctx, start_time: datetime, end_time: datetime):
+def data_updates(fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime):
     """Return a summary of the data that was updated across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
@@ -757,7 +759,7 @@ def data_updates(ctx, start_time: datetime, end_time: datetime):
     the number of records processed for each) and any uploaded files that changed.
     """
     try:
-        resp = ctx.obj.data_updates(start_time, end_time)
+        resp = fulcra_api.data_updates(start_time, end_time)
     except HTTPError as exc:
         raise click.ClickException(exc) from exc
 
