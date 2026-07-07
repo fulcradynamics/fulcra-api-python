@@ -4,6 +4,10 @@ import click
 
 from ..core import FulcraAPI
 from ..credentials import FulcraCredentials
+
+# Create a pass decorator for FulcraAPI to enable type hints in subcommands
+pass_fulcra_api = click.make_pass_decorator(FulcraAPI)
+
 from .auth import auth
 from .commands import (
     catalog,
@@ -27,9 +31,6 @@ from .data_types import data_type
 from .files import file
 from .tags import tag
 from .utils import ensure_config_directory, load_creds, save_creds
-
-# Create a pass decorator for FulcraAPI to enable type hints in subcommands
-pass_fulcra_api = click.make_pass_decorator(FulcraAPI)
 
 
 @click.group()

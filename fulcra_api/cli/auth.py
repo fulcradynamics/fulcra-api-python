@@ -1,9 +1,11 @@
-import webbrowser
+import datetime
 import sys
+import webbrowser
 
 import click
-import datetime
 
+from ..core import FulcraAPI
+from . import pass_fulcra_api
 from .utils import requires_auth, save_creds
 
 
@@ -17,8 +19,8 @@ def auth():
 @click.option("-d", "--device-code", type=str, default=None, help="Finish authentication with a device code after the browser auth flow is completed")
 @click.option("-p", "--poll-timeout", type=click.FloatRange(min=0), default=120.0, help="Number of seconds to poll while waiting for the web auth flow to be completed. Ignored if --get-auth-url is passed.")
 @click.option("-i", "--poll-interval", type=click.FloatRange(min=0.5), default=0.5, help="Number of seconds between polling attempts. Ignored if --get-auth-url is passed.")
-@click.pass_context
-def login(ctx, get_auth_url: bool, device_code: str | None, poll_timeout: float, poll_interval: float):
+@pass_fulcra_api
+def login(fulcra_api: FulcraAPI, get_auth_url: bool, device_code: str | None, poll_timeout: float, poll_interval: float):
     """Authenticates to the Fulcra Platform.
 
     The OAuth Device Authorization Flow isused to authenticate a user to the Fulcra Life API. Run interactively. A URL will be presented to load in browser. A new browser session will be automatically launched on supported platforms, and this command will poll for a valid token from the completion of the flow for up to two minutes.
@@ -31,7 +33,7 @@ def login(ctx, get_auth_url: bool, device_code: str | None, poll_timeout: float,
 
     if get_auth_url:
         try:
-            device_code, uri, code = ctx.obj.oidc.get_device_code()
+            device_code, uri, code = fulcra_api.oidc.get_device_code()
         except Exception as exc:
             print(exc)
             raise click.ClickException("Authorization failed, try again.") from exc
@@ -43,15 +45,15 @@ def login(ctx, get_auth_url: bool, device_code: str | None, poll_timeout: float,
         click.echo("After finishing the web auth flow, complete authentication with the device code by running:\n")
         click.echo(f"fulcra-api auth login --device-code {device_code}")
         return
-    
+
     if device_code is not None:
         try:
-            creds = ctx.obj.oidc.poll_for_token(
+            creds = fulcra_api.oidc.poll_for_token(
                 device_code=device_code,
                 poll_timeout=datetime.timedelta(seconds=poll_timeout),
                 poll_interval=datetime.timedelta(seconds=poll_interval)
             )
-            
+
         except Exception as exc:
             raise click.ClickException(f"Authorization failed, try again: {exc}") from exc
 
@@ -59,7 +61,7 @@ def login(ctx, get_auth_url: bool, device_code: str | None, poll_timeout: float,
 
         save_creds(creds)
         return
-    
+
     def prompt(device_code: str, uri: str, code: str):
         webbrowser.open_new_tab(uri)
         click.echo(
@@ -70,7 +72,7 @@ def login(ctx, get_auth_url: bool, device_code: str | None, poll_timeout: float,
         )
 
     try:
-        creds = ctx.obj.oidc.authorize_via_device_flow(
+        creds = fulcra_api.oidc.authorize_via_device_flow(
             prompt_callback=prompt,
             poll_timeout=datetime.timedelta(seconds=poll_timeout),
             poll_interval=datetime.timedelta(seconds=poll_interval),
@@ -84,9 +86,9 @@ def login(ctx, get_auth_url: bool, device_code: str | None, poll_timeout: float,
     
 
 @auth.command("print-access-token", short_help="Print Fulcra oauth2 access token")
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def get_access_token(ctx):
+def get_access_token(fulcra_api: FulcraAPI):
     """Print a OAuth2 bearer token for use with accessing the Fulcra Life API.
 
     This is useful for making direct calls to the Fulcra Life API.
@@ -95,6 +97,6 @@ def get_access_token(ctx):
     EXAMPLE:
         curl --oauth2-bearer "$(fulcra auth print-access-token)" 'https://api.fulcradynamics.com/user/v1alpha1/info'
     """
-    if ctx.obj.fulcra_credentials.is_expired():
-        ctx.obj.refresh_access_token()
-    click.echo(ctx.obj.fulcra_credentials.access_token)
+    if fulcra_api.fulcra_credentials.is_expired():
+        fulcra_api.refresh_access_token()
+    click.echo(fulcra_api.fulcra_credentials.access_token)

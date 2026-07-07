@@ -34,12 +34,12 @@ def save_creds(creds: FulcraCredentials):
 
 def requires_auth(f):
     @wraps(f)
-    def wrapper(ctx, *args, **kwargs):
-        if ctx.obj.fulcra_credentials is None:
+    def wrapper(fulcra_api, *args, **kwargs):
+        if fulcra_api.fulcra_credentials is None:
             raise click.ClickException(
-                f"No credentials found, please run `{ctx.find_root().info_name} auth login`"
+                f"No credentials found, please run `fulcra auth login`"
             )
-        return f(ctx, *args, **kwargs)
+        return f(fulcra_api, *args, **kwargs)
 
     return wrapper
 
