@@ -324,9 +324,10 @@ class FulcraAPI:
         self,
         url_path: str,
         method: str = "GET",
-        query: Optional[dict[str, str]] = None,
-        data: Optional[dict] = None,
+        query: dict[str, str] | None = None,
+        data: dict | List[dict] | None = None,
         return_http_response: bool = False,
+        content_type: str = "application/json",
     ) -> bytes | http.client.HTTPResponse:
         """
         Make a call to the given url path (e.g. `/v0/data/metric_time_series?...`)
@@ -336,8 +337,9 @@ class FulcraAPI:
             url_path: The path of the URL to use (e.g. `"/v0/data/..."`)
             method: The HTTP method for the request (Default: GET)
             query: Key/value pairs of query params
-            data: Dictionary that will get serialized into JSON as the request body
+            data: Dictionary or list of dictionaries to send as request body
             return_http_response: Return a HTTPResponse object instead of bytes (default: False)
+            content_type: Content-Type header (default: "application/json")
 
         Returns:
             The raw response data (as bytes).  Raises an exception on failure.
@@ -366,8 +368,23 @@ class FulcraAPI:
         headers = {"Authorization": f"Bearer {self.fulcra_credentials.access_token}"}
 
         if data:
-            headers["Content-Type"] = "application/json"
-            ds = json.dumps(data).encode("UTF-8")
+            headers["Content-Type"] = content_type
+
+            # Serialize data based on content type
+            if content_type == "application/x-jsonl":
+                # Convert to JSONL (newline-delimited JSON)
+                if isinstance(data, list):
+                    ds = "\n".join(json.dumps(record) for record in data).encode("UTF-8")
+                else:
+                    # Single dict as JSONL
+                    ds = json.dumps(data).encode("UTF-8")
+                # Add trailing newline for JSONL
+                ds += b"\n"
+            else:
+                # Standard JSON
+                ds = json.dumps(data).encode("UTF-8")
+
+            headers["Content-Length"] = str(len(ds))
         else:
             ds = None
 
@@ -1675,6 +1692,39 @@ class FulcraAPI:
 
         resp = self.fulcra_api(
             f"user/v1alpha1/annotation/{annotation_id}/cancel_deletion", method="POST"
+        )
+        return json.loads(resp)
+
+    def record_data_type(
+        self, data_type: str, records: List[dict], api_version: str = "v1alpha1"
+    ) -> dict:
+        """
+        Record data for a Fulcra data type using batch ingestion.
+
+        Requires a valid access token.
+
+        Params:
+            data_type: The Fulcra data type to record (e.g., "NumericAnnotation", "MomentAnnotation")
+            records: List of record dictionaries (schema depends on data_type)
+            api_version: API version to use (default: "v1alpha1")
+
+        Returns:
+            Dictionary containing the batch_id
+
+        Example:
+            records = [
+                {"value": 75.5, "unit": "bpm", "note": "Resting heart rate"},
+                {"value": 80.2, "unit": "bpm"}
+            ]
+            response = client.record_data_type("NumericAnnotation", records)
+            print(response["batch_id"])
+        """
+        resp = self.fulcra_api(
+            f"/ingest/v1/record/{data_type}",
+            method="POST",
+            query={"api_version": api_version},
+            data=records,
+            content_type="application/x-jsonl",
         )
         return json.loads(resp)
 
