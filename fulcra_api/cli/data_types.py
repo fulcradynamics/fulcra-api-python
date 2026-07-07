@@ -288,3 +288,100 @@ def restore_data_type(ctx, data_type: str):
         click.echo(json.dumps(ann))
     except HTTPError as exc:
         raise click.ClickException(f"Failed to restore data type {data_type}: {exc}")
+
+
+@data_type.command("record", short_help="Record data for a data type")
+@click.argument("data_type")
+@click.option(
+    "-f",
+    "--file",
+    type=click.File("r"),
+    default="-",
+    help="File containing JSON or JSONL records (default: stdin)",
+)
+@click.option(
+    "--api-version",
+    type=str,
+    default=None,
+    help="API version to use (optional)",
+)
+@click.pass_context
+@requires_auth
+def record_data_type_cmd(ctx, data_type: str, file, api_version: str | None):
+    """
+    Record data for a Fulcra data type.
+
+    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types
+
+    Reads JSON or JSONL (newline-delimited JSON) records from stdin or a file.
+    Each record should conform to the schema for the specified data type.
+
+    Examples:
+
+    \b
+    Record from stdin (single JSON object):
+    echo '{"value": 75.5, "unit": "bpm"}' | fulcra data-type record NumericAnnotation/<uuid>
+
+    \b
+    Record from stdin (JSONL - multiple records):
+    echo '{"value": 75.5}
+    {"value": 80.2}' | fulcra data-type record NumericAnnotation/<uuid>
+
+    \b
+    Record from a file:
+    fulcra data-type record NumericAnnotation/<uuid> -f records.jsonl
+    """
+    try:
+        # Read input
+        content = file.read().strip()
+        if not content:
+            raise click.ClickException("No input provided")
+
+        # Parse as JSONL or JSON
+        records = []
+        lines = content.split("\n")
+
+        # Try parsing as JSONL first (one JSON object per line)
+        if len(lines) > 1 or (len(lines) == 1 and not content.startswith("[")):
+            for line_num, line in enumerate(lines, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                    records.append(record)
+                except json.JSONDecodeError as e:
+                    raise click.ClickException(
+                        f"Invalid JSON on line {line_num}: {e}"
+                    )
+        else:
+            # Try parsing as JSON array
+            try:
+                parsed = json.loads(content)
+                if isinstance(parsed, list):
+                    records = parsed
+                elif isinstance(parsed, dict):
+                    records = [parsed]
+                else:
+                    raise click.ClickException(
+                        "Input must be a JSON object, array, or JSONL"
+                    )
+            except json.JSONDecodeError as e:
+                raise click.ClickException(f"Invalid JSON: {e}")
+
+        if not records:
+            raise click.ClickException("No valid records found in input")
+
+        # Record data
+        kwargs = {"data_type": data_type, "records": records}
+        if api_version is not None:
+            kwargs["api_version"] = api_version
+
+        response = ctx.obj.record_data_type(**kwargs)
+
+        # Print upload ID
+        click.echo(response["upload_id"])
+
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to record data: {exc}\n{error_body}")

@@ -1709,7 +1709,7 @@ class FulcraAPI:
             api_version: API version to use (default: "v1alpha1")
 
         Returns:
-            Dictionary containing the batch_id
+            Dictionary containing the upload_id
 
         Example:
             records = [
@@ -1717,7 +1717,7 @@ class FulcraAPI:
                 {"value": 80.2, "unit": "bpm"}
             ]
             response = client.record_data_type("NumericAnnotation", records)
-            print(response["batch_id"])
+            print(response["upload_id"])
         """
         resp = self.fulcra_api(
             f"/ingest/v1/record/{data_type}",
