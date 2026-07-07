@@ -385,3 +385,54 @@ def record_data_type_cmd(ctx, data_type: str, file, api_version: str | None):
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
         raise click.ClickException(f"Failed to record data: {exc}\n{error_body}")
+
+
+@data_type.command("delete-records", short_help="Delete records by posting tombstones")
+@click.argument("data_type")
+@click.argument("record_ids", nargs=-1, required=True)
+@click.option(
+    "--api-version",
+    type=str,
+    default=None,
+    help="API version to use (optional)",
+)
+@click.pass_context
+@requires_auth
+def delete_records_cmd(ctx, data_type: str, record_ids: tuple, api_version: str | None):
+    """
+    Delete records by posting DeletedRecord tombstones.
+
+    DATA_TYPE: The Fulcra data type of the records to delete
+
+    RECORD_IDS: One or more record UUIDs to delete
+
+    Examples:
+
+    \b
+    Delete a single record:
+    fulcra data-type delete-records NumericAnnotation/<uuid> <record-id>
+
+    \b
+    Delete multiple records:
+    fulcra data-type delete-records NumericAnnotation/<uuid> <id1> <id2> <id3>
+    """
+    try:
+        # Create DeletedRecord tombstones for each record
+        tombstones = [
+            {"record_id": record_id, "data_type": data_type}
+            for record_id in record_ids
+        ]
+
+        # Record the tombstones
+        kwargs = {"data_type": "DeletedRecord", "records": tombstones}
+        if api_version is not None:
+            kwargs["api_version"] = api_version
+
+        response = ctx.obj.record_data_type(**kwargs)
+
+        # Print upload ID
+        click.echo(response["upload_id"])
+
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to delete records: {exc}\n{error_body}")
