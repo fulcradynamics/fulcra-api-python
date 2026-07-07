@@ -1151,7 +1151,7 @@ class FulcraAPI:
         )
         return json.loads(resp)
 
-    def get_datashares(self) -> List[Dict]:
+    def get_datashares(self) -> List[dict]:
         """
         Retrieves all datashares created by the authenticated user.
 
