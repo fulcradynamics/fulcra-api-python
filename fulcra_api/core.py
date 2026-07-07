@@ -1047,7 +1047,7 @@ class FulcraAPI:
         share_all_data: bool = False,
         time_start: Optional[datetime.datetime] = None,
         time_end: Optional[datetime.datetime] = None,
-    ) -> Dict:
+    ) -> dict:
         """
         Creates a new datashare to share your data with other users.
 
