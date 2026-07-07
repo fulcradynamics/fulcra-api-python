@@ -431,7 +431,7 @@ class FulcraAPI:
         """
         return self.fulcra_api(f"/data/v1alpha1/{path}", query=params if params else {})
 
-    def get_token_claims(self) -> Dict:
+    def get_token_claims(self) -> dict:
         """
         Decode and return all claims from the access token.
 
