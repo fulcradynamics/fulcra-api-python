@@ -5,6 +5,8 @@ from uuid import UUID
 
 import click
 
+from ..core import FulcraAPI
+from . import pass_fulcra_api
 from .utils import requires_auth
 
 
@@ -57,10 +59,10 @@ def data_type():
 @click.option(
     "--add-to-timeline", is_flag=True, help="Add created data type to timeline"
 )
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
 def data_type_create(
-    ctx,
+    fulcra_api: FulcraAPI,
     base_data_type: str,
     name: str,
     description: Optional[str],
@@ -81,7 +83,7 @@ def data_type_create(
     """
 
     try:
-        catalog_resp = ctx.obj.v1_catalog(base_data_type)
+        catalog_resp = fulcra_api.v1_catalog(base_data_type)
     except HTTPError as exc:
         raise click.ClickException(f"Failed to validate BASE_DATA_TYPE: {exc}")
 
@@ -105,21 +107,18 @@ def data_type_create(
             raise click.BadOptionUsage(
                 "metric_kind",
                 f"-k / --kind cannot be used with base data type {base_data_type}",
-                ctx,
             )
 
         if raw_value is not None:
             raise click.BadOptionUsage(
                 "raw_value",
                 f"-v / --value cannot be used with base data type {base_data_type}",
-                ctx,
             )
 
         if unit is not None:
             raise click.BadOptionUsage(
                 "unit",
                 f"-u / --unit cannot be used with base data type {base_data_type}",
-                ctx,
             )
 
     # TODO: Possibly update type metadata to be able to determine that this is a scale
@@ -127,7 +126,6 @@ def data_type_create(
         raise click.BadOptionUsage(
             "scale_labels",
             f"-s / --scale-labels cannot be used with base data type {base_data_type}",
-            ctx,
         )
 
     value = None
@@ -170,7 +168,7 @@ def data_type_create(
             raise click.ClickException(f"Unsupported base type: {base_data_type}")
 
     try:
-        ann = ctx.obj.create_annotation(
+        ann = fulcra_api.create_annotation(
             annotation_type=annotation_type,
             name=name,
             description=description,
@@ -183,7 +181,7 @@ def data_type_create(
 
         if add_to_timeline:
             try:
-                info = ctx.obj.get_user_info()
+                info = fulcra_api.get_user_info()
                 current_prefs = info.get("preferences", {})
                 existing_metrics_map = current_prefs.get("selected_metrics_map", {})
 
@@ -202,7 +200,7 @@ def data_type_create(
                     }
                 }
 
-                ctx.obj.update_user_preferences(prefs_payload)
+                fulcra_api.update_user_preferences(prefs_payload)
             except HTTPError as exc:
                 click.echo(f"Failed to add annotation to timeline: {exc}", err=True)
 
@@ -216,9 +214,9 @@ def data_type_create(
 
 @data_type.command("archive", short_help="Archive a user-defined data type")
 @click.argument("data_type")
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def data_type_archive(ctx, data_type: str):
+def data_type_archive(fulcra_api: FulcraAPI, data_type: str):
     """
     Archive a user-defined data type by ID.
 
@@ -226,7 +224,7 @@ def data_type_archive(ctx, data_type: str):
     """
 
     try:
-        filtered_types = ctx.obj.v1_catalog(data_type=data_type)
+        filtered_types = fulcra_api.v1_catalog(data_type=data_type)
     except HTTPError:
         raise click.ClickException(f"Could not find data type matching id: {data_type}")
 
@@ -246,7 +244,7 @@ def data_type_archive(ctx, data_type: str):
         raise click.ClickException("DATA_TYPE must be <Annotation Type>/<UUID>")
 
     try:
-        ctx.obj.delete_annotation(annotation_id=ann_id)
+        fulcra_api.delete_annotation(annotation_id=ann_id)
         click.echo(f"Archived data type: {data_type}")
     except HTTPError as exc:
         raise click.ClickException(f"Failed to archive data type {data_type}: {exc}")
@@ -254,9 +252,9 @@ def data_type_archive(ctx, data_type: str):
 
 @data_type.command("restore", short_help="Restore an archived user-defined data type")
 @click.argument("data_type")
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def restore_data_type(ctx, data_type: str):
+def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
     """
     Restore an archived user-defined data type by ID.
 
@@ -264,7 +262,7 @@ def restore_data_type(ctx, data_type: str):
     """
 
     try:
-        filtered_types = ctx.obj.v1_catalog(data_type=data_type)
+        filtered_types = fulcra_api.v1_catalog(data_type=data_type)
     except HTTPError:
         raise click.ClickException(f"Could not find data type matching id: {data_type}")
 
@@ -284,7 +282,7 @@ def restore_data_type(ctx, data_type: str):
         raise click.ClickException("DATA_TYPE must be <Annotation Type>/<UUID>")
 
     try:
-        ann = ctx.obj.restore_annotation(annotation_id=ann_id)
+        ann = fulcra_api.restore_annotation(annotation_id=ann_id)
         click.echo(json.dumps(ann))
     except HTTPError as exc:
         raise click.ClickException(f"Failed to restore data type {data_type}: {exc}")
