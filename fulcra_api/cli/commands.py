@@ -6,8 +6,15 @@ from uuid import UUID
 
 import click
 
-from ..core import FulcraAPI
-from .utils import parse_time, pass_fulcra_api, related_cli_commands, requires_auth, time_range
+from fulcra_api.core import FulcraAPI
+
+from .utils import (
+    parse_time,
+    pass_fulcra_api,
+    related_cli_commands,
+    requires_auth,
+    time_range,
+)
 
 
 @click.command("calendars", short_help="Return Apple calendars")
@@ -29,7 +36,9 @@ def list_calendars(fulcra_api: FulcraAPI):
 @time_range
 @pass_fulcra_api
 @requires_auth
-def list_calendar_events(fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime):
+def list_calendar_events(
+    fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime
+):
     """Return Apple Calendar Event records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
@@ -47,7 +56,9 @@ def list_calendar_events(fulcra_api: FulcraAPI, start_time: datetime, end_time: 
 @time_range
 @pass_fulcra_api
 @requires_auth
-def list_apple_workouts(fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime):
+def list_apple_workouts(
+    fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime
+):
     """Return Apple Workout records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
@@ -143,7 +154,9 @@ def metric_time_series(
 @time_range
 @pass_fulcra_api
 @requires_auth
-def google_location_updates(fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime):
+def google_location_updates(
+    fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime
+):
     """Return raw Google location update sample records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
@@ -164,7 +177,9 @@ def google_location_updates(fulcra_api: FulcraAPI, start_time: datetime, end_tim
 @time_range
 @pass_fulcra_api
 @requires_auth
-def apple_location_updates(fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime):
+def apple_location_updates(
+    fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime
+):
     """Return raw Apple location update sample records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
@@ -185,7 +200,9 @@ def apple_location_updates(fulcra_api: FulcraAPI, start_time: datetime, end_time
 @time_range
 @pass_fulcra_api
 @requires_auth
-def apple_location_visits(fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime):
+def apple_location_visits(
+    fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime
+):
     """Return raw Apple location visit sample records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
@@ -637,10 +654,7 @@ def get_records(
 
     for dt in data_type:
         record_type = dt.get("record_spec", {}).get("type")
-        if (
-            dt["api_version"] == "v0"
-            and record_type == "metric"
-        ):
+        if dt["api_version"] == "v0" and record_type == "metric":
             query_func = fulcra_api.metric_samples
             kwargs = {
                 "start_time": start_time,

@@ -7,7 +7,8 @@ from uuid import UUID
 import click
 import puremagic
 
-from ..core import FulcraAPI
+from fulcra_api.core import FulcraAPI
+
 from .utils import human_size, make_filepath, pass_fulcra_api, requires_auth
 
 

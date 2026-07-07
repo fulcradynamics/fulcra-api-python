@@ -4,7 +4,8 @@ from urllib.error import HTTPError
 
 import click
 
-from ..core import FulcraAPI
+from fulcra_api.core import FulcraAPI
+
 from .utils import pass_fulcra_api, requires_auth
 
 
@@ -19,7 +20,12 @@ def tag():
 @click.option("--tag-id", type=str, help="Filter results by tag ID.")
 @pass_fulcra_api
 @requires_auth
-def tag_list(fulcra_api: FulcraAPI, name: Optional[str], tag_name: Optional[str], tag_id: Optional[str]):
+def tag_list(
+    fulcra_api: FulcraAPI,
+    name: Optional[str],
+    tag_name: Optional[str],
+    tag_id: Optional[str],
+):
     """
     Return a list of user-defined tags that can be used when creating and recording custom data types.
     """

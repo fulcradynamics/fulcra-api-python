@@ -6,8 +6,8 @@ from functools import wraps
 import click
 import dateparser
 
-from ..core import FulcraAPI
-from ..credentials import FulcraCredentials
+from fulcra_api.core import FulcraAPI
+from fulcra_api.credentials import FulcraCredentials
 
 # Create a pass decorator for FulcraAPI to enable type hints in subcommands
 pass_fulcra_api = click.make_pass_decorator(FulcraAPI)

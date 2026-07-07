@@ -5,7 +5,8 @@ from uuid import UUID
 
 import click
 
-from ..core import FulcraAPI
+from fulcra_api.core import FulcraAPI
+
 from .utils import pass_fulcra_api, requires_auth
 
 
