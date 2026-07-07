@@ -280,6 +280,8 @@ def update(
     """
     Update an existing share by modifying data types, users, or settings.
 
+    Data type IDs should match those returned by the 'fulcra catalog' command.
+
     SHARE_ID: UUID of the share to update
 
     Examples:
