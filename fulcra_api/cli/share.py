@@ -5,7 +5,9 @@ from urllib.error import HTTPError
 
 import click
 
-from .utils import requires_auth
+from fulcra_api.core import FulcraAPI
+
+from .utils import pass_fulcra_api, requires_auth
 
 
 @click.group(help="Data sharing management sub-commands")
@@ -14,14 +16,14 @@ def share():
 
 
 @share.command("list-outgoing", short_help="List shares you've created")
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def list_outgoing(ctx):
+def list_outgoing(fulcra_api: FulcraAPI):
     """
     List all shares that you have created to share your data with others.
     """
     try:
-        results = ctx.obj.get_datashares()
+        results = fulcra_api.get_datashares()
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
         raise click.ClickException(
@@ -33,21 +35,21 @@ def list_outgoing(ctx):
 
 
 @share.command("list-incoming", short_help="List shares you've received")
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def list_incoming(ctx):
+def list_incoming(fulcra_api: FulcraAPI):
     """
     List all shares that others have shared with you.
     """
     try:
-        results = ctx.obj.get_shared_datasets()
+        results = fulcra_api.get_shared_datasets()
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
         raise click.ClickException(
             f"Failed to retrieve incoming shares: {exc}\n{error_body}"
         )
 
-    authenticated_userid = ctx.obj.get_fulcra_userid()
+    authenticated_userid = fulcra_api.get_fulcra_userid()
     # filter out dataset that is automatically generated for each user; it reflects that
     # they share all data with themselves
     for dataset in [
@@ -80,9 +82,11 @@ def list_incoming(ctx):
     default=False,
     help="Share all data types",
 )
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def create(ctx, name, data_types, user_ids, start_time, end_time, share_all):
+def create(
+    fulcra_api: FulcraAPI, name, data_types, user_ids, start_time, end_time, share_all
+):
     """
     Create a new share to share your data with other users.
 
@@ -98,7 +102,7 @@ def create(ctx, name, data_types, user_ids, start_time, end_time, share_all):
     """
     # Validate data types against catalog
     try:
-        catalog = ctx.obj.v1_catalog()
+        catalog = fulcra_api.v1_catalog()
         valid_data_type_ids = {item["id"] for item in catalog}
 
         # TEMPORARY: Allow "calendars" and "calendar_events" even though they're not
@@ -140,7 +144,7 @@ def create(ctx, name, data_types, user_ids, start_time, end_time, share_all):
 
     # Create the datashare
     try:
-        result = ctx.obj.create_datashare(
+        result = fulcra_api.create_datashare(
             datashare_name=name,
             fulcra_data_types=sorted(data_types),
             allowed_user_ids=sorted(user_ids),
@@ -156,16 +160,16 @@ def create(ctx, name, data_types, user_ids, start_time, end_time, share_all):
 
 @share.command("delete", short_help="Delete a share you created")
 @click.argument("share_id")
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def delete(ctx, share_id: str):
+def delete(fulcra_api: FulcraAPI, share_id: str):
     """
     Delete a share that you created.
 
     SHARE_ID: UUID of the share to delete
     """
     try:
-        ctx.obj.delete_datashare(share_id)
+        fulcra_api.delete_datashare(share_id)
         click.echo(f"Share {share_id} deleted successfully")
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
@@ -174,16 +178,16 @@ def delete(ctx, share_id: str):
 
 @share.command("leave", short_help="Leave a share")
 @click.argument("share_id")
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def leave(ctx, share_id: str):
+def leave(fulcra_api: FulcraAPI, share_id: str):
     """
     Leave a share that was shared with you (revoke your access).
 
     SHARE_ID: UUID of the share permission to revoke
     """
     try:
-        ctx.obj.delete_dataset_permission(share_id)
+        fulcra_api.delete_dataset_permission(share_id)
         click.echo(f"Successfully left share {share_id}")
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
@@ -271,10 +275,10 @@ def leave(ctx, share_id: str):
     default=False,
     help="Remove end time (make share open-ended at end)",
 )
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
 def update(
-    ctx,
+    fulcra_api: FulcraAPI,
     share_id: str,
     name,
     add_data_types,
@@ -373,7 +377,7 @@ def update(
 
     try:
         # Fetch current share
-        shares = ctx.obj.get_datashares()
+        shares = fulcra_api.get_datashares()
         current_share = next(
             (s for s in shares if s.get("datashare_id") == share_id), None
         )
@@ -470,7 +474,7 @@ def update(
             update_kwargs["time_end"] = None
 
         # Update the share
-        result = ctx.obj.update_datashare(**update_kwargs)
+        result = fulcra_api.update_datashare(**update_kwargs)
         click.echo(json.dumps(result))
 
     except HTTPError as exc:
