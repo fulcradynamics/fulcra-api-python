@@ -314,7 +314,7 @@ def restore_data_type(ctx, data_type: str):
 )
 @click.pass_context
 @requires_auth
-def record_data_type_cmd(
+def record_data_type(
     ctx, data_type: str, file, api_version: str | None, no_validate: bool
 ):
     """
@@ -470,7 +470,7 @@ def record_data_type_cmd(
 )
 @click.pass_context
 @requires_auth
-def delete_records_cmd(ctx, data_type: str, record_ids: tuple, api_version: str | None):
+def delete_records(ctx, data_type: str, record_ids: tuple, api_version: str | None):
     """
     Delete records by posting DeletedRecord tombstones.
 
