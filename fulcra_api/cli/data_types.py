@@ -307,10 +307,14 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
     default=False,
     help="Skip schema validation",
 )
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
 def record_data_type(
-    ctx, data_type: str, file, api_version: str | None, no_validate: bool
+    fulcra_api: FulcraAPI,
+    data_type: str,
+    file,
+    api_version: str | None,
+    no_validate: bool,
 ):
     """
     Record data for a Fulcra data type.
@@ -388,7 +392,7 @@ def record_data_type(
         if schema_api_version is None and not no_validate:
             # Query catalog to find the data type and its API version
             try:
-                catalog_results = ctx.obj.v1_catalog(data_type=base_type)
+                catalog_results = fulcra_api.v1_catalog(data_type=base_type)
                 if len(catalog_results) == 0:
                     raise click.ClickException(
                         f"Data type '{base_type}' not found in catalog"
@@ -408,7 +412,7 @@ def record_data_type(
         if not no_validate:
             try:
                 # Fetch schema for the data type
-                schema_resp = ctx.obj.fulcra_api(
+                schema_resp = fulcra_api.fulcra_api(
                     f"/data/v1/catalog/{base_type}/{schema_api_version}/schema"
                 )
                 schema = json.loads(schema_resp)
@@ -444,7 +448,7 @@ def record_data_type(
         if api_version is not None:
             kwargs["api_version"] = api_version
 
-        response = ctx.obj.record_data_type(**kwargs)
+        response = fulcra_api.record_data_type(**kwargs)
 
         # Print upload ID
         click.echo(response["upload_id"])
@@ -463,9 +467,11 @@ def record_data_type(
     default=None,
     help="API version to use (optional)",
 )
-@click.pass_context
+@pass_fulcra_api
 @requires_auth
-def delete_records(ctx, data_type: str, record_ids: tuple, api_version: str | None):
+def delete_records(
+    fulcra_api: FulcraAPI, data_type: str, record_ids: tuple, api_version: str | None
+):
     """
     Delete records by posting DeletedRecord tombstones.
 
@@ -497,7 +503,7 @@ def delete_records(ctx, data_type: str, record_ids: tuple, api_version: str | No
         if api_version is not None:
             kwargs["api_version"] = api_version
 
-        response = ctx.obj.record_data_type(**kwargs)
+        response = fulcra_api.record_data_type(**kwargs)
 
         # Print upload ID
         click.echo(response["upload_id"])
