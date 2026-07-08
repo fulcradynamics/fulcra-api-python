@@ -4,7 +4,6 @@ from urllib.error import HTTPError
 from uuid import UUID
 
 import click
-import jsonschema
 
 from fulcra_api.core import FulcraAPI
 
@@ -411,21 +410,18 @@ def record_data_type(
         # Validate records against schema if requested
         if not no_validate:
             try:
-                # Fetch schema for the data type
-                schema_resp = fulcra_api.fulcra_api(
-                    f"/data/v1/catalog/{base_type}/{schema_api_version}/schema"
+                validation_errors = fulcra_api.validate_records(
+                    base_type, records, schema_api_version
                 )
-                schema = json.loads(schema_resp)
 
-                # Validate each record
-                for idx, record in enumerate(records):
-                    try:
-                        jsonschema.validate(instance=record, schema=schema)
-                    except jsonschema.ValidationError as e:
-                        error_msg = f"Validation error in record {idx + 1}: {e.message}"
-                        if e.path:
-                            error_msg += f"\nPath: {'.'.join(str(p) for p in e.path)}"
-                        raise click.ClickException(error_msg)
+                # Check for validation errors
+                for idx, error_msg in validation_errors:
+                    if error_msg is not None:
+                        raise click.ClickException(
+                            f"Validation error in record {idx + 1}: {error_msg}"
+                        )
+            except ImportError as exc:
+                raise click.ClickException(str(exc))
             except HTTPError as exc:
                 if exc.code == 404:
                     raise click.ClickException(

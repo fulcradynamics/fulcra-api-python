@@ -1929,6 +1929,64 @@ class FulcraAPI:
         )
         return json.loads(resp)
 
+    def validate_records(
+        self, data_type: str, records: List[dict], api_version: str = "v1alpha1"
+    ) -> List[Tuple[int, Optional[str]]]:
+        """
+        Validate records against the schema for a Fulcra data type.
+
+        Requires a valid access token.
+
+        Params:
+            data_type: The Fulcra data type to validate against
+            records: List of record dictionaries to validate
+            api_version: API version to use (default: "v1alpha1")
+
+        Returns:
+            List of tuples (record_index, error_message). Empty list if all valid.
+            error_message is None for valid records, or contains validation error for invalid ones.
+
+        Raises:
+            HTTPError: If schema cannot be fetched
+
+        Example:
+            records = [
+                {"value": 75.5, "unit": "bpm"},
+                {"unit": "bpm"}  # missing required 'value'
+            ]
+            errors = client.validate_records("NumericAnnotation", records)
+            if errors:
+                for idx, error in errors:
+                    print(f"Record {idx + 1}: {error}")
+        """
+        try:
+            import jsonschema
+        except ImportError:
+            raise ImportError(
+                "jsonschema package required for validation. "
+                "Install with: pip install jsonschema"
+            )
+
+        # Fetch schema
+        schema_resp = self.fulcra_api(
+            f"/data/v1/catalog/{data_type}/{api_version}/schema"
+        )
+        schema = json.loads(schema_resp)
+
+        # Validate each record
+        errors = []
+        for idx, record in enumerate(records):
+            try:
+                jsonschema.validate(instance=record, schema=schema)
+                errors.append((idx, None))
+            except jsonschema.ValidationError as e:
+                error_msg = e.message
+                if e.path:
+                    error_msg += f" (path: {'.'.join(str(p) for p in e.path)})"
+                errors.append((idx, error_msg))
+
+        return errors
+
     #
     # File functionality
     #
