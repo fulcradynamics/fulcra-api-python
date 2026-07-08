@@ -4,6 +4,7 @@ from urllib.error import HTTPError
 from uuid import UUID
 
 import click
+import jsonschema
 
 from .utils import requires_auth
 
@@ -305,9 +306,17 @@ def restore_data_type(ctx, data_type: str):
     default=None,
     help="API version to use (optional)",
 )
+@click.option(
+    "--no-validate",
+    is_flag=True,
+    default=False,
+    help="Skip schema validation",
+)
 @click.pass_context
 @requires_auth
-def record_data_type_cmd(ctx, data_type: str, file, api_version: str | None):
+def record_data_type_cmd(
+    ctx, data_type: str, file, api_version: str | None, no_validate: bool
+):
     """
     Record data for a Fulcra data type.
 
@@ -378,6 +387,54 @@ def record_data_type_cmd(ctx, data_type: str, file, api_version: str | None):
             base_type = parts[0]
             annotation_uuid = parts[1].lower()
             annotation_source = f"com.fulcradynamics.annotation.{annotation_uuid}"
+
+        # Determine API version for schema validation
+        schema_api_version = api_version
+        if schema_api_version is None and not no_validate:
+            # Query catalog to find the data type and its API version
+            try:
+                catalog_results = ctx.obj.v1_catalog(data_type=base_type)
+                if len(catalog_results) == 0:
+                    raise click.ClickException(
+                        f"Data type '{base_type}' not found in catalog"
+                    )
+                elif len(catalog_results) > 1:
+                    raise click.ClickException(
+                        f"Multiple data types found for '{base_type}'. "
+                        "Please specify --api-version"
+                    )
+                schema_api_version = catalog_results[0]["api_version"]
+            except HTTPError as exc:
+                raise click.ClickException(
+                    f"Failed to query catalog for {base_type}: {exc}"
+                )
+
+        # Validate records against schema if requested
+        if not no_validate:
+            try:
+                # Fetch schema for the data type
+                schema_resp = ctx.obj.fulcra_api(
+                    f"/data/v1/catalog/{base_type}/{schema_api_version}/schema"
+                )
+                schema = json.loads(schema_resp)
+
+                # Validate each record
+                for idx, record in enumerate(records):
+                    try:
+                        jsonschema.validate(instance=record, schema=schema)
+                    except jsonschema.ValidationError as e:
+                        error_msg = f"Validation error in record {idx + 1}: {e.message}"
+                        if e.path:
+                            error_msg += f"\nPath: {'.'.join(str(p) for p in e.path)}"
+                        raise click.ClickException(error_msg)
+            except HTTPError as exc:
+                if exc.code == 404:
+                    raise click.ClickException(
+                        f"Schema not found for {base_type}/{schema_api_version}. "
+                        "Use --no-validate to skip validation"
+                    )
+                else:
+                    raise click.ClickException(f"Failed to fetch schema: {exc}")
 
         # Add annotation source to records if needed
         if annotation_source:
