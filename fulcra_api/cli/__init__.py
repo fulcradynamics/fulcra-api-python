@@ -25,6 +25,7 @@ from .commands import (
 )
 from .data_types import data_type
 from .files import file
+from .share import share
 from .tags import tag
 from .utils import ensure_config_directory, load_creds, save_creds, pass_fulcra_api
 
@@ -50,6 +51,7 @@ cli.add_command(auth)
 cli.add_command(tag)
 cli.add_command(data_type)
 cli.add_command(file)
+cli.add_command(share)
 
 cli.add_command(list_calendars)
 cli.add_command(list_calendar_events)
