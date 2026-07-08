@@ -391,12 +391,29 @@ class FulcraAPI:
             ds = None
 
         req = urllib.request.Request(url=url, data=ds, headers=headers, method=method)
-        response = urllib.request.urlopen(req)
 
-        if return_http_response:
-            return response
+        from urllib.error import HTTPError
 
-        return response.read()
+        try:
+            response = urllib.request.urlopen(req)
+
+            if return_http_response:
+                return response
+
+            return response.read()
+        except HTTPError as exc:
+            # Handle 303 See Other - follow the redirect with a GET request
+            if exc.status == 303:
+                location = exc.headers.get("Location")
+                if location:
+                    # Extract the path from the location (could be full URL or just path)
+                    parsed = urllib.parse.urlparse(location)
+                    path = parsed.path if parsed.path else location
+                    # Follow the redirect with a GET request
+                    return self.fulcra_api(
+                        path, method="GET", return_http_response=return_http_response
+                    )
+            raise
 
     def fulcra_v1_api(
         self, data_class: str, data_type: str, params: dict = {}
@@ -416,6 +433,41 @@ class FulcraAPI:
         # query_params = urllib.parse.urlencode(params, doseq=True)
         return self.fulcra_api(f"/data/v1alpha1/{data_class}/{data_type}", query=params)
 
+    def fulcra_v1_api_path(
+        self, path: str, params: Optional[dict[str, str]] = None
+    ) -> bytes:
+        """
+        Make a call to the v1 API using a full path.
+
+        Supports annotation shorthands with UUIDs (e.g., "metric/MomentAnnotation/<uuid>").
+
+        Params:
+            path: The full path after /data/v1alpha1/ (e.g., "event/MomentAnnotation" or "metric/NumericAnnotation/<uuid>")
+            params: Additional params to add to the query
+
+        Returns:
+            The raw response data (as bytes).  Raises an exception on failure.
+        """
+        return self.fulcra_api(f"/data/v1alpha1/{path}", query=params if params else {})
+
+    def get_token_claims(self) -> dict:
+        """
+        Decode and return all claims from the access token.
+
+        Returns:
+            A dict containing all JWT claims from the access token.
+        """
+        if (
+            self.fulcra_credentials is None
+            or self.fulcra_credentials.access_token is None
+        ):
+            raise Exception("Authorization must occur before retrieving token claims.")
+        segs = self.fulcra_credentials.access_token.split(".")
+        if len(segs) < 2:
+            raise Exception("Authorized token is in an incorrect format.")
+        payload = segs[1] + "=="  # add extra padding to prevent b64decode from breaking
+        return json.loads(base64.b64decode(payload))
+
     def get_fulcra_userid(self) -> str:
         """
         Retrieve the currently authorized Fulcra UserID.
@@ -423,17 +475,8 @@ class FulcraAPI:
         Returns:
             the Fulcra UserID of the currently-authorized user.
         """
-        if (
-            self.fulcra_credentials is None
-            or self.fulcra_credentials.access_token is None
-        ):
-            raise Exception("Authorization must occur before retrieving user ID.")
-        segs = self.fulcra_credentials.access_token.split(".")
-        if len(segs) < 2:
-            raise Exception("Authorized token is in an incorrect format.")
-        payload = segs[1] + "=="  # add extra padding to prevent b64decode from breaking
-        jd = json.loads(base64.b64decode(payload))
-        return jd["fulcradynamics.com/userid"]
+        claims = self.get_token_claims()
+        return claims["fulcradynamics.com/userid"]
 
     def calendars(
         self,
@@ -1015,6 +1058,148 @@ class FulcraAPI:
         resp = self.fulcra_api(uri)
         return json.loads(resp)
 
+    def create_datashare(
+        self,
+        datashare_name: str,
+        fulcra_data_types: List[str],
+        allowed_user_ids: List[str],
+        share_all_data: bool = False,
+        time_start: Optional[datetime.datetime] = None,
+        time_end: Optional[datetime.datetime] = None,
+    ) -> dict:
+        """
+        Creates a new datashare to share your data with other users.
+
+        Args:
+            datashare_name: Name for this datashare
+            fulcra_data_types: List of data type IDs to share
+            allowed_user_ids: List of Fulcra user IDs to share with
+            share_all_data: Whether to share all data types (default: False)
+            time_start: Optional start time for data range
+            time_end: Optional end time for data range
+
+        Returns:
+            A dict containing the created datashare information.
+
+        Examples:
+                >>> datashare = fulcra_client.create_datashare(
+                ...     datashare_name="My Research Share",
+                ...     fulcra_data_types=["HeartRate", "StepCount"],
+                ...     allowed_user_ids=["a24a9667-c2c6-4bbf-9a0f-4Bej0afcb521"]
+                ... )
+        """
+        permissions = [
+            {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
+        ]
+
+        datashare_body = {
+            "datashare_name": datashare_name,
+            "time_start": time_start.isoformat() if time_start else None,
+            "time_end": time_end.isoformat() if time_end else None,
+            "fulcra_data_types": fulcra_data_types,
+            "share_all_data": share_all_data,
+            "permissions": permissions,
+        }
+
+        resp = self.fulcra_api(
+            "/user/v1alpha1/datashares", data=datashare_body, method="POST"
+        )
+        return json.loads(resp)
+
+    def update_datashare(
+        self,
+        datashare_id: str,
+        datashare_name: str,
+        fulcra_data_types: List[str],
+        allowed_user_ids: List[str],
+        share_all_data: bool,
+        time_start: Optional[datetime.datetime],
+        time_end: Optional[datetime.datetime],
+    ) -> dict:
+        """
+        Updates an existing datashare with a complete replacement of all fields.
+
+        Note: This method requires all fields to be provided. The CLI handles fetching
+        current values and building the complete update. Direct API users should fetch
+        the current share via get_datashares() first if they only want to modify
+        specific fields.
+
+        Args:
+            datashare_id: UUID of the datashare to update
+            datashare_name: Name for the datashare
+            fulcra_data_types: List of data type IDs to share
+            allowed_user_ids: List of Fulcra user IDs to share with
+            share_all_data: Whether to share all data types
+            time_start: Start time for data range, or None for open-ended
+            time_end: End time for data range, or None for open-ended
+
+        Returns:
+            A dict containing the updated datashare information.
+
+        Examples:
+                >>> # Fetch current share first
+                >>> shares = fulcra_client.get_datashares()
+                >>> current = next(s for s in shares if s["datashare_id"] == share_id)
+                >>>
+                >>> # Update with modified values
+                >>> updated = fulcra_client.update_datashare(
+                ...     datashare_id=share_id,
+                ...     datashare_name="Updated Research Share",
+                ...     fulcra_data_types=["HeartRate", "StepCount"],
+                ...     allowed_user_ids=current["permissions"],
+                ...     share_all_data=current["share_all_data"],
+                ...     time_start=None,
+                ...     time_end=None
+                ... )
+        """
+        datashare_body = {
+            "datashare_name": datashare_name,
+            "fulcra_data_types": fulcra_data_types,
+            "share_all_data": share_all_data,
+            "time_start": time_start.isoformat() if time_start else None,
+            "time_end": time_end.isoformat() if time_end else None,
+            "permissions": [
+                {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
+            ],
+        }
+
+        resp = self.fulcra_api(
+            f"/user/v1alpha1/datashare/{datashare_id}",
+            data=datashare_body,
+            method="PUT",
+        )
+        return json.loads(resp)
+
+    def get_datashares(self) -> List[dict]:
+        """
+        Retrieves all datashares created by the authenticated user.
+
+        Returns a list of datashares that you have created to share your data
+        with others.
+
+        Returns:
+            A list of datashare dicts.
+
+        Examples:
+                >>> datashares = fulcra_client.get_datashares()
+                >>> datashares[0]
+                {'datashare_id': '...', 'datashare_name': 'My Share', ...}
+        """
+        resp = self.fulcra_api("/user/v1alpha1/datashares")
+        return json.loads(resp)
+
+    def delete_datashare(self, datashare_id: str):
+        """
+        Deletes a datashare that you created.
+
+        Args:
+            datashare_id: UUID of the datashare to delete
+
+        Examples:
+                >>> fulcra_client.delete_datashare("cf362f80-ef41-4c08-b5e3-b18bd3d1524b")
+        """
+        self.fulcra_api(f"/user/v1alpha1/datashare/{datashare_id}", method="DELETE")
+
     def data_updates(
         self,
         start_time: str | datetime.datetime,
@@ -1067,6 +1252,20 @@ class FulcraAPI:
         """
         resp = self.fulcra_api("/user/v1alpha1/datasets")
         return json.loads(resp)
+
+    def delete_dataset_permission(self, permission_id: str):
+        """
+        Revokes your permission to access a dataset that was shared with you.
+
+        Args:
+            permission_id: UUID of the dataset permission to revoke
+
+        Examples:
+                >>> fulcra_client.delete_dataset_permission("cf362f80-ef41-4c08-b5e3-b18bd3d1524b")
+        """
+        self.fulcra_api(
+            f"/user/v1alpha1/dataset/permission/{permission_id}", method="DELETE"
+        )
 
     def get_user_info(self) -> Dict:
         """
