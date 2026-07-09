@@ -203,7 +203,7 @@ def record(
         raise click.ClickException(f"Failed to record data: {exc}\n{error_body}")
 
 
-@click.command("delete-records", short_help="Delete records by posting tombstones")
+@click.command("delete", short_help="Delete records for a data type")
 @click.argument("data_type")
 @click.argument("record_ids", nargs=-1, required=True)
 @click.option(
@@ -218,7 +218,10 @@ def delete_records(
     fulcra_api: FulcraAPI, data_type: str, record_ids: tuple, api_version: str | None
 ):
     """
-    Delete records by posting DeletedRecord tombstones.
+    Delete records for a Fulcra data type.
+
+    Deletion works by posting DeletedRecord tombstones. Only recordable data types support
+    deletion. Run `fulcra catalog --recordable-only` for a list of data types that can be deleted.
 
     DATA_TYPE: The Fulcra data type of the records to delete
 
@@ -228,11 +231,11 @@ def delete_records(
 
     \b
     Delete a single record:
-    fulcra delete-records NumericAnnotation/<uuid> <record-id>
+    fulcra delete NumericAnnotation/<uuid> <record-id>
 
     \b
     Delete multiple records:
-    fulcra delete-records NumericAnnotation/<uuid> <id1> <id2> <id3>
+    fulcra delete NumericAnnotation/<uuid> <id1> <id2> <id3>
     """
     try:
         # Extract base type (strip UUID if present)
