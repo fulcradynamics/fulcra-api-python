@@ -61,39 +61,39 @@ def record(
     Reads JSON or JSONL (newline-delimited JSON) records from stdin or a file, unless VALUE or
     --field-* options are provided. Each record should conform to the schema for the specified data type.
 
-    Field options (--field-<name>=<value>) allow setting arbitrary record fields. Values are parsed
+    Field options (--field-<NAME>=<VALUE>) allow setting arbitrary record fields. Values are parsed
     as JSON first (numbers, booleans, objects), falling back to strings if not valid JSON.
 
     Examples:
 
     \b
     Quick record a metric value:
-    fulcra record NumericAnnotation/<uuid> 75.5
+    fulcra record NumericAnnotation/<UUID> 75.5
 
     \b
     Quick record with field options:
-    fulcra record NumericAnnotation/<uuid> --field-value=75.5 --field-note="Resting heart rate"
+    fulcra record NumericAnnotation/<UUID> --field-value=75.5 --field-note="Resting heart rate"
 
     \b
     Record an event with a note:
-    fulcra record MomentAnnotation/<uuid> --field-note="Felt energized"
+    fulcra record MomentAnnotation/<UUID> --field-note="Felt energized"
 
     \b
     Record with boolean and numeric fields:
-    fulcra record BooleanAnnotation/<uuid> --field-value=true --field-note="Test"
+    fulcra record BooleanAnnotation/<UUID> --field-value=true --field-note="Test"
 
     \b
     Record from stdin (single JSON object):
-    echo '{"value": 75.5, "unit": "bpm"}' | fulcra record NumericAnnotation/<uuid>
+    echo '{"value": 75.5, "unit": "bpm"}' | fulcra record NumericAnnotation/<UUID>
 
     \b
     Record from stdin (JSONL - multiple records):
     echo '{"value": 75.5}
-    {"value": 80.2}' | fulcra record NumericAnnotation/<uuid>
+    {"value": 80.2}' | fulcra record NumericAnnotation/<UUID>
 
     \b
     Record from a file:
-    fulcra record NumericAnnotation/<uuid> -f records.jsonl
+    fulcra record NumericAnnotation/<UUID> -f records.jsonl
     """
     try:
         # Copy extra args and prepend VALUE if it's a --field-* option
@@ -303,11 +303,11 @@ def delete_records(
 
     \b
     Delete a single record:
-    fulcra delete NumericAnnotation/<uuid> <record-id>
+    fulcra delete NumericAnnotation/<UUID> <RECORD-ID>
 
     \b
     Delete multiple records:
-    fulcra delete NumericAnnotation/<uuid> <id1> <id2> <id3>
+    fulcra delete NumericAnnotation/<UUID> <ID1> <ID2> <ID3>
     """
     try:
         # Extract base type (strip UUID if present)
