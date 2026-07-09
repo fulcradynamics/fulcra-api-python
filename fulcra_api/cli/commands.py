@@ -703,12 +703,19 @@ def get_records(
 @click.option("-d", "--data-type", type=str, help="Data Type to look up by ID.")
 @click.option("-n", "--name", type=str, help="Filter results by partial name.")
 @click.option("--base-types-only", is_flag=True, default=False)
+@click.option(
+    "--recordable-only",
+    is_flag=True,
+    default=False,
+    help="Only show recordable data types.",
+)
 @click.option("-c", "--category", type=str, help="Filter by category.")
 @pass_fulcra_api
 @requires_auth
 def catalog(
     fulcra_api: FulcraAPI,
     base_types_only: bool,
+    recordable_only: bool,
     data_type: str | None = None,
     name: str | None = None,
     category: str | None = None,
@@ -736,6 +743,9 @@ def catalog(
 
     if name:
         response = [c for c in response if name.lower() in c.get("name", "").lower()]
+
+    if recordable_only:
+        response = [c for c in response if c.get("recordable", False)]
 
     for c in response:
         c["related_cli_commands"] = related_cli_commands(c)

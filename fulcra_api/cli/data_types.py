@@ -318,7 +318,8 @@ def record_data_type(
     """
     Record data for a Fulcra data type.
 
-    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types
+    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog --recordable-only` for a list of
+    recordable Fulcra Data Types.
 
     Reads JSON or JSONL (newline-delimited JSON) records from stdin or a file.
     Each record should conform to the schema for the specified data type.
