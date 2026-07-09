@@ -11,11 +11,12 @@ from .utils import pass_fulcra_api, requires_auth
 
 @click.command("record", short_help="Record data for a data type")
 @click.argument("data_type")
+@click.argument("value", required=False)
 @click.option(
     "-f",
     "--file",
     type=click.File("r"),
-    default="-",
+    default=None,
     help="File containing JSON or JSONL records (default: stdin)",
 )
 @click.option(
@@ -35,6 +36,7 @@ from .utils import pass_fulcra_api, requires_auth
 def record(
     fulcra_api: FulcraAPI,
     data_type: str,
+    value: str | None,
     file,
     api_version: str | None,
     no_validate: bool,
@@ -45,10 +47,16 @@ def record(
     DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog --recordable-only` for a list of
     recordable Fulcra Data Types.
 
-    Reads JSON or JSONL (newline-delimited JSON) records from stdin or a file.
+    VALUE: Optional metric value for quick recording (e.g., "75.5" for NumericAnnotation)
+
+    Reads JSON or JSONL (newline-delimited JSON) records from stdin or a file, unless VALUE is provided.
     Each record should conform to the schema for the specified data type.
 
     Examples:
+
+    \b
+    Quick record a metric value:
+    fulcra record NumericAnnotation/<uuid> 75.5
 
     \b
     Record from stdin (single JSON object):
@@ -64,40 +72,58 @@ def record(
     fulcra record NumericAnnotation/<uuid> -f records.jsonl
     """
     try:
-        # Read input
-        content = file.read().strip()
-        if not content:
-            raise click.ClickException("No input provided")
+        # Handle quick metric recording
+        if value is not None:
+            if file is not None:
+                raise click.ClickException("Cannot specify both VALUE and --file")
 
-        # Parse as JSONL or JSON
-        records = []
-        lines = content.split("\n")
-
-        # Try parsing as JSONL first (one JSON object per line)
-        if len(lines) > 1 or (len(lines) == 1 and not content.startswith("[")):
-            for line_num, line in enumerate(lines, 1):
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    record = json.loads(line)
-                    records.append(record)
-                except json.JSONDecodeError as e:
-                    raise click.ClickException(f"Invalid JSON on line {line_num}: {e}")
-        else:
-            # Try parsing as JSON array
+            # Parse value as number
             try:
-                parsed = json.loads(content)
-                if isinstance(parsed, list):
-                    records = parsed
-                elif isinstance(parsed, dict):
-                    records = [parsed]
-                else:
-                    raise click.ClickException(
-                        "Input must be a JSON object, array, or JSONL"
-                    )
-            except json.JSONDecodeError as e:
-                raise click.ClickException(f"Invalid JSON: {e}")
+                numeric_value = float(value)
+            except ValueError:
+                raise click.ClickException(f"VALUE must be a number, got: {value}")
+
+            records = [{"value": numeric_value}]
+        else:
+            # Read input from file or stdin
+            if file is None:
+                file = click.get_text_stream("stdin")
+
+            content = file.read().strip()
+            if not content:
+                raise click.ClickException("No input provided")
+
+            # Parse as JSONL or JSON
+            records = []
+            lines = content.split("\n")
+
+            # Try parsing as JSONL first (one JSON object per line)
+            if len(lines) > 1 or (len(lines) == 1 and not content.startswith("[")):
+                for line_num, line in enumerate(lines, 1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        record = json.loads(line)
+                        records.append(record)
+                    except json.JSONDecodeError as e:
+                        raise click.ClickException(
+                            f"Invalid JSON on line {line_num}: {e}"
+                        )
+            else:
+                # Try parsing as JSON array
+                try:
+                    parsed = json.loads(content)
+                    if isinstance(parsed, list):
+                        records = parsed
+                    elif isinstance(parsed, dict):
+                        records = [parsed]
+                    else:
+                        raise click.ClickException(
+                            "Input must be a JSON object, array, or JSONL"
+                        )
+                except json.JSONDecodeError as e:
+                    raise click.ClickException(f"Invalid JSON: {e}")
 
         if not records:
             raise click.ClickException("No valid records found in input")
