@@ -11,6 +11,7 @@ import webbrowser
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+import jsonschema
 import pandas as pd
 
 from .credentials import FulcraCredentials
@@ -1931,7 +1932,7 @@ class FulcraAPI:
 
     def validate_records(
         self, data_type: str, records: List[dict], api_version: str = "v1alpha1"
-    ) -> List[Tuple[int, Optional[str]]]:
+    ) -> list[tuple[int, str, jsonschema.ValidationError]]:
         """
         Validate records against the schema for a Fulcra data type.
 
@@ -1943,8 +1944,11 @@ class FulcraAPI:
             api_version: API version to use (default: "v1alpha1")
 
         Returns:
-            List of tuples (record_index, error_message). Empty list if all valid.
-            error_message is None for valid records, or contains validation error for invalid ones.
+            List of tuples (record_index, error_message, validation_error) for records with errors.
+            Empty list if all records are valid.
+            - record_index: zero-based index of the invalid record
+            - error_message: human-readable error description
+            - validation_error: the full jsonschema.ValidationError object
 
         Raises:
             HTTPError: If schema cannot be fetched
@@ -1956,34 +1960,25 @@ class FulcraAPI:
             ]
             errors = client.validate_records("NumericAnnotation", records)
             if errors:
-                for idx, error in errors:
-                    print(f"Record {idx + 1}: {error}")
+                for idx, error_msg, error_obj in errors:
+                    print(f"Record {idx + 1}: {error_msg}")
         """
-        try:
-            import jsonschema
-        except ImportError:
-            raise ImportError(
-                "jsonschema package required for validation. "
-                "Install with: pip install jsonschema"
-            )
-
         # Fetch schema
         schema_resp = self.fulcra_api(
             f"/data/v1/catalog/{data_type}/{api_version}/schema"
         )
         schema = json.loads(schema_resp)
 
-        # Validate each record
+        # Validate each record and collect errors
         errors = []
         for idx, record in enumerate(records):
             try:
                 jsonschema.validate(instance=record, schema=schema)
-                errors.append((idx, None))
             except jsonschema.ValidationError as e:
                 error_msg = e.message
                 if e.path:
                     error_msg += f" (path: {'.'.join(str(p) for p in e.path)})"
-                errors.append((idx, error_msg))
+                errors.append((idx, error_msg, e))
 
         return errors
 

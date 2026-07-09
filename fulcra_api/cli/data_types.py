@@ -415,14 +415,12 @@ def record_data_type(
                     base_type, records, schema_api_version
                 )
 
-                # Check for validation errors
-                for idx, error_msg in validation_errors:
-                    if error_msg is not None:
-                        raise click.ClickException(
-                            f"Validation error in record {idx + 1}: {error_msg}"
-                        )
-            except ImportError as exc:
-                raise click.ClickException(str(exc))
+                # Check for validation errors (only invalid records are returned)
+                if validation_errors:
+                    idx, error_msg, error_obj = validation_errors[0]
+                    raise click.ClickException(
+                        f"Validation error in record {idx + 1}: {error_msg}"
+                    )
             except HTTPError as exc:
                 if exc.code == 404:
                     raise click.ClickException(
