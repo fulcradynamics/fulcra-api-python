@@ -745,7 +745,13 @@ def catalog(
         response = [c for c in response if name.lower() in c.get("name", "").lower()]
 
     if recordable_only:
-        response = [c for c in response if c.get("recordable", False)]
+        # TODO: Remove api_version filter once v0 type recording is supported via /ingest/v1/record
+        # Currently, the ingest endpoint rejects v0 types with "Can not use this endpoint to record v0 data types"
+        response = [
+            c
+            for c in response
+            if c.get("recordable", False) and c.get("api_version") != "v0"
+        ]
 
     for c in response:
         c["related_cli_commands"] = related_cli_commands(c)
