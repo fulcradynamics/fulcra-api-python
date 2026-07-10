@@ -96,6 +96,10 @@ def record(
     fulcra record NumericAnnotation/<UUID> -f records.jsonl
     """
     try:
+        # VALUE argument is incompatible with --file
+        if value is not None and file is not None:
+            raise click.ClickException("Cannot specify both VALUE and --file")
+
         # Copy extra args and prepend VALUE if it's a --field-* option
         args_to_parse = list(ctx.args)
         if value is not None and value.startswith("--field-"):
@@ -104,6 +108,16 @@ def record(
 
         # Parse --field-* options from args
         fields = {}
+
+        # If VALUE provided, treat it as setting the "value" field first
+        # Parse as JSON (--field-value can still override)
+        if value is not None:
+            try:
+                parsed_value = json.loads(value)
+            except (json.JSONDecodeError, ValueError):
+                parsed_value = value
+            fields["value"] = parsed_value
+
         i = 0
         while i < len(args_to_parse):
             arg = args_to_parse[i]
@@ -136,26 +150,7 @@ def record(
 
         # Handle quick recording with VALUE and/or --field-* options
         if value is not None or fields:
-            if file is not None:
-                raise click.ClickException(
-                    "Cannot specify both VALUE/--field-* and --file"
-                )
-
-            if value is not None and "value" in fields:
-                raise click.ClickException(
-                    "Cannot specify both VALUE and --field-value"
-                )
-
-            record = dict(fields)
-            if value is not None:
-                # Parse value as number
-                try:
-                    numeric_value = float(value)
-                except ValueError:
-                    raise click.ClickException(f"VALUE must be a number, got: {value}")
-                record["value"] = numeric_value
-
-            records = [record]
+            records = [fields]
         else:
             # Read input from file or stdin
             if file is None:
@@ -196,6 +191,11 @@ def record(
                         )
                 except json.JSONDecodeError as e:
                     raise click.ClickException(f"Invalid JSON: {e}")
+
+            # Apply --field-* options to all records from file/stdin
+            if fields:
+                for record in records:
+                    record.update(fields)
 
         if not records:
             raise click.ClickException("No valid records found in input")
