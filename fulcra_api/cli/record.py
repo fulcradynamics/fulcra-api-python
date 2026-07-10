@@ -77,7 +77,7 @@ def record(
     Reads JSON or JSONL (newline-delimited JSON) records from stdin or a file, unless VALUE or
     --field-* options are provided. Each record should conform to the schema for the specified data type.
 
-    Field options (--field-<NAME>=<VALUE>) allow setting arbitrary record fields. Values are parsed
+    Field options (--<NAME>=<VALUE>) allow setting arbitrary record fields. Values are parsed
     as JSON first (numbers, booleans, objects), falling back to strings if not valid JSON.
 
     Examples:
@@ -88,15 +88,15 @@ def record(
 
     \b
     Quick record with field options:
-    fulcra record NumericAnnotation/<UUID> --field-value=75.5 --field-note="Resting heart rate"
+    fulcra record NumericAnnotation/<UUID> --value=75.5 --note="Resting heart rate"
 
     \b
     Record an event with a note:
-    fulcra record MomentAnnotation/<UUID> --field-note="Felt energized"
+    fulcra record MomentAnnotation/<UUID> --note="Felt energized"
 
     \b
     Record with boolean and numeric fields:
-    fulcra record BooleanAnnotation/<UUID> --field-value=true --field-note="Test"
+    fulcra record BooleanAnnotation/<UUID> --value=true --note="Test"
 
     \b
     Record from stdin (single JSON object):
@@ -116,17 +116,17 @@ def record(
         if value is not None and file is not None:
             raise click.ClickException("Cannot specify both VALUE and --file")
 
-        # Copy extra args and prepend VALUE if it's a --field-* option
+        # Copy extra args and prepend VALUE if it's a field option
         args_to_parse = list(ctx.args)
-        if value is not None and value.startswith("--field-"):
+        if value is not None and value.startswith("--"):
             args_to_parse.insert(0, value)
             value = None
 
-        # Parse --field-* options from args
+        # Parse field options from args (any --option not handled by Click)
         fields = {}
 
         # If VALUE provided, treat it as setting the "value" field first
-        # Parse as JSON (--field-value can still override)
+        # Parse as JSON (--value can still override)
         if value is not None:
             try:
                 parsed_value = json.loads(value)
@@ -137,13 +137,13 @@ def record(
         i = 0
         while i < len(args_to_parse):
             arg = args_to_parse[i]
-            if arg.startswith("--field-"):
-                field_spec = arg[8:]  # Remove "--field-" prefix
+            if arg.startswith("--"):
+                field_spec = arg[2:]  # Remove "--" prefix
                 if "=" in field_spec:
-                    # Handle --field-name=value format
+                    # Handle --name=value format
                     field_name, field_value = field_spec.split("=", 1)
                 else:
-                    # Handle --field-name value format
+                    # Handle --name value format
                     field_name = field_spec
                     if i + 1 < len(args_to_parse) and not args_to_parse[
                         i + 1
@@ -152,7 +152,7 @@ def record(
                         field_value = args_to_parse[i]
                     else:
                         raise click.ClickException(
-                            f"--field-{field_name} requires a value"
+                            f"--{field_name} requires a value"
                         )
 
                 # Parse value as JSON first, fall back to string
