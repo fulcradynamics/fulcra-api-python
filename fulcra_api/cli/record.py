@@ -38,6 +38,20 @@ from .utils import pass_fulcra_api, requires_auth
     default=False,
     help="Skip schema validation",
 )
+@click.option(
+    "--tag",
+    "tags",
+    multiple=True,
+    default=(),
+    help="Tag to add to record(s). Can be used multiple times.",
+)
+@click.option(
+    "--source",
+    "sources",
+    multiple=True,
+    default=(),
+    help="Source to add to record(s). Can be used multiple times. Includes 'com.fulcradynamics.cli'.",
+)
 @click.pass_context
 @pass_fulcra_api
 @requires_auth
@@ -49,6 +63,8 @@ def record(
     file,
     api_version: str | None,
     no_validate: bool,
+    tags: tuple,
+    sources: tuple,
 ):
     """
     Record data for a Fulcra data type.
@@ -209,6 +225,36 @@ def record(
             annotation_uuid = parts[1].lower()
             annotation_source = f"com.fulcradynamics.annotation.{annotation_uuid}"
 
+        # Resolve tag names to UUIDs
+        tag_ids = []
+        if tags:
+            resolved_tags = fulcra_api.create_tags(list(tags))
+            tag_ids = [t["id"] for t in resolved_tags]
+
+        # Build sources list: CLI source, --source options, then annotation source
+        sources_to_add = ["com.fulcradynamics.cli"] + list(sources)
+        if annotation_source:
+            sources_to_add.append(annotation_source)
+
+        # Apply --tag and --source options to all records
+        for record in records:
+            # Add tags (append to existing, but avoid duplicates)
+            if tag_ids:
+                record_tags = record.get("tags", [])
+                for tag_id in tag_ids:
+                    if tag_id not in record_tags:
+                        record_tags.append(tag_id)
+                record["tags"] = record_tags
+
+            # Add sources: filter duplicates from record, then append our sources
+            if sources_to_add:
+                record_sources = record.get("sources", [])
+                # Remove any sources from record that we're about to add
+                record_sources = [s for s in record_sources if s not in sources_to_add]
+                # Append CLI source, options, and annotation source
+                record_sources.extend(sources_to_add)
+                record["sources"] = record_sources
+
         # Determine API version for schema validation
         schema_api_version = api_version
         if schema_api_version is None and not no_validate:
@@ -251,14 +297,6 @@ def record(
                     )
                 else:
                     raise click.ClickException(f"Failed to fetch schema: {exc}")
-
-        # Add annotation source to records if needed
-        if annotation_source:
-            for record in records:
-                sources = record.get("sources", [])
-                if annotation_source not in sources:
-                    sources.append(annotation_source)
-                    record["sources"] = sources
 
         # Record data using base type
         kwargs = {"data_type": base_type, "records": records}
