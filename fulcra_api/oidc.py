@@ -120,7 +120,6 @@ class FulcraOIDCProvider:
 
     def get_token(self, grant_type: str, payload: dict) -> FulcraCredentials:
         """fetch a token from /oauth/token and return credentials"""
-        # TODO (JOSH) use urllib request here
 
         payload = {
             "client_id": self.client_id,
