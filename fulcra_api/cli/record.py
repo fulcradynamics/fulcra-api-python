@@ -306,12 +306,12 @@ def record(
         response = fulcra_api.record_data_type(**kwargs)
 
         # Print summary
-        batch_id = response["upload_id"]
+        upload_id = response["upload_id"]
         num_records = len(records)
         click.echo(
             f"Recorded {num_records} record{'s' if num_records != 1 else ''} to {base_type}"
         )
-        click.echo(f"Batch ID: {batch_id}")
+        click.echo(f"Upload ID: {upload_id}")
 
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
@@ -449,12 +449,12 @@ def delete_records(
         response = fulcra_api.record_data_type(**kwargs)
 
         # Print summary
-        batch_id = response["upload_id"]
+        upload_id = response["upload_id"]
         num_records = len(records)
         click.echo(
             f"Deleted {num_records} record{'s' if num_records != 1 else ''} from {base_type}"
         )
-        click.echo(f"Batch ID: {batch_id}")
+        click.echo(f"Upload ID: {upload_id}")
 
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
