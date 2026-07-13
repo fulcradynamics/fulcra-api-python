@@ -60,7 +60,7 @@ def record(
     ctx: click.Context,
     data_type: str,
     value: str | None,
-    file,
+    file: click.File | None,
     api_version: str | None,
     no_validate: bool,
     tags: tuple,
