@@ -1,5 +1,5 @@
 import json
-from typing import List, Optional, Tuple
+from typing import TextIO
 from urllib.error import HTTPError
 
 import click
@@ -24,7 +24,7 @@ from .utils import pass_fulcra_api, requires_auth
     "--file",
     type=click.File("r"),
     default=None,
-    help="File containing JSON or JSONL records (default: stdin)",
+    help="File containing JSON or JSONL records.",
 )
 @click.option(
     "--api-version",
@@ -60,7 +60,7 @@ def record(
     ctx: click.Context,
     data_type: str,
     value: str | None,
-    file: click.File | None,
+    file: TextIO | None,
     api_version: str | None,
     no_validate: bool,
     tags: tuple,
@@ -165,15 +165,18 @@ def record(
 
                 fields[field_name] = parsed_value
 
-        # Handle quick recording with VALUE and/or --field-* options
-        if value is not None or fields:
+        # Handle input from file or stdin
+        input_stream = file
+        if input_stream is None:
+            stdin_stream = click.get_text_stream("stdin")
+            if not stdin_stream.isatty():
+                input_stream = stdin_stream
+
+        if input_stream is None:
             records = [fields]
         else:
             # Read input from file or stdin
-            if file is None:
-                file = click.get_text_stream("stdin")
-
-            content = file.read().strip()
+            content = input_stream.read().strip()
             if not content:
                 raise click.ClickException("No input provided")
 
@@ -341,8 +344,8 @@ def delete_records(
     fulcra_api: FulcraAPI,
     data_type: str,
     record_id: str | None,
-    file: click.File | None,
-    api_version: str | None,
+    file: TextIO | None,
+    api_version: str,
     no_validate: bool,
 ):
     """
@@ -384,13 +387,18 @@ def delete_records(
         # Build deletion records
         records = []
 
-        if record_id is not None:
+        input_stream = file
+        if input_stream is None:
+            stdin_stream = click.get_text_stream("stdin")
+            if not stdin_stream.isatty():
+                input_stream = stdin_stream
+
+        if input_stream is None:
             # Quick form: single record ID
             records = [{"record_id": record_id}]
         else:
             # Read from file or stdin
-            input_source = file if file else click.get_text_stream("stdin")
-            input_data = input_source.read().strip()
+            input_data = input_stream.read().strip()
 
             if not input_data:
                 raise click.ClickException(
