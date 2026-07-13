@@ -315,17 +315,29 @@ def record(
 
 @click.command("delete", short_help="Delete records for a data type")
 @click.argument("data_type")
-@click.argument("record_ids", nargs=-1, required=True)
+@click.argument("record_id", required=False)
+@click.option("-f", "--file", type=click.File("r"), default=None)
 @click.option(
     "--api-version",
     type=str,
-    default=None,
-    help="API version to use (optional)",
+    default="v1",
+    help="API version to use (default: v1)",
+)
+@click.option(
+    "--no-validate",
+    is_flag=True,
+    default=False,
+    help="Skip schema validation before deleting",
 )
 @pass_fulcra_api
 @requires_auth
 def delete_records(
-    fulcra_api: FulcraAPI, data_type: str, record_ids: tuple, api_version: str | None
+    fulcra_api: FulcraAPI,
+    data_type: str,
+    record_id: str | None,
+    file: click.File | None,
+    api_version: str | None,
+    no_validate: bool,
 ):
     """
     Delete records for a Fulcra data type.
@@ -333,31 +345,93 @@ def delete_records(
     Deletion works by posting DeletedRecord tombstones. Only recordable data types support
     deletion. Run `fulcra catalog --recordable-only` for a list of data types that can be deleted.
 
-    DATA_TYPE: The Fulcra data type of the records to delete
+    DATA_TYPE: The Fulcra data type of the records being deleted
 
-    RECORD_IDS: One or more record UUIDs to delete
+    RECORD_ID: (Optional) A single record UUID to delete
+
+    Reads JSON or JSONL (newline-delimited JSON) deletion records from stdin or a file, unless
+    RECORD_ID is provided. Each record should have the form {"record_id": "<UUID>"}.
 
     Examples:
 
     \b
-    Delete a single record:
+    Quick delete a single record:
     fulcra delete NumericAnnotation/<UUID> <RECORD-ID>
 
     \b
-    Delete multiple records:
-    fulcra delete NumericAnnotation/<UUID> <ID1> <ID2> <ID3>
+    Delete from stdin (JSONL - multiple records):
+    echo '{"record_id": "id1"}
+    {"record_id": "id2"}' | fulcra delete NumericAnnotation/<UUID>
+
+    \b
+    Delete from a file:
+    fulcra delete NumericAnnotation/<UUID> -f deletions.jsonl
     """
     try:
+        # RECORD_ID argument is incompatible with --file
+        if record_id is not None and file is not None:
+            raise click.ClickException("Cannot specify both RECORD_ID and --file")
+
         # Extract base type (strip UUID if present)
         base_type = data_type.split("/")[0] if "/" in data_type else data_type
 
-        # Create DeletedRecord tombstones for each record
-        tombstones = [
-            {"record_id": record_id, "data_type": base_type} for record_id in record_ids
-        ]
+        # Build deletion records
+        records = []
+
+        if record_id is not None:
+            # Quick form: single record ID
+            records = [{"record_id": record_id}]
+        else:
+            # Read from file or stdin
+            input_source = file if file else click.get_text_stream("stdin")
+            input_data = input_source.read().strip()
+
+            if not input_data:
+                raise click.ClickException(
+                    "No RECORD_ID provided and no data in stdin/file"
+                )
+
+            # Parse JSONL or JSON
+            lines = input_data.split("\n")
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                    records.append(record)
+                except json.JSONDecodeError as e:
+                    raise click.ClickException(f"Invalid JSON in input: {e}")
+
+        if not records:
+            raise click.ClickException("No records to delete")
+
+        # Add data_type field to each record
+        for record in records:
+            record["data_type"] = base_type
+
+        # Validate records unless --no-validate
+        if not no_validate:
+            try:
+                errors = fulcra_api.validate_records(
+                    "DeletedRecord", records, api_version=api_version
+                )
+                if errors:
+                    error_msg = "Validation failed:\n"
+                    for idx, msg, _ in errors:
+                        error_msg += f"  Record {idx + 1}: {msg}\n"
+                    raise click.ClickException(error_msg)
+            except HTTPError as exc:
+                if exc.code == 404:
+                    raise click.ClickException(
+                        f"Schema not found for DeletedRecord/{api_version}. "
+                        "Use --no-validate to skip validation"
+                    )
+                else:
+                    raise click.ClickException(f"Failed to fetch schema: {exc}")
 
         # Record the tombstones
-        kwargs = {"data_type": "DeletedRecord", "records": tombstones}
+        kwargs = {"data_type": "DeletedRecord", "records": records}
         if api_version is not None:
             kwargs["api_version"] = api_version
 
