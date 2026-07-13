@@ -348,8 +348,8 @@ def delete_records(
     """
     Delete records for a Fulcra data type.
 
-    Deletion works by posting DeletedRecord tombstones. Only recordable data types support
-    deletion. Run `fulcra catalog --recordable-only` for a list of data types that can be deleted.
+    Only recordable data types supportdeletion. Run `fulcra catalog --recordable-only`
+    for a list of data types that can be deleted.
 
     DATA_TYPE: The Fulcra data type of the records being deleted
 
