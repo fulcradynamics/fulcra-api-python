@@ -134,9 +134,8 @@ def record(
                 parsed_value = value
             fields["value"] = parsed_value
 
-        i = 0
-        while i < len(args_to_parse):
-            arg = args_to_parse[i]
+        args_iter = iter(args_to_parse)
+        for arg in args_iter:
             if arg.startswith("--"):
                 field_spec = arg[2:]  # Remove "--" prefix
                 if "=" in field_spec:
@@ -145,12 +144,14 @@ def record(
                 else:
                     # Handle --name value format
                     field_name = field_spec
-                    if i + 1 < len(args_to_parse) and not args_to_parse[
-                        i + 1
-                    ].startswith("--"):
-                        i += 1
-                        field_value = args_to_parse[i]
-                    else:
+                    try:
+                        next_arg = next(args_iter)
+                        if next_arg.startswith("--"):
+                            raise click.ClickException(
+                                f"--{field_name} requires a value"
+                            )
+                        field_value = next_arg
+                    except StopIteration:
                         raise click.ClickException(f"--{field_name} requires a value")
 
                 # Parse value as JSON first, fall back to string
@@ -160,7 +161,6 @@ def record(
                     parsed_value = field_value
 
                 fields[field_name] = parsed_value
-            i += 1
 
         # Handle quick recording with VALUE and/or --field-* options
         if value is not None or fields:
