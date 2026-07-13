@@ -2015,7 +2015,11 @@ class FulcraAPI:
         errors = []
         for idx, record in enumerate(records):
             try:
-                jsonschema.validate(instance=record, schema=schema)
+                jsonschema.validate(
+                    instance=record,
+                    schema=schema,
+                    format_checker=jsonschema.FormatChecker(),
+                )
             except jsonschema.ValidationError as e:
                 error_msg = e.message
                 if e.path:
