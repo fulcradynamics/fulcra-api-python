@@ -1,10 +1,10 @@
 """OIDC mechanics for authenticating with the Fulcra API"""
 
 import datetime
-import http.client
 import json
 import time
 import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
 
@@ -17,9 +17,6 @@ class FulcraOIDCProvider:
     client_id: str
     scope: str
     audience: str
-
-    def _get_auth_connection(self, domain: str) -> http.client.HTTPSConnection:
-        return http.client.HTTPSConnection(domain)
 
     def authorize_via_device_flow(
         self,
@@ -40,7 +37,6 @@ class FulcraOIDCProvider:
             poll_interval=poll_interval,
         )
 
-    
     def poll_for_token(
         self,
         device_code: str,
@@ -63,7 +59,6 @@ class FulcraOIDCProvider:
                 continue
 
         return creds
-
 
     def authorize_via_authorization_code_flow(
         self,
@@ -94,7 +89,7 @@ class FulcraOIDCProvider:
 
     def get_device_code(self) -> Tuple[str, str, str]:
         """requests a device code and complete verification URI from auth0"""
-        conn = self._get_auth_connection(self.domain)
+
         body = urllib.parse.urlencode(
             {
                 "client_id": self.client_id,
@@ -105,8 +100,15 @@ class FulcraOIDCProvider:
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
         }
-        conn.request("POST", "/oauth/device/code", body, headers)
-        response = conn.getresponse()
+
+        request = urllib.request.Request(
+            f"https://{self.domain}/oauth/device/code",
+            data=body.encode("UTF-8"),
+            headers=headers,
+            method="POST",
+        )
+        response = urllib.request.urlopen(request)
+
         if response.status != 200:
             raise Exception(f"could not get device code: {response}")
         bdata = response.read()
@@ -119,7 +121,6 @@ class FulcraOIDCProvider:
     def get_token(self, grant_type: str, payload: dict) -> FulcraCredentials:
         """fetch a token from /oauth/token and return credentials"""
 
-        conn = self._get_auth_connection(self.domain)
         payload = {
             "client_id": self.client_id,
             "grant_type": grant_type,
@@ -128,8 +129,15 @@ class FulcraOIDCProvider:
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
         }
-        conn.request("POST", "/oauth/token", body, headers)
-        response = conn.getresponse()
+
+        request = urllib.request.Request(
+            f"https://{self.domain}/oauth/token",
+            data=body.encode("UTF-8"),
+            headers=headers,
+            method="POST",
+        )
+        response = urllib.request.urlopen(request)
+
         if response.status != 200:
             raise Exception(
                 f"Got non-200 response when requesting token: {response.status}"
