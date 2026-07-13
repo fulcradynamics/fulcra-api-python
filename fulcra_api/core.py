@@ -1059,6 +1059,27 @@ class FulcraAPI:
         resp = self.fulcra_api(uri)
         return json.loads(resp)
 
+    def v1_catalog_data_type(self, data_type: str, api_version: str) -> Dict:
+        """
+        Get catalog entry for a specific data type and API version, including schema.
+
+        Requires a valid access token.
+
+        Params:
+            data_type: The Fulcra data type ID
+            api_version: API version (e.g., "v1", "v1alpha1")
+
+        Returns:
+            Dictionary containing catalog entry with schema included
+
+        Example:
+            catalog = client.v1_catalog_data_type("NumericAnnotation", "v1alpha1")
+            schema = catalog.get("record_spec", {}).get("schema")
+        """
+        uri = f"/data/v1/catalog/{data_type}/{api_version}"
+        resp = self.fulcra_api(uri)
+        return json.loads(resp)
+
     def create_datashare(
         self,
         datashare_name: str,

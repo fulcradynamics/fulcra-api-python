@@ -710,6 +710,11 @@ def get_records(
     help="Only show recordable data types.",
 )
 @click.option("-c", "--category", type=str, help="Filter by category.")
+@click.option(
+    "--api-version",
+    type=str,
+    help="Filter by API version. When used with --data-type, fetches specific version including schema.",
+)
 @pass_fulcra_api
 @requires_auth
 def catalog(
@@ -719,6 +724,7 @@ def catalog(
     data_type: str | None = None,
     name: str | None = None,
     category: str | None = None,
+    api_version: str | None = None,
 ):
     """
     Return a list of Fulcra Data Types that can be queried with `get-records`, `metric-time-series`, and other commands.
@@ -727,14 +733,25 @@ def catalog(
     """
 
     try:
-        if base_types_only:
-            catalog_category = "base_type"
-        elif category:
-            catalog_category = category
+        # If both data_type and api_version are specified, use the specific endpoint
+        if data_type and api_version:
+            catalog_entry = fulcra_api.v1_catalog_data_type(data_type, api_version)
+            response = [catalog_entry]
         else:
-            catalog_category = None
+            if base_types_only:
+                catalog_category = "base_type"
+            elif category:
+                catalog_category = category
+            else:
+                catalog_category = None
 
-        response = fulcra_api.v1_catalog(data_type=data_type, category=catalog_category)
+            response = fulcra_api.v1_catalog(
+                data_type=data_type, category=catalog_category
+            )
+
+            # Filter by api_version if provided (but not with data_type)
+            if api_version:
+                response = [c for c in response if c.get("api_version") == api_version]
     except HTTPError as exc:
         if exc.code == 404:
             raise click.ClickException("Type not found")
