@@ -163,7 +163,7 @@ def record(
 
         # Handle input from file or stdin
         input_stream = file
-        if input_stream is None:
+        if input_stream is None and value is None:
             stdin_stream = click.get_text_stream("stdin")
             if not stdin_stream.isatty():
                 input_stream = stdin_stream
@@ -385,7 +385,7 @@ def delete_records(
         records = []
 
         input_stream = file
-        if input_stream is None:
+        if input_stream is None and record_id is None:
             stdin_stream = click.get_text_stream("stdin")
             if not stdin_stream.isatty():
                 input_stream = stdin_stream
