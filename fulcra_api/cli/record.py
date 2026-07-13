@@ -80,6 +80,9 @@ def record(
     Field options (--<NAME>=<VALUE>) allow setting arbitrary record fields. Values are parsed
     as JSON first (numbers, booleans, objects), falling back to strings if not valid JSON.
 
+    To see available fields for a data type, use:
+    fulcra data-type schema <DATA_TYPE> --api-version <VERSION>
+
     Examples:
 
     \b
@@ -318,8 +321,8 @@ def record(
 @click.option(
     "--api-version",
     type=str,
-    default="v1",
-    help="API version to use (default: v1)",
+    default="v1alpha1",
+    help="API version to use (default: v1alpha1)",
 )
 @click.option(
     "--no-validate",
