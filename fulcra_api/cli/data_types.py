@@ -283,3 +283,54 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
         click.echo(json.dumps(ann))
     except HTTPError as exc:
         raise click.ClickException(f"Failed to restore data type {data_type}: {exc}")
+
+
+@data_type.command("schema", short_help="Get the JSON schema for a data type")
+@click.argument("data_type")
+@click.option(
+    "--api-version",
+    type=str,
+    default=None,
+    help="API version (required if data type has multiple versions)",
+)
+@pass_fulcra_api
+@requires_auth
+def get_schema(fulcra_api: FulcraAPI, data_type: str, api_version: str | None):
+    """
+    Get the JSON schema for a Fulcra data type.
+
+    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types.
+
+    Examples:
+
+    \b
+    Get schema for a data type:
+    fulcra data-type schema NumericAnnotation --api-version v1alpha1
+
+    \b
+    Get schema with auto-detected version (if only one exists):
+    fulcra data-type schema DeletedRecord
+    """
+    try:
+        # If api_version not provided, try to auto-detect
+        if api_version is None:
+            catalog_results = fulcra_api.v1_catalog(data_type=data_type)
+            if len(catalog_results) == 0:
+                raise click.ClickException(
+                    f"Data type '{data_type}' not found in catalog"
+                )
+            elif len(catalog_results) > 1:
+                raise click.ClickException(
+                    f"Multiple versions found for '{data_type}'. Please specify --api-version"
+                )
+            api_version = catalog_results[0]["api_version"]
+
+        schema = fulcra_api.v1_catalog_schema(data_type, api_version)
+        click.echo(json.dumps(schema, indent=2))
+    except HTTPError as exc:
+        if exc.code == 404:
+            raise click.ClickException(
+                f"Schema not found for {data_type}/{api_version}"
+            )
+        else:
+            raise click.ClickException(f"Failed to fetch schema: {exc}")

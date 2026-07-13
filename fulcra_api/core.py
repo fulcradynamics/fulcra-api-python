@@ -1080,6 +1080,30 @@ class FulcraAPI:
         resp = self.fulcra_api(uri)
         return json.loads(resp)
 
+    def v1_catalog_schema(self, data_type: str, api_version: str) -> Dict:
+        """
+        Get the JSON schema for a specific data type and API version.
+
+        Requires a valid access token.
+
+        Params:
+            data_type: The Fulcra data type ID
+            api_version: API version (e.g., "v1", "v1alpha1")
+
+        Returns:
+            Dictionary containing the JSON schema
+
+        Raises:
+            HTTPError: If schema cannot be fetched (e.g., 404 if not found)
+
+        Example:
+            schema = client.v1_catalog_schema("NumericAnnotation", "v1alpha1")
+            required_fields = schema.get("required", [])
+        """
+        uri = f"/data/v1/catalog/{data_type}/{api_version}/schema"
+        resp = self.fulcra_api(uri)
+        return json.loads(resp)
+
     def create_datashare(
         self,
         datashare_name: str,
@@ -1985,10 +2009,7 @@ class FulcraAPI:
                     print(f"Record {idx + 1}: {error_msg}")
         """
         # Fetch schema
-        schema_resp = self.fulcra_api(
-            f"/data/v1/catalog/{data_type}/{api_version}/schema"
-        )
-        schema = json.loads(schema_resp)
+        schema = self.v1_catalog_schema(data_type, api_version)
 
         # Validate each record and collect errors
         errors = []

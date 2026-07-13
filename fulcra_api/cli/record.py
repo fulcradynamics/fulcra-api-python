@@ -151,9 +151,7 @@ def record(
                         i += 1
                         field_value = args_to_parse[i]
                     else:
-                        raise click.ClickException(
-                            f"--{field_name} requires a value"
-                        )
+                        raise click.ClickException(f"--{field_name} requires a value")
 
                 # Parse value as JSON first, fall back to string
                 try:
