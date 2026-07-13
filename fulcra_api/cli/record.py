@@ -72,13 +72,13 @@ def record(
     DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog --recordable-only` for a list of
     recordable Fulcra Data Types.
 
-    VALUE: Optional metric value for quick recording (e.g., "75.5" for NumericAnnotation)
+    VALUE: Optional metric value for recording a single record (e.g., "75.5" for NumericAnnotation)
 
-    Reads JSON or JSONL (newline-delimited JSON) records from stdin or a file, unless VALUE or
-    --field-* options are provided. Each record should conform to the schema for the specified data type.
+    By default, records a single record using VALUE and/or field options. To record multiple records,
+    pipe JSON or JSONL (newline-delimited JSON) data, or use -f to read from a file.
 
-    Field options (--<NAME>=<VALUE>) allow setting arbitrary record fields. Values are parsed
-    as JSON first (numbers, booleans, objects), falling back to strings if not valid JSON.
+    Field options (--<NAME>=<VALUE>) set arbitrary record fields. Values are parsed as JSON first
+    (numbers, booleans, objects), falling back to strings if not valid JSON.
 
     To see available fields for a data type, use:
     fulcra data-type schema <DATA_TYPE> --api-version <VERSION>
@@ -86,11 +86,11 @@ def record(
     Examples:
 
     \b
-    Quick record a metric value:
+    Record a single metric value:
     fulcra record NumericAnnotation/<UUID> 75.5
 
     \b
-    Quick record with field options:
+    Record a single metric with field options:
     fulcra record NumericAnnotation/<UUID> --value=75.5 --note="Resting heart rate"
 
     \b
@@ -102,16 +102,12 @@ def record(
     fulcra record BooleanAnnotation/<UUID> --value=true --note="Test"
 
     \b
-    Record from stdin (single JSON object):
-    echo '{"value": 75.5, "unit": "bpm"}' | fulcra record NumericAnnotation/<UUID>
-
-    \b
-    Record from stdin (JSONL - multiple records):
+    Record multiple records from stdin (JSONL):
     echo '{"value": 75.5}
     {"value": 80.2}' | fulcra record NumericAnnotation/<UUID>
 
     \b
-    Record from a file:
+    Record multiple records from a file:
     fulcra record NumericAnnotation/<UUID> -f records.jsonl
     """
     try:
@@ -259,29 +255,29 @@ def record(
                 record_sources.extend(sources_to_add)
                 record["sources"] = record_sources
 
-        # Determine API version for schema validation
-        schema_api_version = api_version
-        if schema_api_version is None and not no_validate:
-            # Query catalog to find the data type and its API version
-            try:
-                catalog_results = fulcra_api.v1_catalog(data_type=base_type)
-                if len(catalog_results) == 0:
-                    raise click.ClickException(
-                        f"Data type '{base_type}' not found in catalog"
-                    )
-                elif len(catalog_results) > 1:
-                    raise click.ClickException(
-                        f"Multiple data types found for '{base_type}'. "
-                        "Please specify --api-version"
-                    )
-                schema_api_version = catalog_results[0]["api_version"]
-            except HTTPError as exc:
-                raise click.ClickException(
-                    f"Failed to query catalog for {base_type}: {exc}"
-                )
-
         # Validate records against schema if requested
         if not no_validate:
+            # Determine API version for schema validation
+            schema_api_version = api_version
+            if schema_api_version is None:
+                # Query catalog to find the data type and its API version
+                try:
+                    catalog_results = fulcra_api.v1_catalog(data_type=base_type)
+                    if len(catalog_results) == 0:
+                        raise click.ClickException(
+                            f"Data type '{base_type}' not found in catalog"
+                        )
+                    elif len(catalog_results) > 1:
+                        raise click.ClickException(
+                            f"Multiple data types found for '{base_type}'. "
+                            "Please specify --api-version"
+                        )
+                    schema_api_version = catalog_results[0]["api_version"]
+                except HTTPError as exc:
+                    raise click.ClickException(
+                        f"Failed to query catalog for {base_type}: {exc}"
+                    )
+
             try:
                 validation_errors = fulcra_api.validate_records(
                     base_type, records, schema_api_version
@@ -351,29 +347,30 @@ def delete_records(
     """
     Delete records for a Fulcra data type.
 
-    Only recordable data types supportdeletion. Run `fulcra catalog --recordable-only`
+    Only recordable data types support deletion. Run `fulcra catalog --recordable-only`
     for a list of data types that can be deleted.
 
     DATA_TYPE: The Fulcra data type of the records being deleted
 
-    RECORD_ID: (Optional) A single record UUID to delete
+    RECORD_ID: A single record UUID to delete
 
-    Reads JSON or JSONL (newline-delimited JSON) deletion records from stdin or a file, unless
-    RECORD_ID is provided. Each record should have the form {"record_id": "<UUID>"}.
+    By default, deletes a single record using RECORD_ID. To delete multiple records, pipe JSON or
+    JSONL (newline-delimited JSON) data, or use -f to read from a file. Each record should have
+    the form {"record_id": "<UUID>"}.
 
     Examples:
 
     \b
-    Quick delete a single record:
+    Delete a single record:
     fulcra delete NumericAnnotation/<UUID> <RECORD-ID>
 
     \b
-    Delete from stdin (JSONL - multiple records):
+    Delete multiple records from stdin (JSONL):
     echo '{"record_id": "id1"}
     {"record_id": "id2"}' | fulcra delete NumericAnnotation/<UUID>
 
     \b
-    Delete from a file:
+    Delete multiple records from a file:
     fulcra delete NumericAnnotation/<UUID> -f deletions.jsonl
     """
     try:
