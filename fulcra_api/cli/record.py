@@ -239,12 +239,13 @@ def record(
 
         # Apply --tag and --source options to all records
         for record in records:
-            # Add tags (append to existing, but avoid duplicates)
+            # Add tags: filter duplicates from record, then append our tags
             if tag_ids:
                 record_tags = record.get("tags", [])
-                for tag_id in tag_ids:
-                    if tag_id not in record_tags:
-                        record_tags.append(tag_id)
+                # Remove any tags from record that we're about to add
+                record_tags = [t for t in record_tags if t not in tag_ids]
+                # Append option tags
+                record_tags.extend(tag_ids)
                 record["tags"] = record_tags
 
             # Add sources: filter duplicates from record, then append our sources
