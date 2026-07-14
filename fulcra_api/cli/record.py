@@ -43,14 +43,14 @@ from .utils import pass_fulcra_api, requires_auth
     "tags",
     multiple=True,
     default=(),
-    help="Tag to add to record(s). Can be used multiple times. Tags are deduplicated and merged with any tags specified in the input data.",
+    help="Tag to add to record(s). Can be used multiple times. Tags are merged with any tags specified in the input data.",
 )
 @click.option(
     "--source",
     "sources",
     multiple=True,
     default=(),
-    help="Source to add to record(s). Can be used multiple times. Includes 'com.fulcradynamics.cli'. Sources are deduplicated and merged with any sources specified in the input data.",
+    help="Source to add to record(s). Can be used multiple times. Includes 'com.fulcradynamics.cli'. Sources are merged with any sources specified in the input data.",
 )
 @click.pass_context
 @pass_fulcra_api
