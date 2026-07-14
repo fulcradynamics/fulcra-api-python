@@ -30,7 +30,7 @@ from .utils import pass_fulcra_api, requires_auth
     "--api-version",
     type=str,
     default=None,
-    help="API version to use (optional)",
+    help="API Version of data type to record, in case of ambiguous data types.",
 )
 @click.option(
     "--no-validate",
