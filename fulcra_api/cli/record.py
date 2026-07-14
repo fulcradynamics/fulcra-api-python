@@ -324,6 +324,12 @@ def record(
 @click.argument("record_id", required=False)
 @click.option("-f", "--file", type=click.File("r"), default=None)
 @click.option(
+    "--api-version",
+    type=str,
+    default="v1alpha1",
+    help="API version to use (default: v1alpha1)",
+)
+@click.option(
     "--no-validate",
     is_flag=True,
     default=False,
@@ -336,6 +342,7 @@ def delete_records(
     data_type: str,
     record_id: str | None,
     file: TextIO | None,
+    api_version: str,
     no_validate: bool,
 ):
     """
@@ -419,7 +426,7 @@ def delete_records(
         if not no_validate:
             try:
                 errors = fulcra_api.validate_records(
-                    "DeletedRecord", records, api_version="v1alpha1"
+                    "DeletedRecord", records, api_version=api_version
                 )
                 if errors:
                     error_msg = "Validation failed:\n"
@@ -429,17 +436,18 @@ def delete_records(
             except HTTPError as exc:
                 if exc.code == 404:
                     raise click.ClickException(
-                        "Schema not found for DeletedRecord/v1alpha1. "
+                        f"Schema not found for DeletedRecord/{api_version}. "
                         "Use --no-validate to skip validation"
                     )
                 else:
                     raise click.ClickException(f"Failed to fetch schema: {exc}")
 
-        # Record the tombstones using v1alpha1
-        # TODO: Use v1 once DeletedRecord v1 tombstones are supported by the API
-        response = fulcra_api.record_data_type(
-            data_type="DeletedRecord", records=records, api_version="v1alpha1"
-        )
+        # Record the tombstones
+        kwargs = {"data_type": "DeletedRecord", "records": records}
+        if api_version is not None:
+            kwargs["api_version"] = api_version
+
+        response = fulcra_api.record_data_type(**kwargs)
 
         # Print summary
         upload_id = response["upload_id"]
