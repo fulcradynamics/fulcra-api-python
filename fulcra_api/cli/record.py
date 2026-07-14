@@ -43,14 +43,14 @@ from .utils import pass_fulcra_api, requires_auth
     "tags",
     multiple=True,
     default=(),
-    help="Tag to add to record(s). Can be used multiple times.",
+    help="Tag to add to record(s). Can be used multiple times. Tags are deduplicated and merged with any tags specified in the input data.",
 )
 @click.option(
     "--source",
     "sources",
     multiple=True,
     default=(),
-    help="Source to add to record(s). Can be used multiple times. Includes 'com.fulcradynamics.cli'.",
+    help="Source to add to record(s). Can be used multiple times. Includes 'com.fulcradynamics.cli'. Sources are deduplicated and merged with any sources specified in the input data.",
 )
 @click.pass_context
 @pass_fulcra_api
@@ -78,7 +78,8 @@ def record(
     pipe JSON or JSONL (newline-delimited JSON) data, or use -f to read from a file.
 
     Field options (--<NAME>=<VALUE>) set arbitrary record fields. Values are parsed as JSON first
-    (numbers, booleans, objects), falling back to strings if not valid JSON.
+    (numbers, booleans, objects), falling back to strings if not valid JSON. Field options override
+    any fields specified in the input data.
 
     To see available fields for a data type, use:
     fulcra data-type schema <DATA_TYPE> --api-version <VERSION>
