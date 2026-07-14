@@ -326,8 +326,8 @@ def record(
 @click.option(
     "--api-version",
     type=str,
-    default="v1alpha1",
-    help="API version to use (default: v1alpha1)",
+    default=None,
+    help="API Version of data type being deleted, in case of ambiguous data types.",
 )
 @click.option(
     "--no-validate",
@@ -342,7 +342,7 @@ def delete_records(
     data_type: str,
     record_id: str | None,
     file: TextIO | None,
-    api_version: str,
+    api_version: str | None,
     no_validate: bool,
 ):
     """
@@ -422,11 +422,32 @@ def delete_records(
         for record in records:
             record["data_type"] = base_type
 
+        # Determine API version for the data type being deleted
+        deletion_api_version = api_version
+        if deletion_api_version is None:
+            # Query catalog to find the data type and its API version
+            try:
+                catalog_results = fulcra_api.v1_catalog(data_type=data_type)
+                if len(catalog_results) == 0:
+                    raise click.ClickException(
+                        f"Data type '{data_type}' not found in catalog"
+                    )
+                elif len(catalog_results) > 1:
+                    raise click.ClickException(
+                        f"Multiple data types found for '{data_type}'. "
+                        "Please specify --api-version"
+                    )
+                deletion_api_version = catalog_results[0]["api_version"]
+            except HTTPError as exc:
+                raise click.ClickException(
+                    f"Failed to query catalog for {data_type}: {exc}"
+                )
+
         # Validate records unless --no-validate
         if not no_validate:
             try:
                 errors = fulcra_api.validate_records(
-                    "DeletedRecord", records, api_version=api_version
+                    "DeletedRecord", records, api_version=deletion_api_version
                 )
                 if errors:
                     error_msg = "Validation failed:\n"
@@ -436,18 +457,16 @@ def delete_records(
             except HTTPError as exc:
                 if exc.code == 404:
                     raise click.ClickException(
-                        f"Schema not found for DeletedRecord/{api_version}. "
+                        f"Schema not found for DeletedRecord/{deletion_api_version}. "
                         "Use --no-validate to skip validation"
                     )
                 else:
                     raise click.ClickException(f"Failed to fetch schema: {exc}")
 
         # Record the tombstones
-        kwargs = {"data_type": "DeletedRecord", "records": records}
-        if api_version is not None:
-            kwargs["api_version"] = api_version
-
-        response = fulcra_api.record_data_type(**kwargs)
+        response = fulcra_api.record_data_type(
+            data_type="DeletedRecord", records=records, api_version=deletion_api_version
+        )
 
         # Print summary
         upload_id = response["upload_id"]
