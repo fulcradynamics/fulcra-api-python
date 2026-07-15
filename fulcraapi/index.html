@@ -763,6 +763,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.record_data_type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        record_data_type
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fulcra_api.core.FulcraAPI.refresh_access_token" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -888,6 +899,39 @@
     <span class="md-ellipsis">
       
         update_datashare
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.v1_catalog_data_type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v1_catalog_data_type
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.v1_catalog_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v1_catalog_schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.validate_records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate_records
       
     </span>
   </a>
@@ -1411,6 +1455,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.record_data_type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        record_data_type
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fulcra_api.core.FulcraAPI.refresh_access_token" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1536,6 +1591,39 @@
     <span class="md-ellipsis">
       
         update_datashare
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.v1_catalog_data_type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v1_catalog_data_type
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.v1_catalog_schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        v1_catalog_schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.validate_records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        validate_records
       
     </span>
   </a>
@@ -3425,7 +3513,7 @@ uploaded files that changed.</p>
 
 
 <h3 id="fulcra_api.core.FulcraAPI.fulcra_api" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">fulcra_api</span><span class="p">(</span><span class="n">url_path</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;GET&#39;</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_http_response</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">fulcra_api</span><span class="p">(</span><span class="n">url_path</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;GET&#39;</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_http_response</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">content_type</span><span class="o">=</span><span class="s1">&#39;application/json&#39;</span><span class="p">)</span></code>
 
 </h3>
 
@@ -3484,7 +3572,7 @@ with the specified access token.</p>
                 <code>query</code>
             </td>
             <td>
-                  <code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>[<span title="str">str</span>, <span title="str">str</span>]]</code>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="str">str</span>] | None</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -3500,11 +3588,11 @@ with the specified access token.</p>
                 <code>data</code>
             </td>
             <td>
-                  <code><span title="typing.Optional">Optional</span>[<span title="dict">dict</span>]</code>
+                  <code><span title="dict">dict</span> | <span title="typing.List">List</span>[<span title="dict">dict</span>] | None</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Dictionary that will get serialized into JSON as the request body</p>
+                <p>Dictionary or list of dictionaries to send as request body</p>
               </div>
             </td>
             <td>
@@ -3525,6 +3613,22 @@ with the specified access token.</p>
             </td>
             <td>
                   <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>content_type</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Content-Type header (default: "application/json")</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;application/json&#39;</code>
             </td>
           </tr>
       </tbody>
@@ -5304,6 +5408,121 @@ Examples:
 <div class="doc doc-object doc-function">
 
 
+<h3 id="fulcra_api.core.FulcraAPI.record_data_type" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">record_data_type</span><span class="p">(</span><span class="n">data_type</span><span class="p">,</span> <span class="n">records</span><span class="p">,</span> <span class="n">api_version</span><span class="o">=</span><span class="s1">&#39;v1alpha1&#39;</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Record data for a Fulcra data type using batch ingestion.</p>
+<p>Requires a valid access token.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>data_type</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The Fulcra data type to record (e.g., "NumericAnnotation", "MomentAnnotation")</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>records</code>
+            </td>
+            <td>
+                  <code><span title="typing.List">List</span>[<span title="dict">dict</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>List of record dictionaries (schema depends on data_type)</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>api_version</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>API version to use (default: "v1alpha1")</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;v1alpha1&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Dictionary containing the upload_id</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>records = [
+    {"value": 75.5, "unit": "bpm", "note": "Resting heart rate"},
+    {"value": 80.2, "unit": "bpm"}
+]
+response = client.record_data_type("NumericAnnotation", records)
+print(response["upload_id"])</p>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h3 id="fulcra_api.core.FulcraAPI.refresh_access_token" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">refresh_access_token</span><span class="p">()</span></code>
 
@@ -6433,6 +6652,405 @@ specific fields.</p>
 <span class="gp">... </span><span class="p">)</span>
 </code></pre></div>
 
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fulcra_api.core.FulcraAPI.v1_catalog_data_type" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">v1_catalog_data_type</span><span class="p">(</span><span class="n">data_type</span><span class="p">,</span> <span class="n">api_version</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Get catalog entry for a specific data type and API version, including schema.</p>
+<p>Requires a valid access token.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>data_type</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The Fulcra data type ID</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>api_version</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>API version (e.g., "v1", "v1alpha1")</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Dict">Dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Dictionary containing catalog entry with schema included</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>catalog = client.v1_catalog_data_type("NumericAnnotation", "v1alpha1")
+schema = catalog.get("record_spec", {}).get("schema")</p>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fulcra_api.core.FulcraAPI.v1_catalog_schema" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">v1_catalog_schema</span><span class="p">(</span><span class="n">data_type</span><span class="p">,</span> <span class="n">api_version</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Get the JSON schema for a specific data type and API version.</p>
+<p>Requires a valid access token.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>data_type</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The Fulcra data type ID</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>api_version</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>API version (e.g., "v1", "v1alpha1")</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="typing.Dict">Dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Dictionary containing the JSON schema</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="HTTPError">HTTPError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If schema cannot be fetched (e.g., 404 if not found)</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>schema = client.v1_catalog_schema("NumericAnnotation", "v1alpha1")
+required_fields = schema.get("required", [])</p>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fulcra_api.core.FulcraAPI.validate_records" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">validate_records</span><span class="p">(</span><span class="n">data_type</span><span class="p">,</span> <span class="n">records</span><span class="p">,</span> <span class="n">api_version</span><span class="o">=</span><span class="s1">&#39;v1alpha1&#39;</span><span class="p">)</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Validate records against the schema for a Fulcra data type.</p>
+<p>Requires a valid access token.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>data_type</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The Fulcra data type to validate against</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>records</code>
+            </td>
+            <td>
+                  <code><span title="typing.List">List</span>[<span title="dict">dict</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>List of record dictionaries to validate</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>api_version</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>API version to use (default: "v1alpha1")</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;v1alpha1&#39;</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="tuple">tuple</span>[<span title="int">int</span>, <span title="str">str</span>, <span title="jsonschema.ValidationError">ValidationError</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>List of tuples (record_index, error_message, validation_error) for records with errors.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="tuple">tuple</span>[<span title="int">int</span>, <span title="str">str</span>, <span title="jsonschema.ValidationError">ValidationError</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Empty list if all records are valid.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="tuple">tuple</span>[<span title="int">int</span>, <span title="str">str</span>, <span title="jsonschema.ValidationError">ValidationError</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li>record_index: zero-based index of the invalid record</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="tuple">tuple</span>[<span title="int">int</span>, <span title="str">str</span>, <span title="jsonschema.ValidationError">ValidationError</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li>error_message: human-readable error description</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="list">list</span>[<span title="tuple">tuple</span>[<span title="int">int</span>, <span title="str">str</span>, <span title="jsonschema.ValidationError">ValidationError</span>]]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li>validation_error: the full jsonschema.ValidationError object</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="HTTPError">HTTPError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If schema cannot be fetched</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>records = [
+    {"value": 75.5, "unit": "bpm"},
+    {"unit": "bpm"}  # missing required 'value'
+]
+errors = client.validate_records("NumericAnnotation", records)
+if errors:
+    for idx, error_msg, error_obj in errors:
+        print(f"Record {idx + 1}: {error_msg}")</p>
+</details>
 
     </div>
 
