@@ -703,15 +703,28 @@ def get_records(
 @click.option("-d", "--data-type", type=str, help="Data Type to look up by ID.")
 @click.option("-n", "--name", type=str, help="Filter results by partial name.")
 @click.option("--base-types-only", is_flag=True, default=False)
+@click.option(
+    "--recordable-only",
+    is_flag=True,
+    default=False,
+    help="Only show recordable data types.",
+)
 @click.option("-c", "--category", type=str, help="Filter by category.")
+@click.option(
+    "--api-version",
+    type=str,
+    help="Filter by API version. When used with --data-type, fetches specific version including schema.",
+)
 @pass_fulcra_api
 @requires_auth
 def catalog(
     fulcra_api: FulcraAPI,
     base_types_only: bool,
+    recordable_only: bool,
     data_type: str | None = None,
     name: str | None = None,
     category: str | None = None,
+    api_version: str | None = None,
 ):
     """
     Return a list of Fulcra Data Types that can be queried with `get-records`, `metric-time-series`, and other commands.
@@ -720,14 +733,25 @@ def catalog(
     """
 
     try:
-        if base_types_only:
-            catalog_category = "base_type"
-        elif category:
-            catalog_category = category
+        # If both data_type and api_version are specified, use the specific endpoint
+        if data_type and api_version:
+            catalog_entry = fulcra_api.v1_catalog_data_type(data_type, api_version)
+            response = [catalog_entry]
         else:
-            catalog_category = None
+            if base_types_only:
+                catalog_category = "base_type"
+            elif category:
+                catalog_category = category
+            else:
+                catalog_category = None
 
-        response = fulcra_api.v1_catalog(data_type=data_type, category=catalog_category)
+            response = fulcra_api.v1_catalog(
+                data_type=data_type, category=catalog_category
+            )
+
+            # Filter by api_version if provided (but not with data_type)
+            if api_version:
+                response = [c for c in response if c.get("api_version") == api_version]
     except HTTPError as exc:
         if exc.code == 404:
             raise click.ClickException("Type not found")
@@ -736,6 +760,15 @@ def catalog(
 
     if name:
         response = [c for c in response if name.lower() in c.get("name", "").lower()]
+
+    if recordable_only:
+        # TODO: Remove api_version filter once v0 type recording is supported via /ingest/v1/record
+        # Currently, the ingest endpoint rejects v0 types with "Can not use this endpoint to record v0 data types"
+        response = [
+            c
+            for c in response
+            if c.get("recordable", False) and c.get("api_version") != "v0"
+        ]
 
     for c in response:
         c["related_cli_commands"] = related_cli_commands(c)

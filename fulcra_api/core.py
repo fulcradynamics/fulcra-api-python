@@ -11,6 +11,7 @@ import webbrowser
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+import jsonschema
 import pandas as pd
 
 from .credentials import FulcraCredentials
@@ -324,9 +325,10 @@ class FulcraAPI:
         self,
         url_path: str,
         method: str = "GET",
-        query: Optional[dict[str, str]] = None,
-        data: Optional[dict] = None,
+        query: dict[str, str] | None = None,
+        data: dict | List[dict] | None = None,
         return_http_response: bool = False,
+        content_type: str = "application/json",
     ) -> bytes | http.client.HTTPResponse:
         """
         Make a call to the given url path (e.g. `/v0/data/metric_time_series?...`)
@@ -336,8 +338,9 @@ class FulcraAPI:
             url_path: The path of the URL to use (e.g. `"/v0/data/..."`)
             method: The HTTP method for the request (Default: GET)
             query: Key/value pairs of query params
-            data: Dictionary that will get serialized into JSON as the request body
+            data: Dictionary or list of dictionaries to send as request body
             return_http_response: Return a HTTPResponse object instead of bytes (default: False)
+            content_type: Content-Type header (default: "application/json")
 
         Returns:
             The raw response data (as bytes).  Raises an exception on failure.
@@ -366,8 +369,25 @@ class FulcraAPI:
         headers = {"Authorization": f"Bearer {self.fulcra_credentials.access_token}"}
 
         if data:
-            headers["Content-Type"] = "application/json"
-            ds = json.dumps(data).encode("UTF-8")
+            headers["Content-Type"] = content_type
+
+            # Serialize data based on content type
+            if content_type == "application/x-jsonl":
+                # Convert to JSONL (newline-delimited JSON)
+                if isinstance(data, list):
+                    ds = "\n".join(json.dumps(record) for record in data).encode(
+                        "UTF-8"
+                    )
+                else:
+                    # Single dict as JSONL
+                    ds = json.dumps(data).encode("UTF-8")
+                # Add trailing newline for JSONL
+                ds += b"\n"
+            else:
+                # Standard JSON
+                ds = json.dumps(data).encode("UTF-8")
+
+            headers["Content-Length"] = str(len(ds))
         else:
             ds = None
 
@@ -1036,6 +1056,51 @@ class FulcraAPI:
         else:
             uri = "/data/v1/catalog"
 
+        resp = self.fulcra_api(uri)
+        return json.loads(resp)
+
+    def v1_catalog_data_type(self, data_type: str, api_version: str) -> Dict:
+        """
+        Get catalog entry for a specific data type and API version, including schema.
+
+        Requires a valid access token.
+
+        Params:
+            data_type: The Fulcra data type ID
+            api_version: API version (e.g., "v1", "v1alpha1")
+
+        Returns:
+            Dictionary containing catalog entry with schema included
+
+        Example:
+            catalog = client.v1_catalog_data_type("NumericAnnotation", "v1alpha1")
+            schema = catalog.get("record_spec", {}).get("schema")
+        """
+        uri = f"/data/v1/catalog/{data_type}/{api_version}"
+        resp = self.fulcra_api(uri)
+        return json.loads(resp)
+
+    def v1_catalog_schema(self, data_type: str, api_version: str) -> Dict:
+        """
+        Get the JSON schema for a specific data type and API version.
+
+        Requires a valid access token.
+
+        Params:
+            data_type: The Fulcra data type ID
+            api_version: API version (e.g., "v1", "v1alpha1")
+
+        Returns:
+            Dictionary containing the JSON schema
+
+        Raises:
+            HTTPError: If schema cannot be fetched (e.g., 404 if not found)
+
+        Example:
+            schema = client.v1_catalog_schema("NumericAnnotation", "v1alpha1")
+            required_fields = schema.get("required", [])
+        """
+        uri = f"/data/v1/catalog/{data_type}/{api_version}/schema"
         resp = self.fulcra_api(uri)
         return json.loads(resp)
 
@@ -1877,6 +1942,92 @@ class FulcraAPI:
         )
         return json.loads(resp)
 
+    def record_data_type(
+        self, data_type: str, records: List[dict], api_version: str = "v1alpha1"
+    ) -> dict:
+        """
+        Record data for a Fulcra data type using batch ingestion.
+
+        Requires a valid access token.
+
+        Params:
+            data_type: The Fulcra data type to record (e.g., "NumericAnnotation", "MomentAnnotation")
+            records: List of record dictionaries (schema depends on data_type)
+            api_version: API version to use (default: "v1alpha1")
+
+        Returns:
+            Dictionary containing the upload_id
+
+        Example:
+            records = [
+                {"value": 75.5, "unit": "bpm", "note": "Resting heart rate"},
+                {"value": 80.2, "unit": "bpm"}
+            ]
+            response = client.record_data_type("NumericAnnotation", records)
+            print(response["upload_id"])
+        """
+        resp = self.fulcra_api(
+            f"/ingest/v1/record/{data_type}",
+            method="POST",
+            query={"api_version": api_version},
+            data=records,
+            content_type="application/x-jsonl",
+        )
+        return json.loads(resp)
+
+    def validate_records(
+        self, data_type: str, records: List[dict], api_version: str = "v1alpha1"
+    ) -> list[tuple[int, str, jsonschema.ValidationError]]:
+        """
+        Validate records against the schema for a Fulcra data type.
+
+        Requires a valid access token.
+
+        Params:
+            data_type: The Fulcra data type to validate against
+            records: List of record dictionaries to validate
+            api_version: API version to use (default: "v1alpha1")
+
+        Returns:
+            List of tuples (record_index, error_message, validation_error) for records with errors.
+            Empty list if all records are valid.
+            - record_index: zero-based index of the invalid record
+            - error_message: human-readable error description
+            - validation_error: the full jsonschema.ValidationError object
+
+        Raises:
+            HTTPError: If schema cannot be fetched
+
+        Example:
+            records = [
+                {"value": 75.5, "unit": "bpm"},
+                {"unit": "bpm"}  # missing required 'value'
+            ]
+            errors = client.validate_records("NumericAnnotation", records)
+            if errors:
+                for idx, error_msg, error_obj in errors:
+                    print(f"Record {idx + 1}: {error_msg}")
+        """
+        # Fetch schema
+        schema = self.v1_catalog_schema(data_type, api_version)
+
+        # Validate each record and collect errors
+        errors = []
+        for idx, record in enumerate(records):
+            try:
+                jsonschema.validate(
+                    instance=record,
+                    schema=schema,
+                    format_checker=jsonschema.FormatChecker(),
+                )
+            except jsonschema.ValidationError as e:
+                error_msg = e.message
+                if e.path:
+                    error_msg += f" (path: {'.'.join(str(p) for p in e.path)})"
+                errors.append((idx, error_msg, e))
+
+        return errors
+
     #
     # File functionality
     #
@@ -1927,7 +2078,6 @@ class FulcraAPI:
     def upload_file(
         self, data: io.BufferedReader, file_type: str, file_size: int, filepath: str
     ) -> dict:
-
         path = PurePath(filepath)
 
         file_info = {
