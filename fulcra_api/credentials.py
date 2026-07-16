@@ -10,6 +10,8 @@ class FulcraCredentials:
     access_token_expiration: Optional[datetime] = None
     refresh_token: Optional[str] = None
     refresh_token_expiration: Optional[datetime] = None
+    id_token: Optional[str] = None
+    id_token_expiration: Optional[datetime] = None
 
     def is_expired(self) -> bool:
         """return whether the held credentials are expired"""
@@ -31,6 +33,10 @@ class FulcraCredentials:
                 "refresh_token_expiration": self.refresh_token_expiration.isoformat()
                 if self.refresh_token_expiration
                 else None,
+                "id_token": self.id_token,
+                "id_token_expiration": self.id_token_expiration.isoformat()
+                if self.id_token_expiration
+                else None,
             }
         )
 
@@ -46,6 +52,11 @@ class FulcraCredentials:
         if o.get("refresh_token_expiration", None):
             o["refresh_token_expiration"] = datetime.fromisoformat(
                 o["refresh_token_expiration"]
+            )
+
+        if o.get("id_token_expiration", None):
+            o["id_token_expiration"] = datetime.fromisoformat(
+                o["id_token_expiration"]
             )
 
         return FulcraCredentials(**o)
