@@ -1138,8 +1138,13 @@ class FulcraAPI:
             {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
         ]
 
+        # Temporary until we can get the user name from the identity token,
+        # or until we don't require it in the datashare body
+        fulcra_user_name = self.get_fulcra_userid()
+
         datashare_body = {
             "datashare_name": datashare_name,
+            "fulcra_user_name": fulcra_user_name,
             "time_start": time_start.isoformat() if time_start else None,
             "time_end": time_end.isoformat() if time_end else None,
             "fulcra_data_types": fulcra_data_types,
