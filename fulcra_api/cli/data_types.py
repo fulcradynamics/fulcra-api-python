@@ -124,10 +124,10 @@ def data_type_create(
             )
 
     # TODO: Possibly update type metadata to be able to determine that this is a scale
-    if fulcra_data_type["id"] == "ScaleAnnotation" and len(scale_labels) > 0:
+    if fulcra_data_type["id"] != "ScaleAnnotation" and len(scale_labels) > 0:
         raise click.BadOptionUsage(
             "scale_labels",
-            f"-s / --scale-labels cannot be used with base data type {base_data_type}",
+            f"-s / --scale-label cannot be used with base data type {base_data_type}",
         )
 
     value = None
@@ -155,7 +155,7 @@ def data_type_create(
             if len(scale_labels) != 5:
                 raise click.BadOptionUsage(
                     "scale_labels",
-                    f"-s / --scale-labels must be used with exactly 5 values with base data type {base_data_type}",
+                    f"-s / --scale-label must be used with exactly 5 values with base data type {base_data_type}",
                 )
             # user-service does not accept a unit for scale annotations
             if unit is not None:
