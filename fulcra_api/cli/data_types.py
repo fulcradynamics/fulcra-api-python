@@ -293,9 +293,17 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
     default=None,
     help="API version (required if data type has multiple versions)",
 )
+@click.option(
+    "--user-id",
+    type=str,
+    default=None,
+    help="User ID for the data type (defaults to authenticated user)",
+)
 @pass_fulcra_api
 @requires_auth
-def get_schema(fulcra_api: FulcraAPI, data_type: str, api_version: str | None):
+def get_schema(
+    fulcra_api: FulcraAPI, data_type: str, api_version: str | None, user_id: str | None
+):
     """
     Get the JSON schema for a Fulcra data type.
 
@@ -312,9 +320,14 @@ def get_schema(fulcra_api: FulcraAPI, data_type: str, api_version: str | None):
     fulcra data-type schema DeletedRecord
     """
     try:
+        if user_id is None:
+            user_id = fulcra_api.get_fulcra_userid()
+
         # If api_version not provided, try to auto-detect
         if api_version is None:
-            catalog_results = fulcra_api.v1_catalog(data_type=data_type)
+            catalog_results = fulcra_api.v1_catalog(
+                data_type=data_type, fulcra_userid=user_id
+            )
             if len(catalog_results) == 0:
                 raise click.ClickException(
                     f"Data type '{data_type}' not found in catalog"
@@ -325,7 +338,9 @@ def get_schema(fulcra_api: FulcraAPI, data_type: str, api_version: str | None):
                 )
             api_version = catalog_results[0]["api_version"]
 
-        schema = fulcra_api.v1_catalog_schema(data_type, api_version)
+        schema = fulcra_api.v1_catalog_schema(
+            data_type=data_type, api_version=api_version, fulcra_userid=user_id
+        )
         click.echo(json.dumps(schema, indent=2))
     except HTTPError as exc:
         if exc.code == 404:
