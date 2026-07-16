@@ -715,6 +715,12 @@ def get_records(
     type=str,
     help="Filter by API version. When used with --data-type, fetches specific version including schema.",
 )
+@click.option(
+    "--user-id",
+    type=str,
+    default=None,
+    help="Fulcra user ID of which data types to fetch.",
+)
 @pass_fulcra_api
 @requires_auth
 def catalog(
@@ -725,6 +731,7 @@ def catalog(
     name: str | None = None,
     category: str | None = None,
     api_version: str | None = None,
+    user_id: str | None = None,
 ):
     """
     Return a list of Fulcra Data Types that can be queried with `get-records`, `metric-time-series`, and other commands.
@@ -735,7 +742,9 @@ def catalog(
     try:
         # If both data_type and api_version are specified, use the specific endpoint
         if data_type and api_version:
-            catalog_entry = fulcra_api.v1_catalog_data_type(data_type, api_version)
+            catalog_entry = fulcra_api.v1_catalog_data_type(
+                data_type=data_type, api_version=api_version, fulcra_userid=user_id
+            )
             response = [catalog_entry]
         else:
             if base_types_only:
@@ -746,7 +755,7 @@ def catalog(
                 catalog_category = None
 
             response = fulcra_api.v1_catalog(
-                data_type=data_type, category=catalog_category
+                data_type=data_type, category=catalog_category, fulcra_userid=user_id
             )
 
             # Filter by api_version if provided (but not with data_type)
