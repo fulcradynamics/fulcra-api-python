@@ -630,20 +630,10 @@ def get_records(
     fulcra get-records StepCount "1 day"
     """
 
-    # Deal with user-configured annotation shorthand (AnnotationType/UUID)
-    user_annotation_id = None
-    parts = data_type.split("/", maxsplit=2)
-    if len(parts) > 1:
-        data_type = parts[0]
-        try:
-            user_annotation_id = UUID(parts[1])
-        except ValueError:
-            raise click.ClickException(
-                "User configured annotation shorthand must be <Annotation Type>/<UUID>"
-            )
-
     try:
-        data_type = fulcra_api.v1_catalog(data_type)
+        catalog_data_types = fulcra_api.v1_catalog(
+            data_type=data_type, fulcra_userid=user_id
+        )
     except HTTPError as exc:
         if exc.code == 404:
             raise click.ClickException("Type not found")
@@ -652,7 +642,21 @@ def get_records(
 
     results = []
 
-    for dt in data_type:
+    for dt in catalog_data_types:
+        # Deal with user-configured annotation shorthand (AnnotationType/UUID)
+        user_annotation_id = None
+        parts = dt["id"].split("/", maxsplit=2)
+        if len(parts) > 1:
+            base_type = parts[0]
+            try:
+                user_annotation_id = UUID(parts[1])
+            except ValueError:
+                raise click.ClickException(
+                    "User configured annotation shorthand must be <Annotation Type>/<UUID>"
+                )
+        else:
+            base_type = parts[0]
+
         record_type = dt.get("record_spec", {}).get("type")
         if dt["api_version"] == "v0" and record_type == "metric":
             query_func = fulcra_api.metric_samples
@@ -665,7 +669,7 @@ def get_records(
                 kwargs["fulcra_userid"] = user_id
         elif dt["api_version"] == "v1alpha1" and record_type == "metric":
             query_func = fulcra_api.fulcra_v1_api_path
-            path = f"{record_type}/{dt['id']}"
+            path = f"{record_type}/{base_type}"
             if user_annotation_id:
                 path = f"{path}/{user_annotation_id}"
             params = {"start_time": start_time, "end_time": end_time}
@@ -674,7 +678,7 @@ def get_records(
             kwargs = {"path": path, "params": params}
         elif dt["api_version"] == "v1alpha1" and record_type == "event":
             query_func = fulcra_api.fulcra_v1_api_path
-            path = f"{record_type}/{dt['id']}"
+            path = f"{record_type}/{base_type}"
             if user_annotation_id:
                 path = f"{path}/{user_annotation_id}"
             params = {"start_time": start_time, "end_time": end_time}
