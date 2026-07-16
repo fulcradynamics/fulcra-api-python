@@ -264,7 +264,10 @@ def record(
             if schema_api_version is None:
                 # Query catalog to find the data type and its API version
                 try:
-                    catalog_results = fulcra_api.v1_catalog(data_type=base_type)
+                    catalog_results = fulcra_api.v1_catalog(
+                        data_type=base_type,
+                        fulcra_userid=fulcra_api.get_fulcra_userid(),
+                    )
                     if len(catalog_results) == 0:
                         raise click.ClickException(
                             f"Data type '{base_type}' not found in catalog"
@@ -428,7 +431,9 @@ def delete_records(
         if deletion_api_version is None:
             # Query catalog to find the data type and its API version
             try:
-                catalog_results = fulcra_api.v1_catalog(data_type=data_type)
+                catalog_results = fulcra_api.v1_catalog(
+                    data_type=data_type, fulcra_userid=fulcra_api.get_fulcra_userid()
+                )
                 if len(catalog_results) == 0:
                     raise click.ClickException(
                         f"Data type '{data_type}' not found in catalog"

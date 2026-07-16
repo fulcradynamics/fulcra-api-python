@@ -83,7 +83,9 @@ def data_type_create(
     """
 
     try:
-        catalog_resp = fulcra_api.v1_catalog(base_data_type)
+        catalog_resp = fulcra_api.v1_catalog(
+            data_type=base_data_type, fulcra_userid=fulcra_api.get_fulcra_userid()
+        )
     except HTTPError as exc:
         raise click.ClickException(f"Failed to validate BASE_DATA_TYPE: {exc}")
 
@@ -221,7 +223,9 @@ def data_type_archive(fulcra_api: FulcraAPI, data_type: str):
     """
 
     try:
-        filtered_types = fulcra_api.v1_catalog(data_type=data_type)
+        filtered_types = fulcra_api.v1_catalog(
+            data_type=data_type, fulcra_userid=fulcra_api.get_fulcra_userid()
+        )
     except HTTPError:
         raise click.ClickException(f"Could not find data type matching id: {data_type}")
 
@@ -259,7 +263,9 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
     """
 
     try:
-        filtered_types = fulcra_api.v1_catalog(data_type=data_type)
+        filtered_types = fulcra_api.v1_catalog(
+            data_type=data_type, fulcra_userid=fulcra_api.get_fulcra_userid()
+        )
     except HTTPError:
         raise click.ClickException(f"Could not find data type matching id: {data_type}")
 
