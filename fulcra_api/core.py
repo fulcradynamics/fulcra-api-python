@@ -10,6 +10,7 @@ import urllib.request
 import webbrowser
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from uuid import UUID
 
 import jsonschema
 import pandas as pd
@@ -1041,25 +1042,28 @@ class FulcraAPI:
         return json.loads(resp)
 
     def v1_catalog(
-        self, data_type: Optional[str] = None, category: Optional[str] = None
+        self,
+        data_type: str | None = None,
+        category: str | None = None,
+        fulcra_userid: str | None = None,
     ) -> List[Dict]:
         params = {}
         if data_type:
             params["data_type"] = data_type
         if category:
             params["category"] = category
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
 
-        query_params = urllib.parse.urlencode(params, doseq=True)
-
-        if query_params != "":
-            uri = f"/data/v1/catalog?{query_params}"
-        else:
-            uri = "/data/v1/catalog"
-
-        resp = self.fulcra_api(uri)
+        resp = self.fulcra_api("/data/v1/catalog", query=params)
         return json.loads(resp)
 
-    def v1_catalog_data_type(self, data_type: str, api_version: str) -> Dict:
+    def v1_catalog_data_type(
+        self,
+        data_type: str,
+        api_version: str,
+        fulcra_userid: str | None = None,
+    ) -> Dict:
         """
         Get catalog entry for a specific data type and API version, including schema.
 
@@ -1068,6 +1072,7 @@ class FulcraAPI:
         Params:
             data_type: The Fulcra data type ID
             api_version: API version (e.g., "v1", "v1alpha1")
+            fulcra_userid: Optional Fulcra user ID to filter by
 
         Returns:
             Dictionary containing catalog entry with schema included
@@ -1076,8 +1081,12 @@ class FulcraAPI:
             catalog = client.v1_catalog_data_type("NumericAnnotation", "v1alpha1")
             schema = catalog.get("record_spec", {}).get("schema")
         """
+        params = {}
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
         uri = f"/data/v1/catalog/{data_type}/{api_version}"
-        resp = self.fulcra_api(uri)
+        resp = self.fulcra_api(uri, query=params)
         return json.loads(resp)
 
     def v1_catalog_schema(self, data_type: str, api_version: str) -> Dict:
