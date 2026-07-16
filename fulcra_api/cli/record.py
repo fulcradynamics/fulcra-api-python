@@ -265,27 +265,32 @@ def record(
                 # Query catalog to find the data type and its API version
                 try:
                     catalog_results = fulcra_api.v1_catalog(
-                        data_type=base_type,
+                        data_type=data_type,
                         fulcra_userid=fulcra_api.get_fulcra_userid(),
                     )
                     if len(catalog_results) == 0:
                         raise click.ClickException(
-                            f"Data type '{base_type}' not found in catalog"
+                            f"Data type '{data_type}' not found in catalog"
                         )
                     elif len(catalog_results) > 1:
                         raise click.ClickException(
-                            f"Multiple data types found for '{base_type}'. "
+                            f"Multiple data types found for '{data_type}'. "
                             "Please specify --api-version"
                         )
                     schema_api_version = catalog_results[0]["api_version"]
                 except HTTPError as exc:
-                    raise click.ClickException(
-                        f"Failed to query catalog for {base_type}: {exc}"
-                    )
+                    if exc.code == 404:
+                        raise click.ClickException(
+                            f"Data type '{data_type}' not found in catalog"
+                        )
+                    else:
+                        raise click.ClickException(
+                            f"Failed to query catalog for {data_type}: {exc}"
+                        )
 
             try:
                 validation_errors = fulcra_api.validate_records(
-                    base_type, records, schema_api_version
+                    data_type=data_type, records=records, api_version=schema_api_version
                 )
 
                 # Check for validation errors (only invalid records are returned)
