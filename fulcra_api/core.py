@@ -1089,7 +1089,9 @@ class FulcraAPI:
         resp = self.fulcra_api(uri, query=params)
         return json.loads(resp)
 
-    def v1_catalog_schema(self, data_type: str, api_version: str) -> Dict:
+    def v1_catalog_schema(
+        self, data_type: str, api_version: str, fulcra_userid: str | None = None
+    ) -> Dict:
         """
         Get the JSON schema for a specific data type and API version.
 
@@ -1098,6 +1100,7 @@ class FulcraAPI:
         Params:
             data_type: The Fulcra data type ID
             api_version: API version (e.g., "v1", "v1alpha1")
+            fulcra_userid: Optional Fulcra user ID for the data type
 
         Returns:
             Dictionary containing the JSON schema
@@ -1109,8 +1112,13 @@ class FulcraAPI:
             schema = client.v1_catalog_schema("NumericAnnotation", "v1alpha1")
             required_fields = schema.get("required", [])
         """
+
+        params = {}
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
         uri = f"/data/v1/catalog/{data_type}/{api_version}/schema"
-        resp = self.fulcra_api(uri)
+        resp = self.fulcra_api(uri, query=params)
         return json.loads(resp)
 
     def create_datashare(
