@@ -1127,15 +1127,16 @@ class FulcraAPI:
 
         Defaults to the authenticated user ID for disambiguation if fulcra_userid is not provided.
 
-        If the data type cannot be disambiguated, raises a ValueError.
-
-        Args:
+        Params:
             data_type: The data type to disambiguate
             api_version: The API version to use (optional)
             fulcra_userid: The Fulcra user ID to use (optional)
 
         Returns:
             The disambiguated data type as a dictionary
+
+        Raises:
+            ValueError: If no data types are found or multiple types cannot be disambiguated
         """
         if api_version is not None and fulcra_userid is not None:
             try:
@@ -1153,8 +1154,8 @@ class FulcraAPI:
         data_types = self.v1_catalog(data_type=data_type, fulcra_userid=fulcra_userid)
         if len(data_types) > 1:
             multiple_api_versions = False
+            api_versions = {dt["api_version"] for dt in data_types}
             if api_version is None:
-                api_versions = {dt["api_version"] for dt in data_types}
                 if len(api_versions) > 1:
                     multiple_api_versions = True
             else:
@@ -1164,8 +1165,8 @@ class FulcraAPI:
 
             # Default to the authenticated user ID if None is specified
             multiple_user_ids = False
-            if fulcra_userid is None:
-                user_ids = {dt["fulcra_userid"] for dt in data_types}
+            user_ids = {dt["fulcra_userid"] for dt in data_types}
+            if fulcra_userid is None and len(user_ids) > 1:
                 authenticated_user_id = self.get_fulcra_userid()
                 if authenticated_user_id in user_ids:
                     data_types = [
@@ -1177,7 +1178,7 @@ class FulcraAPI:
                     multiple_user_ids = True
 
             if len(data_types) > 1:
-                hints = []
+                hints = [f"{len(data_types)} types"]
                 if multiple_api_versions:
                     hints.append("multiple API versions")
                 if multiple_user_ids:
