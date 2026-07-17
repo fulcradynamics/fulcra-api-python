@@ -10,6 +10,7 @@ import urllib.request
 import webbrowser
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from urllib.error import HTTPError
 from uuid import UUID
 
 import jsonschema
@@ -393,8 +394,6 @@ class FulcraAPI:
             ds = None
 
         req = urllib.request.Request(url=url, data=ds, headers=headers, method=method)
-
-        from urllib.error import HTTPError
 
         try:
             response = urllib.request.urlopen(req)
@@ -1120,6 +1119,78 @@ class FulcraAPI:
         uri = f"/data/v1/catalog/{data_type}/{api_version}/schema"
         resp = self.fulcra_api(uri, query=params)
         return json.loads(resp)
+
+    def disambiguate_data_type(
+        self, data_type: str, api_version: str | None, fulcra_userid: str | None
+    ) -> Dict:
+        """
+        Disambiguate a data type if possible.
+
+        Defaults to the authenticated user ID for disambiguation if fulcra_userid is not provided.
+
+        If the data type cannot be disambiguated, raises a ValueError.
+
+        Args:
+            data_type: The data type to disambiguate
+            api_version: The API version to use (optional)
+            fulcra_userid: The Fulcra user ID to use (optional)
+
+        Returns:
+            The disambiguated data type as a dictionary
+        """
+        if api_version is not None and fulcra_userid is not None:
+            try:
+                return self.v1_catalog_data_type(
+                    data_type=data_type,
+                    api_version=api_version,
+                    fulcra_userid=fulcra_userid,
+                )
+            except HTTPError as exc:
+                if exc.code == 404:
+                    raise ValueError(f"No data types found for {data_type}")
+                else:
+                    raise
+
+        data_types = self.v1_catalog(data_type=data_type, fulcra_userid=fulcra_userid)
+        if len(data_types) > 1:
+            multiple_api_versions = False
+            if api_version is None:
+                api_versions = {dt["api_version"] for dt in data_types}
+                if len(api_versions) > 1:
+                    multiple_api_versions = True
+            else:
+                data_types = [
+                    dt for dt in data_types if dt["api_version"] == api_version
+                ]
+
+            # Default to the authenticated user ID if None is specified
+            multiple_user_ids = False
+            if fulcra_userid is None:
+                user_ids = {dt["fulcra_userid"] for dt in data_types}
+                authenticated_user_id = self.get_fulcra_userid()
+                if authenticated_user_id in user_ids:
+                    data_types = [
+                        dt
+                        for dt in data_types
+                        if dt["fulcra_userid"] == authenticated_user_id
+                    ]
+                else:
+                    multiple_user_ids = True
+
+            if len(data_types) > 1:
+                hints = []
+                if multiple_api_versions:
+                    hints.append("multiple API versions")
+                if multiple_user_ids:
+                    hints.append("multiple user IDs")
+                raise ValueError(
+                    f"Multiple data types found for {data_type} ({', '.join(hints)})"
+                )
+
+        if len(data_types) == 0:
+            raise ValueError(f"No data types found for {data_type}")
+
+        return data_types[0]
 
     def create_datashare(
         self,
