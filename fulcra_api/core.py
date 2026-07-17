@@ -11,7 +11,6 @@ import webbrowser
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from urllib.error import HTTPError
-from uuid import UUID
 
 import jsonschema
 import pandas as pd
