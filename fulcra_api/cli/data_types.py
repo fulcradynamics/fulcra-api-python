@@ -326,32 +326,19 @@ def get_schema(
     fulcra data-type schema DeletedRecord
     """
     try:
-        if user_id is None:
-            user_id = fulcra_api.get_fulcra_userid()
-
-        # If api_version not provided, try to auto-detect
-        if api_version is None:
-            catalog_results = fulcra_api.v1_catalog(
-                data_type=data_type, fulcra_userid=user_id
-            )
-            if len(catalog_results) == 0:
-                raise click.ClickException(
-                    f"Data type '{data_type}' not found in catalog"
-                )
-            elif len(catalog_results) > 1:
-                raise click.ClickException(
-                    f"Multiple versions found for '{data_type}'. Please specify --api-version"
-                )
-            api_version = catalog_results[0]["api_version"]
-
-        schema = fulcra_api.v1_catalog_schema(
+        dt = fulcra_api.disambiguate_data_type(
             data_type=data_type, api_version=api_version, fulcra_userid=user_id
         )
+        schema = fulcra_api.v1_catalog_schema(
+            data_type=dt["id"],
+            api_version=dt["api_version"],
+            fulcra_userid=dt["fulcra_userid"],
+        )
         click.echo(json.dumps(schema, indent=2))
+    except ValueError as exc:
+        raise click.ClickException(str(exc))
     except HTTPError as exc:
         if exc.code == 404:
-            raise click.ClickException(
-                f"Schema not found for {data_type}/{api_version}"
-            )
+            raise click.ClickException(f"Schema not found for {data_type}")
         else:
             raise click.ClickException(f"Failed to fetch schema: {exc}")

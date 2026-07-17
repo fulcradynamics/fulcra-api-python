@@ -630,15 +630,25 @@ def get_records(
     fulcra get-records StepCount "1 day"
     """
 
-    try:
-        catalog_data_types = fulcra_api.v1_catalog(
-            data_type=data_type, fulcra_userid=user_id
-        )
-    except HTTPError as exc:
-        if exc.code == 404:
-            raise click.ClickException("Type not found")
-        else:
-            raise click.ClickException(exc)
+    # Use disambiguation for specific data types (with slash)
+    if "/" in data_type:
+        try:
+            dt = fulcra_api.disambiguate_data_type(
+                data_type=data_type, api_version=None, fulcra_userid=user_id
+            )
+            catalog_data_types = [dt]
+        except ValueError as exc:
+            raise click.ClickException(str(exc))
+    else:
+        try:
+            catalog_data_types = fulcra_api.v1_catalog(
+                data_type=data_type, fulcra_userid=user_id
+            )
+        except HTTPError as exc:
+            if exc.code == 404:
+                raise click.ClickException("Type not found")
+            else:
+                raise click.ClickException(exc)
 
     results = []
 
