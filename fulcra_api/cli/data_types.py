@@ -328,12 +328,16 @@ def get_schema(
     try:
         dt = fulcra_api.disambiguate_data_type(
             data_type=data_type, api_version=api_version, fulcra_userid=user_id
-        )
-        schema = fulcra_api.v1_catalog_schema(
-            data_type=dt["id"],
-            api_version=dt["api_version"],
-            fulcra_userid=dt["fulcra_userid"],
-        )
+        )[0]
+
+        # Just pull the schema froom the type if populated
+        schema = dt.get("record_spec", {}).get("schema")
+        if schema is None:
+            schema = fulcra_api.v1_catalog_schema(
+                data_type=dt["id"],
+                api_version=dt["api_version"],
+                fulcra_userid=dt["fulcra_userid"],
+            )
         click.echo(json.dumps(schema, indent=2))
     except ValueError as exc:
         raise click.ClickException(str(exc))
