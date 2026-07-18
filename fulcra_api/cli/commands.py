@@ -630,29 +630,16 @@ def get_records(
     fulcra get-records StepCount "1 day"
     """
 
-    # Use disambiguation for specific data types (with slash)
-    if "/" in data_type:
-        try:
-            dt = fulcra_api.disambiguate_data_type(
-                data_type=data_type, api_version=None, fulcra_userid=user_id
-            )
-            catalog_data_types = [dt]
-        except ValueError as exc:
-            raise click.ClickException(str(exc))
-    else:
-        try:
-            catalog_data_types = fulcra_api.v1_catalog(
-                data_type=data_type, fulcra_userid=user_id
-            )
-        except HTTPError as exc:
-            if exc.code == 404:
-                raise click.ClickException("Type not found")
-            else:
-                raise click.ClickException(exc)
+    authenticated_user_id = fulcra_api.get_fulcra_userid()
+    try:
+        data_types = fulcra_api.disambiguate_data_type(
+            data_type=data_type, api_version=None, fulcra_userid=user_id, multiple=True
+        )
+    except (ValueError, HTTPError) as exc:
+        raise click.ClickException(str(exc))
 
     results = []
-
-    for dt in catalog_data_types:
+    for dt in data_types:
         # Deal with user-configured annotation shorthand (AnnotationType/UUID)
         user_annotation_id = None
         parts = dt["id"].split("/", maxsplit=2)
@@ -675,16 +662,16 @@ def get_records(
                 "end_time": end_time,
                 "metric": dt["id"],
             }
-            if user_id:
-                kwargs["fulcra_userid"] = user_id
+            if authenticated_user_id != dt["fulcra_userid"]:
+                kwargs["fulcra_userid"] = dt["fulcra_userid"]
         elif dt["api_version"] == "v1alpha1" and record_type == "metric":
             query_func = fulcra_api.fulcra_v1_api_path
             path = f"{record_type}/{base_type}"
             if user_annotation_id:
                 path = f"{path}/{user_annotation_id}"
             params = {"start_time": start_time, "end_time": end_time}
-            if user_id:
-                params["fulcra_userid"] = user_id
+            if authenticated_user_id != dt["fulcra_userid"]:
+                params["fulcra_userid"] = dt["fulcra_userid"]
             kwargs = {"path": path, "params": params}
         elif dt["api_version"] == "v1alpha1" and record_type == "event":
             query_func = fulcra_api.fulcra_v1_api_path
@@ -692,8 +679,8 @@ def get_records(
             if user_annotation_id:
                 path = f"{path}/{user_annotation_id}"
             params = {"start_time": start_time, "end_time": end_time}
-            if user_id:
-                params["fulcra_userid"] = user_id
+            if authenticated_user_id != dt["fulcra_userid"]:
+                params["fulcra_userid"] = dt["fulcra_userid"]
             kwargs = {"path": path, "params": params}
         else:
             raise click.ClickException(
