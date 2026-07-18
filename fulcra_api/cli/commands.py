@@ -741,8 +741,8 @@ def catalog(
     """
 
     try:
-        # If both data_type and api_version are specified, use the specific endpoint
-        if data_type and api_version:
+        # If data_type, api_version, and user_id are specified, use the specific endpoint
+        if data_type and api_version and user_id:
             catalog_entry = fulcra_api.v1_catalog_data_type(
                 data_type=data_type, api_version=api_version, fulcra_userid=user_id
             )
@@ -759,9 +759,13 @@ def catalog(
                 data_type=data_type, category=catalog_category, fulcra_userid=user_id
             )
 
-            # Filter by api_version if provided (but not with data_type)
+            # Filter by api_version if provided
             if api_version:
                 response = [c for c in response if c.get("api_version") == api_version]
+
+            # Filter by category if provided
+            if category:
+                response = [c for c in response if category in c.get("categories", [])]
     except HTTPError as exc:
         if exc.code == 404:
             raise click.ClickException("Type not found")
