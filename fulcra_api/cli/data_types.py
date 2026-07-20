@@ -223,18 +223,12 @@ def data_type_archive(fulcra_api: FulcraAPI, data_type: str):
     """
 
     try:
-        filtered_types = fulcra_api.v1_catalog(
-            data_type=data_type, fulcra_userid=fulcra_api.get_fulcra_userid()
+        fulcra_api.disambiguate_data_type(
+            data_type=data_type,
+            fulcra_userid=fulcra_api.get_fulcra_userid(),
         )
-    except HTTPError:
-        raise click.ClickException(f"Could not find data type matching id: {data_type}")
-
-    if len(filtered_types) == 0:
-        raise click.ClickException(f"Could not find data type matching id: {data_type}")
-    elif len(filtered_types) > 1:
-        raise click.ClickException(
-            f"Found multiple data types matching id: {data_type}"
-        )
+    except (ValueError, HTTPError) as exc:
+        raise click.ClickException(str(exc))
 
     ann_id = None
     try:
