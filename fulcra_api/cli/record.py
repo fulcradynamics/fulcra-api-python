@@ -262,31 +262,15 @@ def record(
             # Determine API version for schema validation
             schema_api_version = api_version
             if schema_api_version is None:
-                # Query catalog to find the data type and its API version
+                # Disambiguate the data type
                 try:
-                    catalog_results = fulcra_api.v1_catalog(
+                    dt = fulcra_api.disambiguate_data_type(
                         data_type=data_type,
                         fulcra_userid=fulcra_api.get_fulcra_userid(),
-                    )
-                    if len(catalog_results) == 0:
-                        raise click.ClickException(
-                            f"Data type '{data_type}' not found in catalog"
-                        )
-                    elif len(catalog_results) > 1:
-                        raise click.ClickException(
-                            f"Multiple data types found for '{data_type}'. "
-                            "Please specify --api-version"
-                        )
-                    schema_api_version = catalog_results[0]["api_version"]
-                except HTTPError as exc:
-                    if exc.code == 404:
-                        raise click.ClickException(
-                            f"Data type '{data_type}' not found in catalog"
-                        )
-                    else:
-                        raise click.ClickException(
-                            f"Failed to query catalog for {data_type}: {exc}"
-                        )
+                    )[0]
+                    schema_api_version = dt["api_version"]
+                except (ValueError, HTTPError) as exc:
+                    raise click.ClickException(str(exc))
 
             try:
                 validation_errors = fulcra_api.validate_records(
@@ -434,25 +418,15 @@ def delete_records(
         # Determine API version for the data type being deleted
         deletion_api_version = api_version
         if deletion_api_version is None:
-            # Query catalog to find the data type and its API version
+            # Disambiguate the data type
             try:
-                catalog_results = fulcra_api.v1_catalog(
-                    data_type=data_type, fulcra_userid=fulcra_api.get_fulcra_userid()
-                )
-                if len(catalog_results) == 0:
-                    raise click.ClickException(
-                        f"Data type '{data_type}' not found in catalog"
-                    )
-                elif len(catalog_results) > 1:
-                    raise click.ClickException(
-                        f"Multiple data types found for '{data_type}'. "
-                        "Please specify --api-version"
-                    )
-                deletion_api_version = catalog_results[0]["api_version"]
-            except HTTPError as exc:
-                raise click.ClickException(
-                    f"Failed to query catalog for {data_type}: {exc}"
-                )
+                dt = fulcra_api.disambiguate_data_type(
+                    data_type=data_type,
+                    fulcra_userid=fulcra_api.get_fulcra_userid(),
+                )[0]
+                deletion_api_version = dt["api_version"]
+            except (ValueError, HTTPError) as exc:
+                raise click.ClickException(str(exc))
 
         # Validate records unless --no-validate
         if not no_validate:
