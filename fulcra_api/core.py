@@ -1135,13 +1135,13 @@ class FulcraAPI:
             data_type: The data type to disambiguate
             api_version: The API version to use (optional)
             fulcra_userid: The Fulcra user ID to use (optional)
-            multiple: Whether to return multiple API versions if disambiguation is not possible (default: False)
+            multiple: Whether to return multiple API versions if API version cannot be disambiguated (default: False)
 
         Returns:
             The disambiguated data type as a dictionary
 
         Raises:
-            ValueError: If no data types are found or multiple types cannot be disambiguated
+            ValueError: If no data types are found or data type could not be disambiguated
         """
 
         error_info = [f"for data type {data_type}"]
