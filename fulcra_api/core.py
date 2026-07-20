@@ -1127,7 +1127,7 @@ class FulcraAPI:
         multiple: bool = False,
     ) -> List[Dict]:
         """
-        Disambiguate a data type to a single user ID, optionally returning multiple API versions if disambiguation is not possible.
+        Disambiguate a data type to a single user ID, optionally returning multiple API versions if multiple is True.
 
         Defaults to the authenticated user ID for disambiguation if fulcra_userid is not provided.
 
