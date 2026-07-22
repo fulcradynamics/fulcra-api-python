@@ -1165,7 +1165,7 @@ class FulcraAPI:
                 )
         except HTTPError as exc:
             if exc.code == 404:
-                raise ValueError(f"No data types found {' '.join(error_info)}")
+                raise ValueError(f"Type not found {' '.join(error_info)}")
             else:
                 raise
 
