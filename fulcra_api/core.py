@@ -1119,7 +1119,7 @@ class FulcraAPI:
         resp = self.fulcra_api(uri, query=params)
         return json.loads(resp)
 
-    def disambiguate_data_type(
+    def resolve_data_type(
         self,
         data_type: str,
         api_version: str | None = None,
@@ -1127,21 +1127,21 @@ class FulcraAPI:
         multiple: bool = False,
     ) -> List[Dict]:
         """
-        Disambiguate a data type to a single user ID, optionally returning multiple API versions if multiple is True.
+        Resolve a data type to a single user ID, optionally returning multiple API versions if multiple is True.
 
         Defaults to the authenticated user ID for disambiguation if fulcra_userid is not provided.
 
         Params:
-            data_type: The data type to disambiguate
+            data_type: The data type to resolve
             api_version: The API version to use (optional)
             fulcra_userid: The Fulcra user ID to use (optional)
             multiple: Whether to return multiple API versions if API version cannot be disambiguated (default: False)
 
         Returns:
-            The disambiguated data type as a dictionary
+            The resolved data type as a dictionary
 
         Raises:
-            ValueError: If no data types are found or data type could not be disambiguated
+            ValueError: If no data types are found or data type could not be resolved
         """
 
         error_info = [f"for data type {data_type}"]

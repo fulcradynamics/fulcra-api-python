@@ -262,9 +262,9 @@ def record(
             # Determine API version for schema validation
             schema_api_version = api_version
             if schema_api_version is None:
-                # Disambiguate the data type
+                # Resolve the data type
                 try:
-                    dt = fulcra_api.disambiguate_data_type(
+                    dt = fulcra_api.resolve_data_type(
                         data_type=data_type,
                         fulcra_userid=fulcra_api.get_fulcra_userid(),
                     )[0]
@@ -418,9 +418,9 @@ def delete_records(
         # Determine API version for the data type being deleted
         deletion_api_version = api_version
         if deletion_api_version is None:
-            # Disambiguate the data type
+            # Resolve the data type
             try:
-                dt = fulcra_api.disambiguate_data_type(
+                dt = fulcra_api.resolve_data_type(
                     data_type=data_type,
                     fulcra_userid=fulcra_api.get_fulcra_userid(),
                 )[0]

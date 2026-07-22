@@ -223,7 +223,7 @@ def data_type_archive(fulcra_api: FulcraAPI, data_type: str):
     """
 
     try:
-        fulcra_api.disambiguate_data_type(
+        fulcra_api.resolve_data_type(
             data_type=data_type,
             fulcra_userid=fulcra_api.get_fulcra_userid(),
         )
@@ -257,7 +257,7 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
     """
 
     try:
-        fulcra_api.disambiguate_data_type(
+        fulcra_api.resolve_data_type(
             data_type=data_type,
             fulcra_userid=fulcra_api.get_fulcra_userid(),
             multiple=True,
@@ -319,7 +319,7 @@ def get_schema(
     fulcra data-type schema DeletedRecord
     """
     try:
-        dt = fulcra_api.disambiguate_data_type(
+        dt = fulcra_api.resolve_data_type(
             data_type=data_type, api_version=api_version, fulcra_userid=user_id
         )[0]
 

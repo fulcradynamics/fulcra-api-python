@@ -632,7 +632,7 @@ def get_records(
 
     authenticated_user_id = fulcra_api.get_fulcra_userid()
     try:
-        data_types = fulcra_api.disambiguate_data_type(
+        data_types = fulcra_api.resolve_data_type(
             data_type=data_type, api_version=None, fulcra_userid=user_id, multiple=True
         )
     except (ValueError, HTTPError) as exc:
