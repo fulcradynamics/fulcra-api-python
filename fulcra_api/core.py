@@ -1189,7 +1189,8 @@ class FulcraAPI:
 
         if len(user_ids) > 1:
             raise ValueError(
-                f"Multiple user IDs found {' '.join(error_info)} ({', '.join(user_ids)})"
+                f"Multiple user IDs found {' '.join(error_info)} "
+                f"({', '.join(sorted(user_ids))})"
             )
 
         return data_types
