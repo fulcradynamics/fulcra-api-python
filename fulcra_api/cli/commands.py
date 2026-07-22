@@ -13,6 +13,7 @@ from .utils import (
     pass_fulcra_api,
     related_cli_commands,
     requires_auth,
+    resolve_data_type,
     time_range,
 )
 
@@ -594,19 +595,23 @@ def sleep_cycles_aggregated(
 
 
 @click.command("get-records", short_help="Return raw sample records for a data type")
-@click.argument("data_type")
-@time_range
 @click.option(
     "--user-id",
     type=str,
     default=None,
+    is_eager=True,
     help="Fulcra user ID to query data for (requires an active datashare from that user).",
 )
+@click.argument(
+    "data_type",
+    callback=resolve_data_type(allow_multiple=True, user_id_param="user_id"),
+)
+@time_range
 @pass_fulcra_api
 @requires_auth
 def get_records(
     fulcra_api: FulcraAPI,
-    data_type: str,
+    data_type: list[dict],
     start_time: datetime,
     end_time: datetime,
     user_id: str | None,
@@ -630,16 +635,11 @@ def get_records(
     fulcra get-records StepCount "1 day"
     """
 
+    # data_type is a list of resolved catalog entries (see resolve_data_type)
     authenticated_user_id = fulcra_api.get_fulcra_userid()
-    try:
-        data_types = fulcra_api.resolve_data_type(
-            data_type=data_type, api_version=None, fulcra_userid=user_id, multiple=True
-        )
-    except (ValueError, HTTPError) as exc:
-        raise click.ClickException(str(exc))
 
     results = []
-    for dt in data_types:
+    for dt in data_type:
         # Deal with user-configured annotation shorthand (AnnotationType/UUID)
         user_annotation_id = None
         parts = dt["id"].split("/", maxsplit=2)

@@ -1124,24 +1124,24 @@ class FulcraAPI:
         data_type: str,
         api_version: str | None = None,
         fulcra_userid: str | None = None,
-        multiple: bool = False,
     ) -> List[Dict]:
         """
-        Resolve a data type to a single user ID, optionally returning multiple API versions if multiple is True.
+        Resolve a data type to the matching catalog entries for a single user.
 
         Defaults to the authenticated user ID for disambiguation if fulcra_userid is not provided.
+        May return more than one entry when the data type exists under multiple API versions;
+        callers are responsible for deciding whether that ambiguity is acceptable.
 
         Params:
             data_type: The data type to resolve
             api_version: The API version to use (optional)
             fulcra_userid: The Fulcra user ID to use (optional)
-            multiple: Whether to return multiple API versions if API version cannot be disambiguated (default: False)
 
         Returns:
-            The resolved data type as a dictionary
+            A list of matching catalog entries, all belonging to a single user.
 
         Raises:
-            ValueError: If no data types are found or data type could not be resolved
+            ValueError: If no data types are found or they span multiple users.
         """
 
         error_info = [f"for data type {data_type}"]
@@ -1184,8 +1184,6 @@ class FulcraAPI:
                 ]
                 user_ids = {authenticated_user_id}
 
-        api_versions = {dt["api_version"] for dt in data_types}
-
         if len(data_types) == 0:
             raise ValueError(f"Type not found {' '.join(error_info)}")
 
@@ -1193,15 +1191,6 @@ class FulcraAPI:
             raise ValueError(
                 f"Multiple user IDs found {' '.join(error_info)} ({', '.join(user_ids)})"
             )
-
-        if len(api_versions) > 1 and not multiple:
-            raise ValueError(
-                f"Multiple api versions found {' '.join(error_info)} ({', '.join(api_versions)})"
-            )
-
-        if len(data_types) > 1 and not multiple:
-            # This should never happen since there should only be one data type per user ID and API version
-            raise ValueError(f"Multiple data types found {' '.join(error_info)}")
 
         return data_types
 
