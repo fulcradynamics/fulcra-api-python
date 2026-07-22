@@ -2039,7 +2039,7 @@ class FulcraAPI:
         return json.loads(resp)
 
     def record_data_type(
-        self, data_type: str, records: List[dict], api_version: str = "v1alpha1"
+        self, data_type: str, records: List[dict], api_version: str
     ) -> dict:
         """
         Record data for a Fulcra data type using batch ingestion.
