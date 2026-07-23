@@ -2,6 +2,7 @@ import os
 import pathlib
 from datetime import datetime, timezone
 from functools import wraps
+from urllib.error import HTTPError
 
 import click
 import dateparser
@@ -46,6 +47,78 @@ def requires_auth(f):
         return f(fulcra_api, *args, **kwargs)
 
     return wrapper
+
+
+def resolve_data_type(
+    *,
+    allow_multiple: bool = False,
+    user_id_param: str | None = None,
+    api_version_param: str | None = None,
+    default_to_authenticated: bool = False,
+):
+    """
+    Build a Click argument callback that resolves a data type string to its
+    catalog entry (or entries) via FulcraAPI.resolve_data_type.
+
+    The resolved value replaces the raw string passed to the command, so command
+    bodies receive a catalog dict (or a list of dicts when allow_multiple=True)
+    instead of a plain string.
+
+    Params:
+        allow_multiple: Return every matching API version instead of raising when
+            the type resolves to more than one entry. The command receives a list.
+        user_id_param: Name of a sibling parameter holding a --user-id value. That
+            parameter must be declared with is_eager=True so it is parsed before
+            this callback runs.
+        api_version_param: Name of a sibling parameter holding an --api-version
+            value. Must also be declared with is_eager=True.
+        default_to_authenticated: When no user ID is available, scope resolution to
+            the authenticated user (used by commands that only operate on the
+            caller's own types).
+    """
+
+    def callback(ctx: click.Context, param: click.Parameter, value):
+        if value is None:
+            return None
+
+        fulcra_api = ctx.find_object(FulcraAPI)
+        if fulcra_api is None:
+            raise RuntimeError(
+                "Invoked resolve_data_type callback without a FulcraAPI "
+                "context object; the parent command group must set ctx.obj."
+            )
+
+        # This callback runs during parsing, before @requires_auth on the command
+        # body, so surface the same friendly error here.
+        if fulcra_api.fulcra_credentials is None:
+            raise click.ClickException(
+                "No credentials found, please run `fulcra auth login`"
+            )
+
+        user_id = ctx.params.get(user_id_param) if user_id_param else None
+        if user_id is None and default_to_authenticated:
+            user_id = fulcra_api.get_fulcra_userid()
+        api_version = ctx.params.get(api_version_param) if api_version_param else None
+
+        try:
+            resolved = fulcra_api.resolve_data_type(
+                value, api_version=api_version, fulcra_userid=user_id
+            )
+        except (ValueError, HTTPError) as exc:
+            raise click.BadParameter(str(exc), ctx=ctx, param=param)
+
+        if not allow_multiple and len(resolved) > 1:
+            versions = ", ".join(sorted(dt["api_version"] for dt in resolved))
+            raise click.BadParameter(
+                f"'{value}' matches multiple API versions ({versions}); "
+                "specify --api-version",
+                ctx=ctx,
+                param=param,
+            )
+
+        return resolved if allow_multiple else resolved[0]
+
+    return callback
 
 
 def human_size(n: int) -> tuple[int, str]:

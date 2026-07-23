@@ -6,7 +6,7 @@ import click
 
 from fulcra_api.core import FulcraAPI
 
-from .utils import pass_fulcra_api, requires_auth
+from .utils import pass_fulcra_api, requires_auth, resolve_data_type
 
 
 @click.command(
@@ -17,7 +17,12 @@ from .utils import pass_fulcra_api, requires_auth
         allow_extra_args=True,
     ),
 )
-@click.argument("data_type")
+@click.argument(
+    "data_type",
+    callback=resolve_data_type(
+        api_version_param="api_version", default_to_authenticated=True
+    ),
+)
 @click.argument("value", required=False)
 @click.option(
     "-f",
@@ -29,6 +34,7 @@ from .utils import pass_fulcra_api, requires_auth
 @click.option(
     "--api-version",
     type=str,
+    is_eager=True,
     default=None,
     help="API Version of data type to record, in case of ambiguous data types.",
 )
@@ -58,7 +64,7 @@ from .utils import pass_fulcra_api, requires_auth
 def record(
     fulcra_api: FulcraAPI,
     ctx: click.Context,
-    data_type: str,
+    data_type: dict,
     value: str | None,
     file: TextIO | None,
     api_version: str | None,
@@ -218,13 +224,14 @@ def record(
             raise click.ClickException("No valid records found in input")
 
         # Handle user-created annotation types (BaseType/UUID format)
-        annotation_source = None
-        base_type = data_type
-        if "/" in data_type:
-            parts = data_type.split("/", maxsplit=1)
+        if "/" in data_type["id"]:
+            parts = data_type["id"].split("/", maxsplit=1)
             base_type = parts[0]
             annotation_uuid = parts[1].lower()
             annotation_source = f"com.fulcradynamics.annotation.{annotation_uuid}"
+        else:
+            annotation_source = None
+            base_type = data_type["id"]
 
         # Resolve tag names to UUIDs
         tag_ids = []
@@ -259,30 +266,11 @@ def record(
 
         # Validate records against schema if requested
         if not no_validate:
-            # Determine API version for schema validation
-            schema_api_version = api_version
-            if schema_api_version is None:
-                # Query catalog to find the data type and its API version
-                try:
-                    catalog_results = fulcra_api.v1_catalog(data_type=base_type)
-                    if len(catalog_results) == 0:
-                        raise click.ClickException(
-                            f"Data type '{base_type}' not found in catalog"
-                        )
-                    elif len(catalog_results) > 1:
-                        raise click.ClickException(
-                            f"Multiple data types found for '{base_type}'. "
-                            "Please specify --api-version"
-                        )
-                    schema_api_version = catalog_results[0]["api_version"]
-                except HTTPError as exc:
-                    raise click.ClickException(
-                        f"Failed to query catalog for {base_type}: {exc}"
-                    )
-
             try:
                 validation_errors = fulcra_api.validate_records(
-                    base_type, records, schema_api_version
+                    data_type=data_type["id"],
+                    records=records,
+                    api_version=data_type["api_version"],
                 )
 
                 # Check for validation errors (only invalid records are returned)
@@ -294,18 +282,16 @@ def record(
             except HTTPError as exc:
                 if exc.code == 404:
                     raise click.ClickException(
-                        f"Schema not found for {base_type}/{schema_api_version}. "
+                        f"Schema not found for {data_type['id']}. "
                         "Use --no-validate to skip validation"
                     )
                 else:
                     raise click.ClickException(f"Failed to fetch schema: {exc}")
 
         # Record data using base type
-        kwargs = {"data_type": base_type, "records": records}
-        if api_version is not None:
-            kwargs["api_version"] = api_version
-
-        response = fulcra_api.record_data_type(**kwargs)
+        response = fulcra_api.record_data_type(
+            data_type=base_type, records=records, api_version=data_type["api_version"]
+        )
 
         # Print summary
         upload_id = response["upload_id"]
@@ -321,12 +307,18 @@ def record(
 
 
 @click.command("delete", short_help="Delete records for a data type")
-@click.argument("data_type")
+@click.argument(
+    "data_type",
+    callback=resolve_data_type(
+        api_version_param="api_version", default_to_authenticated=True
+    ),
+)
 @click.argument("record_id", required=False)
 @click.option("-f", "--file", type=click.File("r"), default=None)
 @click.option(
     "--api-version",
     type=str,
+    is_eager=True,
     default=None,
     help="API Version of data type being deleted, in case of ambiguous data types.",
 )
@@ -340,7 +332,7 @@ def record(
 @requires_auth
 def delete_records(
     fulcra_api: FulcraAPI,
-    data_type: str,
+    data_type: dict,
     record_id: str | None,
     file: TextIO | None,
     api_version: str | None,
@@ -381,7 +373,9 @@ def delete_records(
             raise click.ClickException("Cannot specify both RECORD_ID and --file")
 
         # Extract base type (strip UUID if present)
-        base_type = data_type.split("/")[0] if "/" in data_type else data_type
+        base_type = (
+            data_type["id"].split("/")[0] if "/" in data_type["id"] else data_type["id"]
+        )
 
         # Build deletion records
         records = []
@@ -423,32 +417,11 @@ def delete_records(
         for record in records:
             record["data_type"] = base_type
 
-        # Determine API version for the data type being deleted
-        deletion_api_version = api_version
-        if deletion_api_version is None:
-            # Query catalog to find the data type and its API version
-            try:
-                catalog_results = fulcra_api.v1_catalog(data_type=data_type)
-                if len(catalog_results) == 0:
-                    raise click.ClickException(
-                        f"Data type '{data_type}' not found in catalog"
-                    )
-                elif len(catalog_results) > 1:
-                    raise click.ClickException(
-                        f"Multiple data types found for '{data_type}'. "
-                        "Please specify --api-version"
-                    )
-                deletion_api_version = catalog_results[0]["api_version"]
-            except HTTPError as exc:
-                raise click.ClickException(
-                    f"Failed to query catalog for {data_type}: {exc}"
-                )
-
         # Validate records unless --no-validate
         if not no_validate:
             try:
                 errors = fulcra_api.validate_records(
-                    "DeletedRecord", records, api_version=deletion_api_version
+                    "DeletedRecord", records, api_version=data_type["api_version"]
                 )
                 if errors:
                     error_msg = "Validation failed:\n"
@@ -458,7 +431,7 @@ def delete_records(
             except HTTPError as exc:
                 if exc.code == 404:
                     raise click.ClickException(
-                        f"Schema not found for DeletedRecord/{deletion_api_version}. "
+                        f"Schema not found for DeletedRecord/{data_type['api_version']}. "
                         "Use --no-validate to skip validation"
                     )
                 else:
@@ -466,7 +439,9 @@ def delete_records(
 
         # Record the tombstones
         response = fulcra_api.record_data_type(
-            data_type="DeletedRecord", records=records, api_version=deletion_api_version
+            data_type="DeletedRecord",
+            records=records,
+            api_version=data_type["api_version"],
         )
 
         # Print summary

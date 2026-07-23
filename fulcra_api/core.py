@@ -10,6 +10,7 @@ import urllib.request
 import webbrowser
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from urllib.error import HTTPError
 
 import jsonschema
 import pandas as pd
@@ -392,8 +393,6 @@ class FulcraAPI:
             ds = None
 
         req = urllib.request.Request(url=url, data=ds, headers=headers, method=method)
-
-        from urllib.error import HTTPError
 
         try:
             response = urllib.request.urlopen(req)
@@ -1041,25 +1040,28 @@ class FulcraAPI:
         return json.loads(resp)
 
     def v1_catalog(
-        self, data_type: Optional[str] = None, category: Optional[str] = None
+        self,
+        data_type: str | None = None,
+        category: str | None = None,
+        fulcra_userid: str | None = None,
     ) -> List[Dict]:
         params = {}
         if data_type:
             params["data_type"] = data_type
         if category:
             params["category"] = category
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
 
-        query_params = urllib.parse.urlencode(params, doseq=True)
-
-        if query_params != "":
-            uri = f"/data/v1/catalog?{query_params}"
-        else:
-            uri = "/data/v1/catalog"
-
-        resp = self.fulcra_api(uri)
+        resp = self.fulcra_api("/data/v1/catalog", query=params)
         return json.loads(resp)
 
-    def v1_catalog_data_type(self, data_type: str, api_version: str) -> Dict:
+    def v1_catalog_data_type(
+        self,
+        data_type: str,
+        api_version: str,
+        fulcra_userid: str | None = None,
+    ) -> Dict:
         """
         Get catalog entry for a specific data type and API version, including schema.
 
@@ -1068,6 +1070,7 @@ class FulcraAPI:
         Params:
             data_type: The Fulcra data type ID
             api_version: API version (e.g., "v1", "v1alpha1")
+            fulcra_userid: Optional Fulcra user ID to filter by
 
         Returns:
             Dictionary containing catalog entry with schema included
@@ -1076,11 +1079,17 @@ class FulcraAPI:
             catalog = client.v1_catalog_data_type("NumericAnnotation", "v1alpha1")
             schema = catalog.get("record_spec", {}).get("schema")
         """
+        params = {}
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
         uri = f"/data/v1/catalog/{data_type}/{api_version}"
-        resp = self.fulcra_api(uri)
+        resp = self.fulcra_api(uri, query=params)
         return json.loads(resp)
 
-    def v1_catalog_schema(self, data_type: str, api_version: str) -> Dict:
+    def v1_catalog_schema(
+        self, data_type: str, api_version: str, fulcra_userid: str | None = None
+    ) -> Dict:
         """
         Get the JSON schema for a specific data type and API version.
 
@@ -1089,6 +1098,7 @@ class FulcraAPI:
         Params:
             data_type: The Fulcra data type ID
             api_version: API version (e.g., "v1", "v1alpha1")
+            fulcra_userid: Optional Fulcra user ID for the data type
 
         Returns:
             Dictionary containing the JSON schema
@@ -1100,9 +1110,90 @@ class FulcraAPI:
             schema = client.v1_catalog_schema("NumericAnnotation", "v1alpha1")
             required_fields = schema.get("required", [])
         """
+
+        params = {}
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
         uri = f"/data/v1/catalog/{data_type}/{api_version}/schema"
-        resp = self.fulcra_api(uri)
+        resp = self.fulcra_api(uri, query=params)
         return json.loads(resp)
+
+    def resolve_data_type(
+        self,
+        data_type: str,
+        api_version: str | None = None,
+        fulcra_userid: str | None = None,
+    ) -> List[Dict]:
+        """
+        Resolve a data type to the matching catalog entries for a single user.
+
+        Defaults to the authenticated user ID for disambiguation if fulcra_userid is not provided.
+        May return more than one entry when the data type exists under multiple API versions;
+        callers are responsible for deciding whether that ambiguity is acceptable.
+
+        Params:
+            data_type: The data type to resolve
+            api_version: The API version to use (optional)
+            fulcra_userid: The Fulcra user ID to use (optional)
+
+        Returns:
+            A list of matching catalog entries, all belonging to a single user.
+
+        Raises:
+            ValueError: If no data types are found or they span multiple users.
+        """
+
+        error_info = [f"for data type {data_type}"]
+        if api_version is not None:
+            error_info.append(f"with API version {api_version}")
+        if fulcra_userid is not None:
+            error_info.append(f"with user ID {fulcra_userid}")
+
+        try:
+            # Efficiently fetch a specific data type if specified
+            if api_version is not None and fulcra_userid is not None:
+                dt = self.v1_catalog_data_type(
+                    data_type=data_type,
+                    api_version=api_version,
+                    fulcra_userid=fulcra_userid,
+                )
+                return [dt]
+            else:
+                data_types = self.v1_catalog(
+                    data_type=data_type, fulcra_userid=fulcra_userid
+                )
+        except HTTPError as exc:
+            if exc.code == 404:
+                raise ValueError(f"Type not found {' '.join(error_info)}")
+            else:
+                raise
+
+        if api_version is not None:
+            data_types = [dt for dt in data_types if dt["api_version"] == api_version]
+
+        # Default to the authenticated user ID if None is specified
+        user_ids = {dt["fulcra_userid"] for dt in data_types}
+        if fulcra_userid is None and len(user_ids) > 1:
+            authenticated_user_id = self.get_fulcra_userid()
+            if authenticated_user_id in user_ids:
+                data_types = [
+                    dt
+                    for dt in data_types
+                    if dt["fulcra_userid"] == authenticated_user_id
+                ]
+                user_ids = {authenticated_user_id}
+
+        if len(data_types) == 0:
+            raise ValueError(f"Type not found {' '.join(error_info)}")
+
+        if len(user_ids) > 1:
+            raise ValueError(
+                f"Multiple user IDs found {' '.join(error_info)} "
+                f"({', '.join(sorted(user_ids))})"
+            )
+
+        return data_types
 
     def create_datashare(
         self,
@@ -1948,7 +2039,7 @@ class FulcraAPI:
         return json.loads(resp)
 
     def record_data_type(
-        self, data_type: str, records: List[dict], api_version: str = "v1alpha1"
+        self, data_type: str, records: List[dict], api_version: str
     ) -> dict:
         """
         Record data for a Fulcra data type using batch ingestion.

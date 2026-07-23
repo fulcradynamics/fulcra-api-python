@@ -7,7 +7,7 @@ import click
 
 from fulcra_api.core import FulcraAPI
 
-from .utils import pass_fulcra_api, requires_auth
+from .utils import pass_fulcra_api, requires_auth, resolve_data_type
 
 
 @click.group(name="data-type", help="Data type management sub-commands")
@@ -83,7 +83,9 @@ def data_type_create(
     """
 
     try:
-        catalog_resp = fulcra_api.v1_catalog(base_data_type)
+        catalog_resp = fulcra_api.v1_catalog(
+            data_type=base_data_type, fulcra_userid=fulcra_api.get_fulcra_userid()
+        )
     except HTTPError as exc:
         raise click.ClickException(f"Failed to validate BASE_DATA_TYPE: {exc}")
 
@@ -122,10 +124,10 @@ def data_type_create(
             )
 
     # TODO: Possibly update type metadata to be able to determine that this is a scale
-    if fulcra_data_type["id"] == "ScaleAnnotation" and len(scale_labels) > 0:
+    if fulcra_data_type["id"] != "ScaleAnnotation" and len(scale_labels) > 0:
         raise click.BadOptionUsage(
             "scale_labels",
-            f"-s / --scale-labels cannot be used with base data type {base_data_type}",
+            f"-s / --scale-label cannot be used with base data type {base_data_type}",
         )
 
     value = None
@@ -153,7 +155,7 @@ def data_type_create(
             if len(scale_labels) != 5:
                 raise click.BadOptionUsage(
                     "scale_labels",
-                    f"-s / --scale-labels must be used with exactly 5 values with base data type {base_data_type}",
+                    f"-s / --scale-label must be used with exactly 5 values with base data type {base_data_type}",
                 )
             # user-service does not accept a unit for scale annotations
             if unit is not None:
@@ -210,41 +212,32 @@ def data_type_create(
 
 
 @data_type.command("archive", short_help="Archive a user-defined data type")
-@click.argument("data_type")
+@click.argument(
+    "data_type",
+    callback=resolve_data_type(default_to_authenticated=True),
+)
 @pass_fulcra_api
 @requires_auth
-def data_type_archive(fulcra_api: FulcraAPI, data_type: str):
+def data_type_archive(fulcra_api: FulcraAPI, data_type: dict):
     """
     Archive a user-defined data type by ID.
 
     DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types
     """
 
+    # data_type is the resolved catalog entry (see resolve_data_type)
+    type_id = data_type["id"]
     try:
-        filtered_types = fulcra_api.v1_catalog(data_type=data_type)
-    except HTTPError:
-        raise click.ClickException(f"Could not find data type matching id: {data_type}")
-
-    if len(filtered_types) == 0:
-        raise click.ClickException(f"Could not find data type matching id: {data_type}")
-    elif len(filtered_types) > 1:
-        raise click.ClickException(
-            f"Found multiple data types matching id: {data_type}"
-        )
-
-    ann_id = None
-    try:
-        parts = data_type.split("/", maxsplit=2)
-        ann_id = parts[1]
-        ann_id = str(UUID(ann_id))
+        parts = type_id.split("/", maxsplit=2)
+        ann_id = str(UUID(parts[1]))
     except (ValueError, IndexError):
         raise click.ClickException("DATA_TYPE must be <Annotation Type>/<UUID>")
 
     try:
         fulcra_api.delete_annotation(annotation_id=ann_id)
-        click.echo(f"Archived data type: {data_type}")
+        click.echo(f"Archived data type: {type_id}")
     except HTTPError as exc:
-        raise click.ClickException(f"Failed to archive data type {data_type}: {exc}")
+        raise click.ClickException(f"Failed to archive data type {type_id}: {exc}")
 
 
 @data_type.command("restore", short_help="Restore an archived user-defined data type")
@@ -259,16 +252,16 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
     """
 
     try:
-        filtered_types = fulcra_api.v1_catalog(data_type=data_type)
-    except HTTPError:
-        raise click.ClickException(f"Could not find data type matching id: {data_type}")
-
-    if len(filtered_types) == 0:
-        raise click.ClickException(f"Could not find data type matching id: {data_type}")
-    elif len(filtered_types) > 1:
-        raise click.ClickException(
-            f"Found multiple data types matching id: {data_type}"
+        fulcra_api.resolve_data_type(
+            data_type=data_type,
+            fulcra_userid=fulcra_api.get_fulcra_userid(),
         )
+        raise click.ClickException(f"Data type {data_type} is not archived")
+    except ValueError:
+        # If we did not find this data type, then it may be archived
+        pass
+    except HTTPError as exc:
+        raise click.ClickException(str(exc))
 
     ann_id = None
     try:
@@ -286,16 +279,31 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
 
 
 @data_type.command("schema", short_help="Get the JSON schema for a data type")
-@click.argument("data_type")
 @click.option(
     "--api-version",
     type=str,
     default=None,
+    is_eager=True,
     help="API version (required if data type has multiple versions)",
+)
+@click.option(
+    "--user-id",
+    type=str,
+    default=None,
+    is_eager=True,
+    help="User ID for the data type (defaults to authenticated user)",
+)
+@click.argument(
+    "data_type",
+    callback=resolve_data_type(
+        user_id_param="user_id", api_version_param="api_version"
+    ),
 )
 @pass_fulcra_api
 @requires_auth
-def get_schema(fulcra_api: FulcraAPI, data_type: str, api_version: str | None):
+def get_schema(
+    fulcra_api: FulcraAPI, data_type: dict, api_version: str | None, user_id: str | None
+):
     """
     Get the JSON schema for a Fulcra data type.
 
@@ -311,26 +319,19 @@ def get_schema(fulcra_api: FulcraAPI, data_type: str, api_version: str | None):
     Get schema with auto-detected version (if only one exists):
     fulcra data-type schema DeletedRecord
     """
+    # data_type is the resolved catalog entry (see resolve_data_type)
     try:
-        # If api_version not provided, try to auto-detect
-        if api_version is None:
-            catalog_results = fulcra_api.v1_catalog(data_type=data_type)
-            if len(catalog_results) == 0:
-                raise click.ClickException(
-                    f"Data type '{data_type}' not found in catalog"
-                )
-            elif len(catalog_results) > 1:
-                raise click.ClickException(
-                    f"Multiple versions found for '{data_type}'. Please specify --api-version"
-                )
-            api_version = catalog_results[0]["api_version"]
-
-        schema = fulcra_api.v1_catalog_schema(data_type, api_version)
+        # Just pull the schema from the type if populated
+        schema = data_type.get("record_spec", {}).get("schema")
+        if schema is None:
+            schema = fulcra_api.v1_catalog_schema(
+                data_type=data_type["id"],
+                api_version=data_type["api_version"],
+                fulcra_userid=data_type["fulcra_userid"],
+            )
         click.echo(json.dumps(schema, indent=2))
     except HTTPError as exc:
         if exc.code == 404:
-            raise click.ClickException(
-                f"Schema not found for {data_type}/{api_version}"
-            )
+            raise click.ClickException(f"Schema not found for {data_type['id']}")
         else:
             raise click.ClickException(f"Failed to fetch schema: {exc}")

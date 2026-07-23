@@ -13,6 +13,7 @@ from .utils import (
     pass_fulcra_api,
     related_cli_commands,
     requires_auth,
+    resolve_data_type,
     time_range,
 )
 
@@ -594,19 +595,23 @@ def sleep_cycles_aggregated(
 
 
 @click.command("get-records", short_help="Return raw sample records for a data type")
-@click.argument("data_type")
-@time_range
 @click.option(
     "--user-id",
     type=str,
     default=None,
+    is_eager=True,
     help="Fulcra user ID to query data for (requires an active datashare from that user).",
 )
+@click.argument(
+    "data_type",
+    callback=resolve_data_type(allow_multiple=True, user_id_param="user_id"),
+)
+@time_range
 @pass_fulcra_api
 @requires_auth
 def get_records(
     fulcra_api: FulcraAPI,
-    data_type: str,
+    data_type: list[dict],
     start_time: datetime,
     end_time: datetime,
     user_id: str | None,
@@ -630,29 +635,25 @@ def get_records(
     fulcra get-records StepCount "1 day"
     """
 
-    # Deal with user-configured annotation shorthand (AnnotationType/UUID)
-    user_annotation_id = None
-    parts = data_type.split("/", maxsplit=2)
-    if len(parts) > 1:
-        data_type = parts[0]
-        try:
-            user_annotation_id = UUID(parts[1])
-        except ValueError:
-            raise click.ClickException(
-                "User configured annotation shorthand must be <Annotation Type>/<UUID>"
-            )
-
-    try:
-        data_type = fulcra_api.v1_catalog(data_type)
-    except HTTPError as exc:
-        if exc.code == 404:
-            raise click.ClickException("Type not found")
-        else:
-            raise click.ClickException(exc)
+    # data_type is a list of resolved catalog entries (see resolve_data_type)
+    authenticated_user_id = fulcra_api.get_fulcra_userid()
 
     results = []
-
     for dt in data_type:
+        # Deal with user-configured annotation shorthand (AnnotationType/UUID)
+        user_annotation_id = None
+        parts = dt["id"].split("/", maxsplit=2)
+        if len(parts) > 1:
+            base_type = parts[0]
+            try:
+                user_annotation_id = UUID(parts[1])
+            except ValueError:
+                raise click.ClickException(
+                    "User configured annotation shorthand must be <Annotation Type>/<UUID>"
+                )
+        else:
+            base_type = parts[0]
+
         record_type = dt.get("record_spec", {}).get("type")
         if dt["api_version"] == "v0" and record_type == "metric":
             query_func = fulcra_api.metric_samples
@@ -661,25 +662,25 @@ def get_records(
                 "end_time": end_time,
                 "metric": dt["id"],
             }
-            if user_id:
-                kwargs["fulcra_userid"] = user_id
+            if authenticated_user_id != dt["fulcra_userid"]:
+                kwargs["fulcra_userid"] = dt["fulcra_userid"]
         elif dt["api_version"] == "v1alpha1" and record_type == "metric":
             query_func = fulcra_api.fulcra_v1_api_path
-            path = f"{record_type}/{dt['id']}"
+            path = f"{record_type}/{base_type}"
             if user_annotation_id:
                 path = f"{path}/{user_annotation_id}"
             params = {"start_time": start_time, "end_time": end_time}
-            if user_id:
-                params["fulcra_userid"] = user_id
+            if authenticated_user_id != dt["fulcra_userid"]:
+                params["fulcra_userid"] = dt["fulcra_userid"]
             kwargs = {"path": path, "params": params}
         elif dt["api_version"] == "v1alpha1" and record_type == "event":
             query_func = fulcra_api.fulcra_v1_api_path
-            path = f"{record_type}/{dt['id']}"
+            path = f"{record_type}/{base_type}"
             if user_annotation_id:
                 path = f"{path}/{user_annotation_id}"
             params = {"start_time": start_time, "end_time": end_time}
-            if user_id:
-                params["fulcra_userid"] = user_id
+            if authenticated_user_id != dt["fulcra_userid"]:
+                params["fulcra_userid"] = dt["fulcra_userid"]
             kwargs = {"path": path, "params": params}
         else:
             raise click.ClickException(
@@ -715,6 +716,12 @@ def get_records(
     type=str,
     help="Filter by API version. When used with --data-type, fetches specific version including schema.",
 )
+@click.option(
+    "--user-id",
+    type=str,
+    default=None,
+    help="Fulcra user ID of which data types to fetch.",
+)
 @pass_fulcra_api
 @requires_auth
 def catalog(
@@ -725,6 +732,7 @@ def catalog(
     name: str | None = None,
     category: str | None = None,
     api_version: str | None = None,
+    user_id: str | None = None,
 ):
     """
     Return a list of Fulcra Data Types that can be queried with `get-records`, `metric-time-series`, and other commands.
@@ -733,9 +741,11 @@ def catalog(
     """
 
     try:
-        # If both data_type and api_version are specified, use the specific endpoint
-        if data_type and api_version:
-            catalog_entry = fulcra_api.v1_catalog_data_type(data_type, api_version)
+        # If data_type, api_version, and user_id are specified, use the specific endpoint
+        if data_type and api_version and user_id:
+            catalog_entry = fulcra_api.v1_catalog_data_type(
+                data_type=data_type, api_version=api_version, fulcra_userid=user_id
+            )
             response = [catalog_entry]
         else:
             if base_types_only:
@@ -746,12 +756,16 @@ def catalog(
                 catalog_category = None
 
             response = fulcra_api.v1_catalog(
-                data_type=data_type, category=catalog_category
+                data_type=data_type, category=catalog_category, fulcra_userid=user_id
             )
 
-            # Filter by api_version if provided (but not with data_type)
+            # Filter by api_version if provided
             if api_version:
                 response = [c for c in response if c.get("api_version") == api_version]
+
+            # Filter by category if provided
+            if category:
+                response = [c for c in response if category in c.get("categories", [])]
     except HTTPError as exc:
         if exc.code == 404:
             raise click.ClickException("Type not found")
