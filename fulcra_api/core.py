@@ -1854,7 +1854,7 @@ class FulcraAPI:
         resp = self.fulcra_v1_api("metric", "ScaleAnnotation", params)
         return json.loads(resp)
 
-    def tags(self) -> List[Dict]:
+    def tags(self) -> list[dict[str, str]]:
         """
         Retrieves user defined tags.
 
@@ -1868,7 +1868,7 @@ class FulcraAPI:
         resp = self.fulcra_api("/user/v1alpha1/tag")
         return json.loads(resp)
 
-    def get_tag_by_name(self, name: str) -> Dict:
+    def get_tag_by_name(self, name: str) -> dict[str, str]:
         """
         Retrieves a user defined tag by name.
 
@@ -1882,7 +1882,7 @@ class FulcraAPI:
         resp = self.fulcra_api(f"/user/v1alpha1/tag/name/{name}")
         return json.loads(resp)
 
-    def get_tag_by_id(self, tag_id: str) -> Dict:
+    def get_tag_by_id(self, tag_id: str) -> dict[str, str]:
         """
         Retrieves a user defined tag by ID.
 
@@ -1896,7 +1896,7 @@ class FulcraAPI:
         resp = self.fulcra_api(f"/user/v1alpha1/tag/id/{tag_id}")
         return json.loads(resp)
 
-    def create_tag(self, tag_name: str) -> List[Dict]:
+    def create_tag(self, tag_name: str) -> dict[str, str]:
         """
         Creates a user defined tag.
 
@@ -1912,7 +1912,7 @@ class FulcraAPI:
         )
         return json.loads(resp)
 
-    def create_tags(self, tag_names: List[str]) -> List[Dict]:
+    def create_tags(self, tag_names: list[str]) -> list[dict[str, str]]:
         """
         Creates a batch of user defined tags.
 
@@ -1926,7 +1926,7 @@ class FulcraAPI:
         """
 
         existing_tags = self.tags()
-        result = []
+        result: list[dict[str, str]] = []
         for tag_name in tag_names:
             try:
                 tag = next(t for t in existing_tags if t["name"] == tag_name)
