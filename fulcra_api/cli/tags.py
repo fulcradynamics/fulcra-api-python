@@ -90,7 +90,7 @@ def get_tag(fulcra_api: FulcraAPI, name_or_id: str):
 @click.argument("names", nargs=-1)
 @pass_fulcra_api
 @requires_auth
-def tag_create(fulcra_api: FulcraAPI, names: Tuple[str, ...]):
+def tag_create(fulcra_api: FulcraAPI, names: tuple[str, ...]):
     """
     Create case-insensitive user-defined tags by name that can be used when creating and recording custom data types.
     """
