@@ -79,15 +79,21 @@ def file_stat(fulcra_api: FulcraAPI, path: str):
 
 @file.command("download", short_help="Download a file")
 @click.argument("remote_file", type=str)
-@click.argument("local_file", type=click.File(mode="wb"), required=False, default=None)
+@click.argument(
+    "local_file", type=click.Path(allow_dash=True), required=False, default=None
+)
 @pass_fulcra_api
 @requires_auth
-def file_download(fulcra_api: FulcraAPI, remote_file: str, local_file=None):
+def file_download(
+    fulcra_api: FulcraAPI, remote_file: str, local_file: str | None = None
+):
     """Download a file.
 
     REMOTE_FILE: Full path of file to download.
 
-    LOCAL_FILE: Path to save downloaded file to, use `-` to print file contents to STDOUT. [Default: REMOTE_FILE name]
+    LOCAL_FILE: File or directory to save the downloaded file to. If a directory is given, the remote file's name is used.
+    Use `-` to print file contents to STDOUT. [Default: REMOTE_FILE name in the current directory]
+
     """
 
     remote_file = make_filepath(remote_file)
@@ -98,14 +104,27 @@ def file_download(fulcra_api: FulcraAPI, remote_file: str, local_file=None):
         raise click.ClickException(exc)
 
     resp = fulcra_api.download_file(f[0].get("id"))
+    remote_name = pathlib.PurePath(f[0].get("name")).name
 
-    if local_file is None:
-        local_file = click.open_file(pathlib.PurePath(f[0].get("name")).name, mode="wb")
+    if local_file == "-":  # "-" → stdout
+        dest = None
+    elif local_file is None:
+        dest = pathlib.Path(remote_name)
+    else:
+        dest = pathlib.Path(local_file)
+        if dest.is_dir() or local_file.endswith(os.sep):
+            dest = dest / remote_name
 
-    local_file.write(resp.read())
+    if dest is None:
+        click.open_file("-", mode="wb").write(resp.read())
+        return
 
-    if local_file.name != "<stdout>":
-        click.echo(f"⬇️ fulcra:{remote_file} -> {local_file.name}")
+    try:
+        dest.write_bytes(resp.read())
+    except (FileNotFoundError, NotADirectoryError) as exc:
+        raise click.ClickException(f"Cannot write to {dest}: {exc.strerror}")
+
+    click.echo(f"⬇️ fulcra:{remote_file} -> {dest}")
 
 
 @file.command("upload", short_help="Upload a file")
