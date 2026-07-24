@@ -90,23 +90,12 @@ def get_tag(fulcra_api: FulcraAPI, name_or_id: str):
 @click.argument("names", nargs=-1)
 @pass_fulcra_api
 @requires_auth
-def tag_create(fulcra_api: FulcraAPI, names: Tuple[str, ...]):
+def tag_create(fulcra_api: FulcraAPI, names: tuple[str, ...]):
     """
     Create case-insensitive user-defined tags by name that can be used when creating and recording custom data types.
     """
 
-    created_tags = []
-
-    for name in names:
-        tag_name = name.lower()
-        try:
-            resp = fulcra_api.create_tag(tag_name)
-            created_tags.append(resp)
-        except HTTPError as exc:
-            if exc.status == 409:
-                continue
-            raise click.ClickException(f"Failed to create tag {tag_name}: {exc}")
-
+    created_tags = fulcra_api.create_tags(list(names))
     click.echo(json.dumps(created_tags))
 
 
