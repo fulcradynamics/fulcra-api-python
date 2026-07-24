@@ -95,7 +95,7 @@ def tag_create(fulcra_api: FulcraAPI, names: Tuple[str, ...]):
     Create case-insensitive user-defined tags by name that can be used when creating and recording custom data types.
     """
 
-    created_tags = fulcra_api.create_tags([n for n in names])
+    created_tags = fulcra_api.create_tags(list(names))
     click.echo(json.dumps(created_tags))
 
 
