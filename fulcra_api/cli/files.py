@@ -106,8 +106,8 @@ def file_download(
     resp = fulcra_api.download_file(f[0].get("id"))
     remote_name = pathlib.PurePath(f[0].get("name")).name
 
-    if local_file == "-":
-        dest = None  # stdout
+    if local_file == "-":  # "-" → stdout
+        dest = None
     elif local_file is None:
         dest = pathlib.Path(remote_name)
     else:
