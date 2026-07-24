@@ -18,10 +18,11 @@ def file():
 
 
 @file.command("list", short_help="List files")
+@click.option("--user-id", type=str, default=None)
 @click.argument("path", type=str, default="/")
 @pass_fulcra_api
 @requires_auth
-def file_list(fulcra_api: FulcraAPI, path: str):
+def file_list(fulcra_api: FulcraAPI, path: str, user_id: str | None):
     """List uploaded files.
 
     PATH: Path to list files in [Default: /]
@@ -29,7 +30,7 @@ def file_list(fulcra_api: FulcraAPI, path: str):
 
     path = make_filepath(path)
 
-    results = fulcra_api.list_files(path)
+    results = fulcra_api.list_files(path=path, fulcra_userid=user_id)
 
     if results.get("folders") is not None:
         for d in results.get("folders", []):
