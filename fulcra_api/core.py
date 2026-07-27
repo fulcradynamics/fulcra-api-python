@@ -10,7 +10,9 @@ import urllib.request
 import webbrowser
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from urllib.error import HTTPError
 
+import jsonschema
 import pandas as pd
 
 from .credentials import FulcraCredentials
@@ -324,9 +326,10 @@ class FulcraAPI:
         self,
         url_path: str,
         method: str = "GET",
-        query: Optional[dict[str, str]] = None,
-        data: Optional[dict] = None,
+        query: dict[str, str] | None = None,
+        data: dict | List[dict] | None = None,
         return_http_response: bool = False,
+        content_type: str = "application/json",
     ) -> bytes | http.client.HTTPResponse:
         """
         Make a call to the given url path (e.g. `/v0/data/metric_time_series?...`)
@@ -336,8 +339,9 @@ class FulcraAPI:
             url_path: The path of the URL to use (e.g. `"/v0/data/..."`)
             method: The HTTP method for the request (Default: GET)
             query: Key/value pairs of query params
-            data: Dictionary that will get serialized into JSON as the request body
+            data: Dictionary or list of dictionaries to send as request body
             return_http_response: Return a HTTPResponse object instead of bytes (default: False)
+            content_type: Content-Type header (default: "application/json")
 
         Returns:
             The raw response data (as bytes).  Raises an exception on failure.
@@ -366,18 +370,50 @@ class FulcraAPI:
         headers = {"Authorization": f"Bearer {self.fulcra_credentials.access_token}"}
 
         if data:
-            headers["Content-Type"] = "application/json"
-            ds = json.dumps(data).encode("UTF-8")
+            headers["Content-Type"] = content_type
+
+            # Serialize data based on content type
+            if content_type == "application/x-jsonl":
+                # Convert to JSONL (newline-delimited JSON)
+                if isinstance(data, list):
+                    ds = "\n".join(json.dumps(record) for record in data).encode(
+                        "UTF-8"
+                    )
+                else:
+                    # Single dict as JSONL
+                    ds = json.dumps(data).encode("UTF-8")
+                # Add trailing newline for JSONL
+                ds += b"\n"
+            else:
+                # Standard JSON
+                ds = json.dumps(data).encode("UTF-8")
+
+            headers["Content-Length"] = str(len(ds))
         else:
             ds = None
 
         req = urllib.request.Request(url=url, data=ds, headers=headers, method=method)
-        response = urllib.request.urlopen(req)
 
-        if return_http_response:
-            return response
+        try:
+            response = urllib.request.urlopen(req)
 
-        return response.read()
+            if return_http_response:
+                return response
+
+            return response.read()
+        except HTTPError as exc:
+            # Handle 303 See Other - follow the redirect with a GET request
+            if exc.status == 303:
+                location = exc.headers.get("Location")
+                if location:
+                    # Extract the path from the location (could be full URL or just path)
+                    parsed = urllib.parse.urlparse(location)
+                    path = parsed.path if parsed.path else location
+                    # Follow the redirect with a GET request
+                    return self.fulcra_api(
+                        path, method="GET", return_http_response=return_http_response
+                    )
+            raise
 
     def fulcra_v1_api(
         self, data_class: str, data_type: str, params: dict = {}
@@ -397,6 +433,41 @@ class FulcraAPI:
         # query_params = urllib.parse.urlencode(params, doseq=True)
         return self.fulcra_api(f"/data/v1alpha1/{data_class}/{data_type}", query=params)
 
+    def fulcra_v1_api_path(
+        self, path: str, params: Optional[dict[str, str]] = None
+    ) -> bytes:
+        """
+        Make a call to the v1 API using a full path.
+
+        Supports annotation shorthands with UUIDs (e.g., "metric/MomentAnnotation/<uuid>").
+
+        Params:
+            path: The full path after /data/v1alpha1/ (e.g., "event/MomentAnnotation" or "metric/NumericAnnotation/<uuid>")
+            params: Additional params to add to the query
+
+        Returns:
+            The raw response data (as bytes).  Raises an exception on failure.
+        """
+        return self.fulcra_api(f"/data/v1alpha1/{path}", query=params if params else {})
+
+    def get_token_claims(self) -> dict:
+        """
+        Decode and return all claims from the access token.
+
+        Returns:
+            A dict containing all JWT claims from the access token.
+        """
+        if (
+            self.fulcra_credentials is None
+            or self.fulcra_credentials.access_token is None
+        ):
+            raise Exception("Authorization must occur before retrieving token claims.")
+        segs = self.fulcra_credentials.access_token.split(".")
+        if len(segs) < 2:
+            raise Exception("Authorized token is in an incorrect format.")
+        payload = segs[1] + "=="  # add extra padding to prevent b64decode from breaking
+        return json.loads(base64.b64decode(payload))
+
     def get_fulcra_userid(self) -> str:
         """
         Retrieve the currently authorized Fulcra UserID.
@@ -404,17 +475,8 @@ class FulcraAPI:
         Returns:
             the Fulcra UserID of the currently-authorized user.
         """
-        if (
-            self.fulcra_credentials is None
-            or self.fulcra_credentials.access_token is None
-        ):
-            raise Exception("Authorization must occur before retrieving user ID.")
-        segs = self.fulcra_credentials.access_token.split(".")
-        if len(segs) < 2:
-            raise Exception("Authorized token is in an incorrect format.")
-        payload = segs[1] + "=="  # add extra padding to prevent b64decode from breaking
-        jd = json.loads(base64.b64decode(payload))
-        return jd["fulcradynamics.com/userid"]
+        claims = self.get_token_claims()
+        return claims["fulcradynamics.com/userid"]
 
     def calendars(
         self,
@@ -978,22 +1040,346 @@ class FulcraAPI:
         return json.loads(resp)
 
     def v1_catalog(
-        self, data_type: Optional[str] = None, category: Optional[str] = None
+        self,
+        data_type: str | None = None,
+        category: str | None = None,
+        fulcra_userid: str | None = None,
     ) -> List[Dict]:
         params = {}
         if data_type:
             params["data_type"] = data_type
         if category:
             params["category"] = category
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
 
-        query_params = urllib.parse.urlencode(params, doseq=True)
+        resp = self.fulcra_api("/data/v1/catalog", query=params)
+        return json.loads(resp)
 
-        if query_params != "":
-            uri = f"/data/v1/catalog?{query_params}"
-        else:
-            uri = "/data/v1/catalog"
+    def v1_catalog_data_type(
+        self,
+        data_type: str,
+        api_version: str,
+        fulcra_userid: str | None = None,
+    ) -> Dict:
+        """
+        Get catalog entry for a specific data type and API version, including schema.
 
-        resp = self.fulcra_api(uri)
+        Requires a valid access token.
+
+        Params:
+            data_type: The Fulcra data type ID
+            api_version: API version (e.g., "v1", "v1alpha1")
+            fulcra_userid: Optional Fulcra user ID to filter by
+
+        Returns:
+            Dictionary containing catalog entry with schema included
+
+        Example:
+            catalog = client.v1_catalog_data_type("NumericAnnotation", "v1alpha1")
+            schema = catalog.get("record_spec", {}).get("schema")
+        """
+        params = {}
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        uri = f"/data/v1/catalog/{data_type}/{api_version}"
+        resp = self.fulcra_api(uri, query=params)
+        return json.loads(resp)
+
+    def v1_catalog_schema(
+        self, data_type: str, api_version: str, fulcra_userid: str | None = None
+    ) -> Dict:
+        """
+        Get the JSON schema for a specific data type and API version.
+
+        Requires a valid access token.
+
+        Params:
+            data_type: The Fulcra data type ID
+            api_version: API version (e.g., "v1", "v1alpha1")
+            fulcra_userid: Optional Fulcra user ID for the data type
+
+        Returns:
+            Dictionary containing the JSON schema
+
+        Raises:
+            HTTPError: If schema cannot be fetched (e.g., 404 if not found)
+
+        Example:
+            schema = client.v1_catalog_schema("NumericAnnotation", "v1alpha1")
+            required_fields = schema.get("required", [])
+        """
+
+        params = {}
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        uri = f"/data/v1/catalog/{data_type}/{api_version}/schema"
+        resp = self.fulcra_api(uri, query=params)
+        return json.loads(resp)
+
+    def resolve_data_type(
+        self,
+        data_type: str,
+        api_version: str | None = None,
+        fulcra_userid: str | None = None,
+    ) -> List[Dict]:
+        """
+        Resolve a data type to the matching catalog entries for a single user.
+
+        Defaults to the authenticated user ID for disambiguation if fulcra_userid is not provided.
+        May return more than one entry when the data type exists under multiple API versions;
+        callers are responsible for deciding whether that ambiguity is acceptable.
+
+        Params:
+            data_type: The data type to resolve
+            api_version: The API version to use (optional)
+            fulcra_userid: The Fulcra user ID to use (optional)
+
+        Returns:
+            A list of matching catalog entries, all belonging to a single user.
+
+        Raises:
+            ValueError: If no data types are found or they span multiple users.
+        """
+
+        error_info = [f"for data type {data_type}"]
+        if api_version is not None:
+            error_info.append(f"with API version {api_version}")
+        if fulcra_userid is not None:
+            error_info.append(f"with user ID {fulcra_userid}")
+
+        try:
+            # Efficiently fetch a specific data type if specified
+            if api_version is not None and fulcra_userid is not None:
+                dt = self.v1_catalog_data_type(
+                    data_type=data_type,
+                    api_version=api_version,
+                    fulcra_userid=fulcra_userid,
+                )
+                return [dt]
+            else:
+                data_types = self.v1_catalog(
+                    data_type=data_type, fulcra_userid=fulcra_userid
+                )
+        except HTTPError as exc:
+            if exc.code == 404:
+                raise ValueError(f"Type not found {' '.join(error_info)}")
+            else:
+                raise
+
+        if api_version is not None:
+            data_types = [dt for dt in data_types if dt["api_version"] == api_version]
+
+        # Default to the authenticated user ID if None is specified
+        user_ids = {dt["fulcra_userid"] for dt in data_types}
+        if fulcra_userid is None and len(user_ids) > 1:
+            authenticated_user_id = self.get_fulcra_userid()
+            if authenticated_user_id in user_ids:
+                data_types = [
+                    dt
+                    for dt in data_types
+                    if dt["fulcra_userid"] == authenticated_user_id
+                ]
+                user_ids = {authenticated_user_id}
+
+        if len(data_types) == 0:
+            raise ValueError(f"Type not found {' '.join(error_info)}")
+
+        if len(user_ids) > 1:
+            raise ValueError(
+                f"Multiple user IDs found {' '.join(error_info)} "
+                f"({', '.join(sorted(user_ids))})"
+            )
+
+        return data_types
+
+    def create_datashare(
+        self,
+        datashare_name: str,
+        fulcra_data_types: List[str],
+        allowed_user_ids: List[str],
+        share_all_data: bool = False,
+        time_start: Optional[datetime.datetime] = None,
+        time_end: Optional[datetime.datetime] = None,
+    ) -> dict:
+        """
+        Creates a new datashare to share your data with other users.
+
+        Args:
+            datashare_name: Name for this datashare
+            fulcra_data_types: List of data type IDs to share
+            allowed_user_ids: List of Fulcra user IDs to share with
+            share_all_data: Whether to share all data types (default: False)
+            time_start: Optional start time for data range
+            time_end: Optional end time for data range
+
+        Returns:
+            A dict containing the created datashare information.
+
+        Examples:
+                >>> datashare = fulcra_client.create_datashare(
+                ...     datashare_name="My Research Share",
+                ...     fulcra_data_types=["HeartRate", "StepCount"],
+                ...     allowed_user_ids=["a24a9667-c2c6-4bbf-9a0f-4Bej0afcb521"]
+                ... )
+        """
+        permissions = [
+            {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
+        ]
+
+        # Temporary until we can get the user name from the identity token,
+        # or until we don't require it in the datashare body
+        fulcra_user_name = self.get_fulcra_userid()
+
+        datashare_body = {
+            "datashare_name": datashare_name,
+            "fulcra_user_name": fulcra_user_name,
+            "time_start": time_start.isoformat() if time_start else None,
+            "time_end": time_end.isoformat() if time_end else None,
+            "fulcra_data_types": fulcra_data_types,
+            "share_all_data": share_all_data,
+            "permissions": permissions,
+        }
+
+        resp = self.fulcra_api(
+            "/user/v1alpha1/datashares", data=datashare_body, method="POST"
+        )
+        return json.loads(resp)
+
+    def update_datashare(
+        self,
+        datashare_id: str,
+        datashare_name: str,
+        fulcra_data_types: List[str],
+        allowed_user_ids: List[str],
+        share_all_data: bool,
+        time_start: Optional[datetime.datetime],
+        time_end: Optional[datetime.datetime],
+    ) -> dict:
+        """
+        Updates an existing datashare with a complete replacement of all fields.
+
+        Note: This method requires all fields to be provided. The CLI handles fetching
+        current values and building the complete update. Direct API users should fetch
+        the current share via get_datashares() first if they only want to modify
+        specific fields.
+
+        Args:
+            datashare_id: UUID of the datashare to update
+            datashare_name: Name for the datashare
+            fulcra_data_types: List of data type IDs to share
+            allowed_user_ids: List of Fulcra user IDs to share with
+            share_all_data: Whether to share all data types
+            time_start: Start time for data range, or None for open-ended
+            time_end: End time for data range, or None for open-ended
+
+        Returns:
+            A dict containing the updated datashare information.
+
+        Examples:
+                >>> # Fetch current share first
+                >>> shares = fulcra_client.get_datashares()
+                >>> current = next(s for s in shares if s["datashare_id"] == share_id)
+                >>>
+                >>> # Update with modified values
+                >>> updated = fulcra_client.update_datashare(
+                ...     datashare_id=share_id,
+                ...     datashare_name="Updated Research Share",
+                ...     fulcra_data_types=["HeartRate", "StepCount"],
+                ...     allowed_user_ids=current["permissions"],
+                ...     share_all_data=current["share_all_data"],
+                ...     time_start=None,
+                ...     time_end=None
+                ... )
+        """
+        datashare_body = {
+            "datashare_name": datashare_name,
+            "fulcra_data_types": fulcra_data_types,
+            "share_all_data": share_all_data,
+            "time_start": time_start.isoformat() if time_start else None,
+            "time_end": time_end.isoformat() if time_end else None,
+            "permissions": [
+                {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
+            ],
+        }
+
+        resp = self.fulcra_api(
+            f"/user/v1alpha1/datashare/{datashare_id}",
+            data=datashare_body,
+            method="PUT",
+        )
+        return json.loads(resp)
+
+    def get_datashares(self) -> List[dict]:
+        """
+        Retrieves all datashares created by the authenticated user.
+
+        Returns a list of datashares that you have created to share your data
+        with others.
+
+        Returns:
+            A list of datashare dicts.
+
+        Examples:
+                >>> datashares = fulcra_client.get_datashares()
+                >>> datashares[0]
+                {'datashare_id': '...', 'datashare_name': 'My Share', ...}
+        """
+        resp = self.fulcra_api("/user/v1alpha1/datashares")
+        return json.loads(resp)
+
+    def delete_datashare(self, datashare_id: str):
+        """
+        Deletes a datashare that you created.
+
+        Args:
+            datashare_id: UUID of the datashare to delete
+
+        Examples:
+                >>> fulcra_client.delete_datashare("cf362f80-ef41-4c08-b5e3-b18bd3d1524b")
+        """
+        self.fulcra_api(f"/user/v1alpha1/datashare/{datashare_id}", method="DELETE")
+
+    def data_updates(
+        self,
+        start_time: str | datetime.datetime,
+        end_time: str | datetime.datetime,
+    ) -> dict:
+        """
+        Retrieve a summary of the data that was updated during the specified
+        time range for the authenticated user.
+
+        This reports the data types that had records processed during the range
+        (along with the number of records processed for each), as well as any
+        uploaded files that changed.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
+
+        Returns:
+            A dict with two keys:
+
+            - `data_types`: a dict mapping each data type to the number of records processed for it
+            - `file_changes`: a list of files that were added, changed, or removed
+
+        Examples:
+            To see what data was updated during a given range:
+
+            >>> updates = fulcra.data_updates(
+            ...     start_time="2026-02-01 00:00:00Z",
+            ...     end_time="2026-02-03 00:00:00Z"
+            ... )
+            >>> updates["data_types"]
+            {'StepCount': 412, 'HeartRate': 1875}
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+        }
+        resp = self.fulcra_api("/data/v1/updates", query=params)
         return json.loads(resp)
 
     def get_shared_datasets(self) -> List[Dict]:
@@ -1008,6 +1394,20 @@ class FulcraAPI:
         """
         resp = self.fulcra_api("/user/v1alpha1/datasets")
         return json.loads(resp)
+
+    def delete_dataset_permission(self, permission_id: str):
+        """
+        Revokes your permission to access a dataset that was shared with you.
+
+        Args:
+            permission_id: UUID of the dataset permission to revoke
+
+        Examples:
+                >>> fulcra_client.delete_dataset_permission("cf362f80-ef41-4c08-b5e3-b18bd3d1524b")
+        """
+        self.fulcra_api(
+            f"/user/v1alpha1/dataset/permission/{permission_id}", method="DELETE"
+        )
 
     def get_user_info(self) -> Dict:
         """
@@ -1454,7 +1854,7 @@ class FulcraAPI:
         resp = self.fulcra_v1_api("metric", "ScaleAnnotation", params)
         return json.loads(resp)
 
-    def tags(self) -> List[Dict]:
+    def tags(self) -> list[dict[str, str]]:
         """
         Retrieves user defined tags.
 
@@ -1468,7 +1868,7 @@ class FulcraAPI:
         resp = self.fulcra_api("/user/v1alpha1/tag")
         return json.loads(resp)
 
-    def get_tag_by_name(self, name: str) -> Dict:
+    def get_tag_by_name(self, name: str) -> dict[str, str]:
         """
         Retrieves a user defined tag by name.
 
@@ -1482,7 +1882,7 @@ class FulcraAPI:
         resp = self.fulcra_api(f"/user/v1alpha1/tag/name/{name}")
         return json.loads(resp)
 
-    def get_tag_by_id(self, tag_id: str) -> Dict:
+    def get_tag_by_id(self, tag_id: str) -> dict[str, str]:
         """
         Retrieves a user defined tag by ID.
 
@@ -1496,7 +1896,7 @@ class FulcraAPI:
         resp = self.fulcra_api(f"/user/v1alpha1/tag/id/{tag_id}")
         return json.loads(resp)
 
-    def create_tag(self, tag_name: str) -> List[Dict]:
+    def create_tag(self, tag_name: str) -> dict[str, str]:
         """
         Creates a user defined tag.
 
@@ -1512,7 +1912,7 @@ class FulcraAPI:
         )
         return json.loads(resp)
 
-    def create_tags(self, tag_names: List[str]) -> List[Dict]:
+    def create_tags(self, tag_names: list[str]) -> list[dict[str, str]]:
         """
         Creates a batch of user defined tags.
 
@@ -1526,7 +1926,7 @@ class FulcraAPI:
         """
 
         existing_tags = self.tags()
-        result = []
+        result: list[dict[str, str]] = []
         for tag_name in tag_names:
             try:
                 tag = next(t for t in existing_tags if t["name"] == tag_name)
@@ -1638,6 +2038,92 @@ class FulcraAPI:
         )
         return json.loads(resp)
 
+    def record_data_type(
+        self, data_type: str, records: List[dict], api_version: str
+    ) -> dict:
+        """
+        Record data for a Fulcra data type using batch ingestion.
+
+        Requires a valid access token.
+
+        Params:
+            data_type: The Fulcra data type to record (e.g., "NumericAnnotation", "MomentAnnotation")
+            records: List of record dictionaries (schema depends on data_type)
+            api_version: API version to use (default: "v1alpha1")
+
+        Returns:
+            Dictionary containing the upload_id
+
+        Example:
+            records = [
+                {"value": 75.5, "unit": "bpm", "note": "Resting heart rate"},
+                {"value": 80.2, "unit": "bpm"}
+            ]
+            response = client.record_data_type("NumericAnnotation", records)
+            print(response["upload_id"])
+        """
+        resp = self.fulcra_api(
+            f"/ingest/v1/record/{data_type}",
+            method="POST",
+            query={"api_version": api_version},
+            data=records,
+            content_type="application/x-jsonl",
+        )
+        return json.loads(resp)
+
+    def validate_records(
+        self, data_type: str, records: List[dict], api_version: str = "v1alpha1"
+    ) -> list[tuple[int, str, jsonschema.ValidationError]]:
+        """
+        Validate records against the schema for a Fulcra data type.
+
+        Requires a valid access token.
+
+        Params:
+            data_type: The Fulcra data type to validate against
+            records: List of record dictionaries to validate
+            api_version: API version to use (default: "v1alpha1")
+
+        Returns:
+            List of tuples (record_index, error_message, validation_error) for records with errors.
+            Empty list if all records are valid.
+            - record_index: zero-based index of the invalid record
+            - error_message: human-readable error description
+            - validation_error: the full jsonschema.ValidationError object
+
+        Raises:
+            HTTPError: If schema cannot be fetched
+
+        Example:
+            records = [
+                {"value": 75.5, "unit": "bpm"},
+                {"unit": "bpm"}  # missing required 'value'
+            ]
+            errors = client.validate_records("NumericAnnotation", records)
+            if errors:
+                for idx, error_msg, error_obj in errors:
+                    print(f"Record {idx + 1}: {error_msg}")
+        """
+        # Fetch schema
+        schema = self.v1_catalog_schema(data_type, api_version)
+
+        # Validate each record and collect errors
+        errors = []
+        for idx, record in enumerate(records):
+            try:
+                jsonschema.validate(
+                    instance=record,
+                    schema=schema,
+                    format_checker=jsonschema.FormatChecker(),
+                )
+            except jsonschema.ValidationError as e:
+                error_msg = e.message
+                if e.path:
+                    error_msg += f" (path: {'.'.join(str(p) for p in e.path)})"
+                errors.append((idx, error_msg, e))
+
+        return errors
+
     #
     # File functionality
     #
@@ -1688,7 +2174,6 @@ class FulcraAPI:
     def upload_file(
         self, data: io.BufferedReader, file_type: str, file_size: int, filepath: str
     ) -> dict:
-
         path = PurePath(filepath)
 
         file_info = {

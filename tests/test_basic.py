@@ -724,3 +724,21 @@ def test_sleep_stages(fulcra_client):
         fulcra_userid=fulcra_client.get_fulcra_userid(),
     )
     assert df.shape[0] >= 0
+
+
+def test_data_updates(fulcra_client):
+    updates = fulcra_client.data_updates(
+        start_time="2023-02-01 00:00:00Z",
+        end_time="2023-02-03 00:00:00Z",
+    )
+    assert isinstance(updates, dict)
+    assert isinstance(updates["data_types"], dict)
+    assert isinstance(updates["file_changes"], list)
+
+    updates = fulcra_client.data_updates(
+        start_time=datetime.fromisoformat("2023-02-01 00:00:00+00:00"),
+        end_time=datetime.fromisoformat("2023-02-03 00:00:00+00:00"),
+    )
+    assert isinstance(updates, dict)
+    assert isinstance(updates["data_types"], dict)
+    assert isinstance(updates["file_changes"], list)
