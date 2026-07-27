@@ -167,6 +167,10 @@ class FulcraOIDCProvider:
         if credentials.refresh_token is None:
             raise Exception("No refresh token available to refresh credentials with")
 
-        payload = {"refresh_token": credentials.refresh_token, "scope": self.scope}
+        payload = {
+            "refresh_token": credentials.refresh_token,
+            "scope": self.scope,
+            "id_token": credentials.id_token,
+        }
 
         return self.get_token("refresh_token", payload)
