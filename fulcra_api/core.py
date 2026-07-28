@@ -2209,11 +2209,19 @@ class FulcraAPI:
 
         return r
 
-    def download_file(self, file_id: str) -> http.client.HTTPResponse:
+    def download_file(
+        self, file_id: str, fulcra_userid: str | None = None
+    ) -> http.client.HTTPResponse:
         """download a file and return the file object"""
 
+        params = {}
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
+
         resp = self.fulcra_api(
-            f"/input/v1/file_upload/{file_id}/download", return_http_response=True
+            f"/input/v1/file_upload/{file_id}/download",
+            query=params,
+            return_http_response=True,
         )
 
         return resp

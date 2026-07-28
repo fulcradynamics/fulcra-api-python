@@ -88,10 +88,16 @@ def file_stat(fulcra_api: FulcraAPI, path: str):
 @click.argument(
     "local_file", type=click.Path(allow_dash=True), required=False, default=None
 )
+@click.option(
+    "--user-id",
+    type=str,
+    default=None,
+    help="Fulcra user ID of which files to fetch.",
+)
 @pass_fulcra_api
 @requires_auth
 def file_download(
-    fulcra_api: FulcraAPI, remote_file: str, local_file: str | None = None
+    fulcra_api: FulcraAPI, remote_file: str, local_file: str | None, user_id: str | None
 ):
     """Download a file.
 
@@ -109,7 +115,7 @@ def file_download(
     except Exception as exc:
         raise click.ClickException(exc)
 
-    resp = fulcra_api.download_file(f[0].get("id"))
+    resp = fulcra_api.download_file(f[0].get("id"), fulcra_userid=user_id)
     remote_name = pathlib.PurePath(f[0].get("name")).name
 
     if local_file == "-":  # "-" → stdout
