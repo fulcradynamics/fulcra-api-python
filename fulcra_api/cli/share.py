@@ -216,6 +216,24 @@ def leave(fulcra_api: FulcraAPI, share_id: str):
     help="Replace all data types with this list (can be specified multiple times)",
 )
 @click.option(
+    "--add-file",
+    "add_files",
+    multiple=True,
+    help="Add a file prefix to the share (can be specified multiple times)",
+)
+@click.option(
+    "--remove-file",
+    "remove_files",
+    multiple=True,
+    help="Remove file prefix from the share (can be specified multiple times)",
+)
+@click.option(
+    "--set-files",
+    "set_files",
+    multiple=True,
+    help="Replace all file prefixes with this list (can be specified multiple times)",
+)
+@click.option(
     "--add-user-id",
     "add_user_ids",
     multiple=True,
@@ -284,6 +302,9 @@ def update(
     add_data_types,
     remove_data_types,
     set_data_types,
+    add_files,
+    remove_files,
+    set_files,
     add_user_ids,
     remove_user_ids,
     set_user_ids,
@@ -341,6 +362,9 @@ def update(
             add_data_types,
             remove_data_types,
             set_data_types,
+            add_files,
+            remove_files,
+            set_files,
             add_user_ids,
             remove_user_ids,
             set_user_ids,
@@ -359,6 +383,12 @@ def update(
     if set_data_types and (add_data_types or remove_data_types):
         raise click.UsageError(
             "--set-data-type cannot be used with --add-data-type or --remove-data-type"
+        )
+
+    # Validate mutual exclusivity for file prefixes
+    if set_files and (add_files or remove_files):
+        raise click.UsageError(
+            "--set-file cannot be used with --add-file or --remove-file"
         )
 
     # Validate mutual exclusivity for user IDs
