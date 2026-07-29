@@ -414,6 +414,19 @@ def update(
         if not current_share:
             raise click.ClickException(f"Share {share_id} not found")
 
+        file_type_prefixes = ("file:", "filehistory:")
+        current_catalog_types: list[str] = [
+            t
+            for t in current_share.get("fulcra_data_types", [])
+            if not t.startswith(file_type_prefixes)
+        ]
+
+        current_file_types: list[str] = [
+            t
+            for t in current_share.get("fulcra_data_types", [])
+            if t.startswith(file_type_prefixes)
+        ]
+
         # Initialize update arguments with all current values
         update_kwargs: Dict[str, Any] = {
             "datashare_id": share_id,
