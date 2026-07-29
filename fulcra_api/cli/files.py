@@ -25,9 +25,17 @@ def file():
     default=None,
     help="Fulcra user ID of which files to fetch.",
 )
+@click.option(
+    "--base-name",
+    type=str,
+    default=None,
+    help="Filter files and folders by base name.",
+)
 @pass_fulcra_api
 @requires_auth
-def file_list(fulcra_api: FulcraAPI, path: str, user_id: str | None):
+def file_list(
+    fulcra_api: FulcraAPI, path: str, user_id: str | None, base_name: str | None
+):
     """List uploaded files.
 
     PATH: Path to list files in [Default: /]
@@ -36,7 +44,9 @@ def file_list(fulcra_api: FulcraAPI, path: str, user_id: str | None):
     path = make_filepath(path)
 
     try:
-        results = fulcra_api.list_files(path, fulcra_userid=user_id)
+        results = fulcra_api.list_files(
+            path, fulcra_userid=user_id, base_name=base_name
+        )
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
         raise click.ClickException(f"Failed to list files: {exc}\n{error_body}")

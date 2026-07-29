@@ -2129,11 +2129,17 @@ class FulcraAPI:
     #
 
     def list_files(
-        self, path: str = "/", state: str = "uploaded", fulcra_userid: str | None = None
+        self,
+        path: str = "/",
+        state: str = "uploaded",
+        fulcra_userid: str | None = None,
+        base_name: str | None = None,
     ) -> dict:
         params = {"path": path, "state": state}
         if fulcra_userid:
             params["fulcra_userid"] = fulcra_userid
+        if base_name:
+            params["name"] = base_name
 
         resp = self.fulcra_api("/input/v1/file_upload", query=params)
         return json.loads(resp)
