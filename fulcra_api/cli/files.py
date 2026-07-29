@@ -54,9 +54,15 @@ def file_list(fulcra_api: FulcraAPI, path: str, user_id: str | None):
 
 @file.command("stat", short_help="Get information about a file")
 @click.argument("path", type=str)
+@click.option(
+    "--user-id",
+    type=str,
+    default=None,
+    help="Fulcra user ID of which files to fetch.",
+)
 @pass_fulcra_api
 @requires_auth
-def file_stat(fulcra_api: FulcraAPI, path: str):
+def file_stat(fulcra_api: FulcraAPI, path: str, user_id: str | None):
     """Returns information about an uploaded file, including size, date uploaded, and all previously uploaded versions of the file.
 
     PATH: Full path of the file.
@@ -65,7 +71,7 @@ def file_stat(fulcra_api: FulcraAPI, path: str):
     path = make_filepath(path)
 
     try:
-        f = fulcra_api.resolve_filepath(path, all_versions=True)
+        f = fulcra_api.resolve_filepath(path, all_versions=True, fulcra_userid=user_id)
     except Exception as exc:
         raise click.ClickException(exc)
 
@@ -111,7 +117,7 @@ def file_download(
     remote_file = make_filepath(remote_file)
 
     try:
-        f = fulcra_api.resolve_filepath(remote_file)
+        f = fulcra_api.resolve_filepath(remote_file, fulcra_userid=user_id)
     except Exception as exc:
         raise click.ClickException(exc)
 
