@@ -228,10 +228,28 @@ def leave(fulcra_api: FulcraAPI, share_id: str):
     help="Remove file prefix from the share (can be specified multiple times)",
 )
 @click.option(
-    "--set-files",
+    "--set-file",
     "set_files",
     multiple=True,
     help="Replace all file prefixes with this list (can be specified multiple times)",
+)
+@click.option(
+    "--add-file-history",
+    "add_file_histories",
+    multiple=True,
+    help="Add a file historyprefix to the share (can be specified multiple times)",
+)
+@click.option(
+    "--remove-file-history",
+    "remove_file_histories",
+    multiple=True,
+    help="Remove file history prefix from the share (can be specified multiple times)",
+)
+@click.option(
+    "--set-file-history",
+    "set_file_histories",
+    multiple=True,
+    help="Replace all file history prefixes with this list (can be specified multiple times)",
 )
 @click.option(
     "--add-user-id",
@@ -305,6 +323,9 @@ def update(
     add_files,
     remove_files,
     set_files,
+    add_file_histories,
+    remove_file_histories,
+    set_file_histories,
     add_user_ids,
     remove_user_ids,
     set_user_ids,
@@ -391,6 +412,11 @@ def update(
             "--set-file cannot be used with --add-file or --remove-file"
         )
 
+    if set_file_histories and (add_file_histories or remove_file_histories):
+        raise click.UsageError(
+            "--set-file-history cannot be used with --add-file-history or --remove-file-history"
+        )
+
     # Validate mutual exclusivity for user IDs
     if set_user_ids and (add_user_ids or remove_user_ids):
         raise click.UsageError(
@@ -413,19 +439,6 @@ def update(
         )
         if not current_share:
             raise click.ClickException(f"Share {share_id} not found")
-
-        file_type_prefixes = ("file:", "filehistory:")
-        current_catalog_types: list[str] = [
-            t
-            for t in current_share.get("fulcra_data_types", [])
-            if not t.startswith(file_type_prefixes)
-        ]
-
-        current_file_types: list[str] = [
-            t
-            for t in current_share.get("fulcra_data_types", [])
-            if t.startswith(file_type_prefixes)
-        ]
 
         # Initialize update arguments with all current values
         update_kwargs: Dict[str, Any] = {
@@ -451,24 +464,41 @@ def update(
             update_kwargs["datashare_name"] = name
 
         # Handle data types
+        updated_types = current_share.get("fulcra_data_types", [])
         if set_data_types:
-            update_kwargs["fulcra_data_types"] = sorted(set_data_types)
-        elif add_data_types or remove_data_types:
-            current_data_types = set(update_kwargs["fulcra_data_types"] or [])
+            updated_types = sorted(set_data_types)
 
-            for dt in add_data_types:
-                if dt in current_data_types:
-                    click.echo(f"Warning: {dt} already in share, skipping", err=True)
-                else:
-                    current_data_types.add(dt)
+        if set_files:
+            updated_types = [t for t in updated_types if not t.startswith("file:")] + [
+                f"file:{f}" for f in sorted(set_files)
+            ]
+        if set_file_histories:
+            updated_types = [
+                t for t in updated_types if not t.startswith("filehistory:")
+            ] + [f"filehistory:{f}" for f in sorted(set_file_histories)]
 
-            for dt in remove_data_types:
-                if dt not in current_data_types:
-                    click.echo(f"Warning: {dt} not in share, skipping", err=True)
-                else:
-                    current_data_types.remove(dt)
+        add_types = add_data_types or []
+        if add_files:
+            add_types += [f"file:{f}" for f in sorted(add_files)]
+        if add_file_histories:
+            add_types += [f"filehistory:{f}" for f in sorted(add_file_histories)]
+        remove_types = remove_data_types or []
+        if remove_files:
+            remove_types += [f"file:{f}" for f in sorted(remove_files)]
+        if remove_file_histories:
+            remove_types += [f"filehistory:{f}" for f in sorted(remove_file_histories)]
 
-            update_kwargs["fulcra_data_types"] = sorted(current_data_types)
+        for add_type in add_types:
+            if dt in updated_types:
+                click.echo(f"Warning: {add_type} already in share, skipping", err=True)
+            else:
+                updated_types.add(add_type)
+
+        for remove_type in remove_types:
+            if dt in updated_types:
+                click.echo(f"Warning: {remove_type} not in share, skipping", err=True)
+            else:
+                updated_types.remove(remove_type)
 
         # Handle user IDs
         if set_user_ids:
