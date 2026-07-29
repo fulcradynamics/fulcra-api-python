@@ -2132,7 +2132,7 @@ class FulcraAPI:
         self, path: str = "/", state: str = "uploaded", fulcra_userid: str | None = None
     ) -> dict:
         params = {"path": path, "state": state}
-        if fulcra_userid is not None:
+        if fulcra_userid:
             params["fulcra_userid"] = fulcra_userid
 
         resp = self.fulcra_api("/input/v1/file_upload", query=params)
@@ -2160,7 +2160,7 @@ class FulcraAPI:
             state = "uploaded"
 
         params = {"path": str(path), "name": str(name), "state": state}
-        if fulcra_userid is not None:
+        if fulcra_userid:
             params["fulcra_userid"] = fulcra_userid
 
         resp = self.fulcra_api(
