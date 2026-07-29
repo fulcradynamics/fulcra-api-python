@@ -2142,7 +2142,12 @@ class FulcraAPI:
         resp = self.fulcra_api(f"/input/v1/file_upload/{version_id}")
         return json.loads(resp)
 
-    def resolve_filepath(self, filepath: str, all_versions: bool = False) -> list[dict]:
+    def resolve_filepath(
+        self,
+        filepath: str,
+        all_versions: bool = False,
+        fulcra_userid: str | None = None,
+    ) -> list[dict]:
         """Take a fully qualified file path and resolve it to the resource definition"""
         p = PurePath(filepath)
 
@@ -2154,9 +2159,13 @@ class FulcraAPI:
         else:
             state = "uploaded"
 
+        params = {"path": str(path), "name": str(name), "state": state}
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
         resp = self.fulcra_api(
             "/input/v1/file_upload",
-            query={"path": str(path), "name": str(name), "state": state},
+            query=params,
         )
 
         rbody = json.loads(resp)
