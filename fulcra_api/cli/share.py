@@ -70,13 +70,13 @@ def list_incoming(fulcra_api: FulcraAPI):
     "--file",
     "files",
     multiple=True,
-    help="File to share (can be specified multiple times). Suffix with / to share a directory's contents. Shares the live version only.",
+    help='File to share (can be specified multiple times). Suffix with "/" to share a prefix. Shares the live version only.',
 )
 @click.option(
     "--file-history",
     "file_histories",
     multiple=True,
-    help="File history to share, including live version (can be specified multiple times). Suffix with / to share a directory's contents.",
+    help='File history to share, including live version (can be specified multiple times). Suffix with "/" to share a prefix.',
 )
 @click.option(
     "--user-id",
@@ -232,37 +232,37 @@ def leave(fulcra_api: FulcraAPI, share_id: str):
     "--add-file",
     "add_files",
     multiple=True,
-    help="Add a file to the share (can be specified multiple times). Suffix with / to share a directory's contents. Shares the live version only.",
+    help='Add a file to the share (can be specified multiple times). Suffix with "/" to share a prefix. Shares the live version only.',
 )
 @click.option(
     "--remove-file",
     "remove_files",
     multiple=True,
-    help="Remove a live version file or directory from the share (can be specified multiple times)",
+    help="Remove a live version file or prefix from the share (can be specified multiple times)",
 )
 @click.option(
     "--set-file",
     "set_files",
     multiple=True,
-    help="Replace all live version file and directory shares with this list (can be specified multiple times)",
+    help="Replace all live version file and prefix shares with this list (can be specified multiple times)",
 )
 @click.option(
     "--add-file-history",
     "add_file_histories",
     multiple=True,
-    help="Add a file history to the share, including live version (can be specified multiple times). Suffix with / to share a directory's contents.",
+    help='Add a file history to the share, including live version (can be specified multiple times). Suffix with "/" to share a prefix.',
 )
 @click.option(
     "--remove-file-history",
     "remove_file_histories",
     multiple=True,
-    help="Remove a file or directory history from the share (can be specified multiple times)",
+    help="Remove a file or prefix history from the share (can be specified multiple times)",
 )
 @click.option(
     "--set-file-history",
     "set_file_histories",
     multiple=True,
-    help="Replace all file and directory history shares with this list (can be specified multiple times)",
+    help="Replace all file and prefix history shares with this list (can be specified multiple times)",
 )
 @click.option(
     "--add-user-id",
