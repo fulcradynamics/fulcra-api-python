@@ -211,3 +211,50 @@ def time_range(func):
         return func(*args, start_time=start_time, end_time=end_time, **kwargs)
 
     return wrapper
+
+
+def file_share_type(prefix: str, history: bool = False) -> str:
+    if not prefix.startswith("/"):
+        prefix = f"/{prefix}"
+    if history:
+        return f"filehistory:{file}"
+    return f"file:{file}"
+
+
+def validate_share_types(fulcra_api: FulcraAPI, share_types: list[str]) -> list[str]:
+    share_types = sorted(set(share_types))
+    try:
+        catalog = fulcra_api.v1_catalog(fulcra_userid=fulcra_api.get_fulcra_userid())
+        valid_data_type_ids = {item["id"] for item in catalog}
+
+        # TEMPORARY: Allow "calendars" and "calendar_events" even though they're not
+        # in the v1 catalog yet. Remove this special case once they're added to the catalog.
+        temporary_allowed_types = {"calendars", "calendar_events"}
+
+        invalid_types = []
+        for share_type in share_types:
+            if share_type in valid_data_type_ids:
+                continue
+            if share_type in temporary_allowed_types:
+                continue
+
+            parts = share_type.split(":", 1)
+            if len(parts) == 2:
+                match parts[0]:
+                    case "file" | "filehistory":
+                        if parts[1].startswith("/"):
+                            continue
+
+            invalid_types.append(share_type)
+
+        if invalid_types:
+            raise click.ClickException(
+                f"Invalid share type(s): {', '.join(invalid_types)}. "
+                "Use 'fulcra catalog' to see valid data types. "
+                "File paths must start with a slash."
+            )
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to fetch catalog: {exc}\n{error_body}")
+
+    return share_types
