@@ -2221,3 +2221,291 @@ class FulcraAPI:
         return json.loads(
             self.fulcra_api(f"/input/v1/file_upload/{file_id}/restore", method="POST")
         )
+
+    def get_groups(self, subscribed_only: bool = False) -> List[dict]:
+        """
+        Retrieves a list of data groups.
+
+        By default, returns all public groups.  When `subscribed_only` is True,
+        returns only the groups that you have joined; each of these also
+        includes your `participant_id` and `joined_at` values.
+
+        Args:
+            subscribed_only: When True, return only groups you have joined
+                (default: False)
+
+        Returns:
+            A list of groups; each is represented by a dict.
+
+        Examples:
+                >>> groups = fulcra_client.get_groups(subscribed_only=True)
+                >>> groups[0]["title"]
+                'My Research Study'
+        """
+        query = {}
+        if subscribed_only:
+            query["subscribed_only"] = "true"
+        resp = self.fulcra_api("/user/v1alpha1/pool", query=query)
+        return json.loads(resp)
+
+    def get_group(self, group_id: str) -> dict:
+        """
+        Retrieves the description of a single data group.
+
+        Args:
+            group_id: UUID of the group
+
+        Returns:
+            The group, represented by a dict.
+        """
+        resp = self.fulcra_api(f"/user/v1alpha1/pool/{group_id}")
+        return json.loads(resp)
+
+    def create_group(
+        self,
+        title: str,
+        is_public: bool,
+        responsible_entity: str,
+        description: str,
+        fulcra_data_types: List[str],
+        group_url: str,
+        time_start: Optional[datetime.datetime] = None,
+        time_end: Optional[datetime.datetime] = None,
+        detail_markdown: Optional[str] = None,
+        agreement_markdown: Optional[str] = None,
+        withdraw_markdown: Optional[str] = None,
+        header_image_url: Optional[str] = None,
+        preview_image_url: Optional[str] = None,
+        annotations: Optional[dict] = None,
+        view_description: Optional[dict] = None,
+        friendly_id: Optional[str] = None,
+    ) -> dict:
+        """
+        Creates a new data group that other Fulcra users can join.
+
+        When a participant joins the group, they share read-only access to
+        their data (limited to `fulcra_data_types` and the given time range)
+        with you until they leave the group.
+
+        Most group parameters are immutable after creation; for example, the group
+        owner can't later change the conditions of the data you agreed to share when
+        you join. 
+
+        Args:
+            title: Title of the group
+            is_public: Whether the group is publicly listed
+            responsible_entity: The person or organization responsible for
+                the group
+            description: Description of the group
+            fulcra_data_types: List of Fulcra data types that participants
+                will share
+            group_url: URL of the webapp associated with this group
+            time_start: Optional start of the shared data time range
+            time_end: Optional end of the shared data time range
+            detail_markdown: Optional markdown shown on the group's detail view
+            agreement_markdown: Optional markdown shown when a user joins
+            withdraw_markdown: Optional markdown shown when a user leaves
+            header_image_url: Optional URL of the group's header image
+            preview_image_url: Optional URL of the group's preview image
+            annotations: Optional dict of additional group annotations
+            view_description: Optional dict describing the group's view
+            friendly_id: Optional human-friendly identifier for the group
+
+        Returns:
+            The created group, represented by a dict.
+
+        Examples:
+                >>> group = fulcra_client.create_group(
+                ...     title="Step Challenge",
+                ...     is_public=True,
+                ...     responsible_entity="Fulcra Dynamics",
+                ...     description="A month-long step challenge.",
+                ...     fulcra_data_types=["StepCount"],
+                ...     group_url="https://example.com/challenge",
+                ... )
+        """
+        group_body = {
+            "title": title,
+            "is_public": is_public,
+            "responsible_entity": responsible_entity,
+            "description": description,
+            "time_start": time_start.isoformat() if time_start else None,
+            "time_end": time_end.isoformat() if time_end else None,
+            "fulcra_data_types": fulcra_data_types,
+            "pool_url": group_url,
+            "detail_markdown": detail_markdown,
+            "agreement_markdown": agreement_markdown,
+            "withdraw_markdown": withdraw_markdown,
+            "header_image_url": header_image_url,
+            "preview_image_url": preview_image_url,
+            "annotations": annotations,
+            "view_description": view_description,
+            "friendly_id": friendly_id,
+        }
+        resp = self.fulcra_api("/user/v1alpha1/pool", data=group_body, method="POST")
+        return json.loads(resp)["pool"]
+
+    def update_group(
+        self,
+        group_id: str,
+        description: Optional[str] = None,
+        header_image_url: Optional[str] = None,
+        preview_image_url: Optional[str] = None,
+        view_description: Optional[dict] = None,
+    ) -> dict:
+        """
+        Updates the editable fields of a group that you own.
+
+        Only the fields listed here can be changed after creation; all other
+        group parameters are immutable.  Fields left as None are not modified.
+
+        Args:
+            group_id: UUID of the group to update
+            description: New description for the group
+            header_image_url: New URL of the group's header image
+            preview_image_url: New URL of the group's preview image
+            view_description: New dict describing the group's view
+
+        Returns:
+            The updated group, represented by a dict.
+        """
+        group_body = {
+            k: v
+            for k, v in {
+                "description": description,
+                "header_image_url": header_image_url,
+                "preview_image_url": preview_image_url,
+                "view_description": view_description,
+            }.items()
+            if v is not None
+        }
+        resp = self.fulcra_api(
+            f"/user/v1alpha1/pool/{group_id}", data=group_body, method="PUT"
+        )
+        return json.loads(resp)
+
+    def delete_group(self, group_id: str):
+        """
+        Deletes a group that you own.
+
+        Args:
+            group_id: UUID of the group to delete
+        """
+        self.fulcra_api(f"/user/v1alpha1/pool/{group_id}", method="DELETE")
+
+    def join_group(self, group_id: str) -> dict:
+        """
+        Joins a data group as a participant.
+
+        Joining shares read-only access to your data (limited to the group's
+        data types and time range) with the group's owner until you leave.
+        The owner sees you only as the returned anonymized `participant_id`,
+        never your Fulcra UserID.
+
+        Args:
+            group_id: UUID of the group to join
+
+        Returns:
+            A dict containing your `participant_id` and `joined_at` time.
+        """
+        resp = self.fulcra_api(
+            f"/user/v1alpha1/pool/{group_id}/membership", method="POST"
+        )
+        return json.loads(resp)
+
+    def leave_group(self, group_id: str):
+        """
+        Leaves a data group, revoking the owner's access to your data.
+
+        Args:
+            group_id: UUID of the group to leave
+        """
+        self.fulcra_api(f"/user/v1alpha1/pool/{group_id}/membership", method="DELETE")
+
+    def get_group_participants(self, group_id: str) -> List[str]:
+        """
+        Retrieves the participant IDs of a group that you own.
+
+        Participant IDs are anonymized UUIDs that are only meaningful within
+        this group; they do not reveal participants' Fulcra UserIDs.
+
+        Args:
+            group_id: UUID of the group
+
+        Returns:
+            A list of participant ID strings.
+        """
+        resp = self.fulcra_api(f"/user/v1alpha1/pool/{group_id}/participants")
+        return json.loads(resp)
+
+    def get_group_participant_metadata(
+        self, group_id: str, participant_id: str
+    ) -> dict:
+        """
+        Retrieves the metadata object for a participant in a group you own.
+
+        Args:
+            group_id: UUID of the group
+            participant_id: Participant ID within the group
+
+        Returns:
+            The participant's metadata, represented by a dict.
+        """
+        resp = self.fulcra_api(
+            f"/user/v1alpha1/pool/{group_id}/participants/{participant_id}/metadata"
+        )
+        return json.loads(resp)
+
+    def set_group_participant_metadata(
+        self, group_id: str, participant_id: str, metadata: dict
+    ):
+        """
+        Replaces the metadata object for a participant in a group you own.
+
+        This overwrites the participant's entire metadata object; to modify
+        individual values, use `update_group_participant_metadata` instead.
+
+        Args:
+            group_id: UUID of the group
+            participant_id: Participant ID within the group
+            metadata: The new metadata object
+        """
+        self.fulcra_api(
+            f"/user/v1alpha1/pool/{group_id}/participants/{participant_id}/metadata",
+            data=metadata,
+            method="PUT",
+        )
+
+    def update_group_participant_metadata(
+        self, group_id: str, participant_id: str, values: dict
+    ):
+        """
+        Updates some values on a participant's metadata in a group you own.
+
+        The given values are merged into the participant's existing metadata
+        object; other values are left unchanged.  To replace the entire
+        object, use `set_group_participant_metadata` instead.
+
+        Args:
+            group_id: UUID of the group
+            participant_id: Participant ID within the group
+            values: The metadata values to set
+        """
+        self.fulcra_api(
+            f"/user/v1alpha1/pool/{group_id}/participants/{participant_id}/metadata_values",
+            data=values,
+            method="POST",
+        )
+
+    def get_group_jwks(self) -> dict:
+        """
+        Retrieves the group public keys as a JWKS.
+
+        Group webapps can use these keys to validate the participant JWTs
+        that Context sends when authenticating requests.
+
+        Returns:
+            The JWKS, represented by a dict.
+        """
+        resp = self.fulcra_api("/user/v1alpha1/pool/.well-known/jwks.json")
+        return json.loads(resp)
