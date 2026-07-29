@@ -221,7 +221,7 @@ def file_share_type(prefix: str, history: bool = False) -> str:
     return f"file:{file}"
 
 
-def validate_share_types(fulcra_api: FulcraAPI, share_types: list[str]) -> list[str]:
+def valid_share_types(fulcra_api: FulcraAPI, share_types: list[str]) -> list[str]:
     share_types = sorted(set(share_types))
     try:
         catalog = fulcra_api.v1_catalog(fulcra_userid=fulcra_api.get_fulcra_userid())
