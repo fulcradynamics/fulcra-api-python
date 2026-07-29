@@ -127,7 +127,7 @@ def create(
     fulcra share create --name "Full Access" --share-all --user-id <USER-UUID>
     """
     # Validate data types against catalog
-    share_types = data_types
+    share_types = list(data_types)
     for file in files:
         share_types.append(file_share_type(prefix=file, history=False))
     for file_history in file_histories:
@@ -331,6 +331,13 @@ def leave(fulcra_api: FulcraAPI, share_id: str):
     default=False,
     help="Skip data type validation",
 )
+@click.option(
+    "--clear",
+    "clear",
+    is_flag=True,
+    default=False,
+    help="Remove all shared data and files from the share, then add any specified by other options",
+)
 @pass_fulcra_api
 @requires_auth
 def update(
@@ -355,6 +362,7 @@ def update(
     end_time_value: str | None,
     no_end_time: bool,
     no_validate: bool,
+    clear: bool,
 ):
     """
     Update an existing share by modifying data types, users, or settings.
@@ -415,6 +423,7 @@ def update(
             no_start_time,
             end_time_value,
             no_end_time,
+            clear,
         ]
     )
 
@@ -484,8 +493,14 @@ def update(
         if name:
             update_kwargs["datashare_name"] = name
 
-        # Handle data types
         updated_types = current_share.get("fulcra_data_types", [])
+
+        # Hancle clear
+        if clear:
+            updated_types = []
+            update_kwargs["share_all_data"] = False
+
+        # Handle data types
         if set_data_types:
             updated_types = set_data_types
 
@@ -519,18 +534,20 @@ def update(
             if add_type in updated_types:
                 click.echo(f"Warning: {add_type} already in share, skipping", err=True)
             else:
-                updated_types.add(add_type)
+                updated_types.append(add_type)
 
         for remove_type in remove_types:
-            if remove_type in updated_types:
+            if remove_type not in updated_types:
                 click.echo(f"Warning: {remove_type} not in share, skipping", err=True)
             else:
-                updated_types.remove(remove_type)
+                updated_types = [t for t in updated_types if t != remove_type]
 
         if not no_validate:
             updated_types = valid_share_types(
                 fulcra_api=fulcra_api, share_types=updated_types
             )
+
+        update_kwargs["fulcra_data_types"] = updated_types
 
         # Handle user IDs
         if set_user_ids:

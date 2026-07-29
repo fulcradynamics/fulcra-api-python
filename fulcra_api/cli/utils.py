@@ -217,8 +217,8 @@ def file_share_type(prefix: str, history: bool = False) -> str:
     if not prefix.startswith("/"):
         prefix = f"/{prefix}"
     if history:
-        return f"filehistory:{file}"
-    return f"file:{file}"
+        return f"filehistory:{prefix}"
+    return f"file:{prefix}"
 
 
 def valid_share_types(fulcra_api: FulcraAPI, share_types: list[str]) -> list[str]:
@@ -250,8 +250,7 @@ def valid_share_types(fulcra_api: FulcraAPI, share_types: list[str]) -> list[str
         if invalid_types:
             raise click.ClickException(
                 f"Invalid share type(s): {', '.join(invalid_types)}. "
-                "Use 'fulcra catalog' to see valid data types. "
-                "File paths must start with a slash."
+                "Use 'fulcra catalog' to see valid data types."
             )
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
