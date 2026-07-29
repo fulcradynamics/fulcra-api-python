@@ -2153,6 +2153,7 @@ class FulcraAPI:
         filepath: str,
         all_versions: bool = False,
         fulcra_userid: str | None = None,
+        include_deleted: bool = False,
     ) -> list[dict]:
         """Take a fully qualified file path and resolve it to the resource definition"""
         p = PurePath(filepath)
@@ -2164,6 +2165,9 @@ class FulcraAPI:
             state = "uploaded,archived"
         else:
             state = "uploaded"
+
+        if include_deleted:
+            state += ",deleted"
 
         params = {"path": str(path), "name": str(name), "state": state}
         if fulcra_userid:
@@ -2180,7 +2184,9 @@ class FulcraAPI:
             files = sorted(rbody["files"], key=lambda d: d["uploaded_at"], reverse=True)
 
             # If there's no files or current versions, it doesn't exist
-            if len(files) == 0 or files[0]["state"] != "uploaded":
+            if (
+                len(files) == 0 or files[0]["state"] != "uploaded"
+            ) and not include_deleted:
                 raise Exception(f"File not found in Fulcra: {filepath}")
         else:
             files = rbody["files"]
