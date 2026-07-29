@@ -64,8 +64,19 @@ def list_incoming(fulcra_api: FulcraAPI):
     "--data-type",
     "data_types",
     multiple=True,
-    required=True,
     help="Data type ID to share (can be specified multiple times)",
+)
+@click.option(
+    "--file",
+    "files",
+    multiple=True,
+    help="File prefix to share (can be specified multiple times)",
+)
+@click.option(
+    "--file-history",
+    "file_histories",
+    multiple=True,
+    help="File history prefix to share (can be specified multiple times)",
 )
 @click.option(
     "--user-id",
@@ -85,7 +96,15 @@ def list_incoming(fulcra_api: FulcraAPI):
 @pass_fulcra_api
 @requires_auth
 def create(
-    fulcra_api: FulcraAPI, name, data_types, user_ids, start_time, end_time, share_all
+    fulcra_api: FulcraAPI,
+    name,
+    data_types,
+    files,
+    file_histories,
+    user_ids,
+    start_time,
+    end_time,
+    share_all,
 ):
     """
     Create a new share to share your data with other users.
@@ -123,6 +142,13 @@ def create(
         error_body = exc.read().decode("utf-8")
         raise click.ClickException(f"Failed to fetch catalog: {exc}\n{error_body}")
 
+    share_types = data_types
+    for file in files:
+        share_types.append(f"file:{file}")
+    for file_history in file_histories:
+        share_types.append(f"filehistory:{file_history}")
+    share_types = sorted(set(share_types))
+
     # Parse time arguments if provided
     parsed_start_time = None
     parsed_end_time = None
@@ -146,7 +172,7 @@ def create(
     try:
         result = fulcra_api.create_datashare(
             datashare_name=name,
-            fulcra_data_types=sorted(data_types),
+            fulcra_data_types=share_types,
             allowed_user_ids=sorted(user_ids),
             share_all_data=share_all,
             time_start=parsed_start_time,
