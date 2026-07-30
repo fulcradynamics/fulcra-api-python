@@ -110,7 +110,7 @@ def file_stat(
     click.echo(
         f"{make_filepath(latest_version['path'], latest_version['name'])} ({latest_version['size']} bytes)"
         + (
-            f" (X deleted {latest_version['deleted_at']})"
+            f" (deleted {latest_version['deleted_at']})"
             if latest_version["state"] == "deleted"
             else ""
         )
@@ -122,7 +122,7 @@ def file_stat(
         click.echo(
             f"- {file_version['id']} {file_version['uploaded_at']} ({file_version['size']} bytes)"
             + (
-                f" (X deleted {file_version['deleted_at']})"
+                f" (deleted {file_version['deleted_at']})"
                 if file_version["state"] == "deleted"
                 else ""
             )
