@@ -37,6 +37,10 @@ FULCRA_OIDC_SCOPE = os.environ.get(
     "FULCRA_OIDC_SCOPE", "openid profile name email offline_access"
 )
 
+# Sentinel distinguishing "parameter not passed" from an explicit None, for
+# update calls where None means "clear this field on the server".
+UNSET: Any = object()
+
 
 class FulcraV0DataMixin:
     """
@@ -969,6 +973,7 @@ class FulcraAPI(FulcraV0DataMixin):
         data: dict | List[dict] | None = None,
         return_http_response: bool = False,
         content_type: str = "application/json",
+        authenticated: bool = True,
     ) -> bytes | http.client.HTTPResponse:
         """
         Make a call to the given url path (e.g. `/v0/data/metric_time_series?...`)
@@ -981,13 +986,19 @@ class FulcraAPI(FulcraV0DataMixin):
             data: Dictionary or list of dictionaries to send as request body
             return_http_response: Return a HTTPResponse object instead of bytes (default: False)
             content_type: Content-Type header (default: "application/json")
+            authenticated: When False, make the request without credentials.
+                Only valid for public endpoints. (default: True)
 
         Returns:
             The raw response data (as bytes).  Raises an exception on failure.
         """
 
         # Attempt to refresh our access token if it's expired
-        if self.fulcra_credentials is not None and self.fulcra_credentials.is_expired():
+        if (
+            authenticated
+            and self.fulcra_credentials is not None
+            and self.fulcra_credentials.is_expired()
+        ):
             self.refresh_access_token()
 
         if self.fulcra_api_is_http:
@@ -1006,9 +1017,14 @@ class FulcraAPI(FulcraV0DataMixin):
             url_query = ""
 
         url = urllib.parse.urlunparse((proto, host, url_path, "", url_query, ""))
-        headers = {"Authorization": f"Bearer {self.fulcra_credentials.access_token}"}
+        if authenticated:
+            headers = {
+                "Authorization": f"Bearer {self.fulcra_credentials.access_token}"
+            }
+        else:
+            headers = {}
 
-        if data:
+        if data is not None:
             headers["Content-Type"] = content_type
 
             # Serialize data based on content type
@@ -1050,7 +1066,10 @@ class FulcraAPI(FulcraV0DataMixin):
                     path = parsed.path if parsed.path else location
                     # Follow the redirect with a GET request
                     return self.fulcra_api(
-                        path, method="GET", return_http_response=return_http_response
+                        path,
+                        method="GET",
+                        return_http_response=return_http_response,
+                        authenticated=authenticated,
                     )
             raise
 
@@ -2379,26 +2398,50 @@ class FulcraAPI(FulcraV0DataMixin):
     def update_group(
         self,
         group_id: str,
-        description: Optional[str] = None,
-        header_image_url: Optional[str] = None,
-        preview_image_url: Optional[str] = None,
-        view_description: Optional[dict] = None,
+        description: Optional[str] = UNSET,
+        header_image_url: Optional[str] = UNSET,
+        preview_image_url: Optional[str] = UNSET,
+        view_description: Optional[dict] = UNSET,
     ) -> dict:
         """
         Updates the editable fields of a group that you own.
 
         Only the fields listed here can be changed after creation; all other
-        group parameters are immutable.  Fields left as None are not modified.
+        group parameters are immutable.  Fields that are not passed are not
+        modified.  Passing None explicitly clears the field
+        (`header_image_url`, `preview_image_url`, and `view_description`
+        only; the server does not allow clearing `description`).
 
         Args:
             group_id: UUID of the group to update
             description: New description for the group
-            header_image_url: New URL of the group's header image
-            preview_image_url: New URL of the group's preview image
-            view_description: New dict describing the group's view
+            header_image_url: New URL of the group's header image, or None
+                to clear it
+            preview_image_url: New URL of the group's preview image, or None
+                to clear it
+            view_description: New dict describing the group's view, or None
+                to clear it
 
         Returns:
             The updated group, represented by a dict.
+
+        Examples:
+            To change a group's description (other fields are untouched):
+
+            >>> group = fulcra_client.update_group(
+            ...     group_id="cf362f80-ef41-4c08-b5e3-b18bd3d1524b",
+            ...     description="A month-long step challenge, now with prizes.",
+            ... )
+
+            To set a header image and clear the preview image in one call:
+
+            >>> group = fulcra_client.update_group(
+            ...     group_id="cf362f80-ef41-4c08-b5e3-b18bd3d1524b",
+            ...     header_image_url="https://example.com/header.png",
+            ...     preview_image_url=None,
+            ... )
+            >>> group["preview_image_url"] is None
+            True
         """
         group_body = {
             k: v
@@ -2408,7 +2451,7 @@ class FulcraAPI(FulcraV0DataMixin):
                 "preview_image_url": preview_image_url,
                 "view_description": view_description,
             }.items()
-            if v is not None
+            if v is not UNSET
         }
         resp = self.fulcra_api(
             f"/user/v1alpha1/pool/{group_id}", data=group_body, method="PUT"
@@ -2534,6 +2577,10 @@ class FulcraAPI(FulcraV0DataMixin):
 
         Group webapps can use these keys to validate the participant JWTs
         that Context sends when authenticating requests.
+
+        Requires a valid access token.  (The underlying route defines no
+        authentication requirement, but the API gateway currently rejects
+        unauthenticated requests.)
 
         Returns:
             The JWKS, represented by a dict.
