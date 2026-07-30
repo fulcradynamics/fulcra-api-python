@@ -213,9 +213,27 @@ def create(
 @click.argument("group_id")
 @click.option("--description", help="New description for the group")
 @click.option("--header-image-url", help="New URL of the group's header image")
+@click.option(
+    "--no-header-image-url",
+    is_flag=True,
+    default=False,
+    help="Clear the group's header image",
+)
 @click.option("--preview-image-url", help="New URL of the group's preview image")
 @click.option(
+    "--no-preview-image-url",
+    is_flag=True,
+    default=False,
+    help="Clear the group's preview image",
+)
+@click.option(
     "--view-description", help="New description of the group's view (JSON object)"
+)
+@click.option(
+    "--no-view-description",
+    is_flag=True,
+    default=False,
+    help="Clear the group's view description",
 )
 @pass_fulcra_api
 @requires_auth
@@ -224,34 +242,56 @@ def update(
     group_id: str,
     description,
     header_image_url,
+    no_header_image_url,
     preview_image_url,
+    no_preview_image_url,
     view_description,
+    no_view_description,
 ):
     """
     Update the editable fields of a group that you own.
 
     Only these fields can be changed after creation; all other group
-    parameters are immutable.
+    parameters are immutable.  Fields not specified are left unchanged.
 
     GROUP_ID: UUID of the group to update
     """
-    if not any([description, header_image_url, preview_image_url, view_description]):
+    if header_image_url and no_header_image_url:
+        raise click.UsageError(
+            "--header-image-url cannot be used with --no-header-image-url"
+        )
+    if preview_image_url and no_preview_image_url:
+        raise click.UsageError(
+            "--preview-image-url cannot be used with --no-preview-image-url"
+        )
+    if view_description and no_view_description:
+        raise click.UsageError(
+            "--view-description cannot be used with --no-view-description"
+        )
+
+    kwargs = {}
+    if description:
+        kwargs["description"] = description
+    if header_image_url:
+        kwargs["header_image_url"] = header_image_url
+    elif no_header_image_url:
+        kwargs["header_image_url"] = None
+    if preview_image_url:
+        kwargs["preview_image_url"] = preview_image_url
+    elif no_preview_image_url:
+        kwargs["preview_image_url"] = None
+    if view_description:
+        kwargs["view_description"] = _parse_json_option(
+            view_description, "--view-description"
+        )
+    elif no_view_description:
+        kwargs["view_description"] = None
+
+    if not kwargs:
         raise click.UsageError("Must specify at least one option to update")
 
-    parsed_view_description = (
-        _parse_json_option(view_description, "--view-description")
-        if view_description
-        else None
-    )
-
     try:
-        result = fulcra_api.update_group(
-            group_id=group_id,
-            description=description,
-            header_image_url=header_image_url,
-            preview_image_url=preview_image_url,
-            view_description=parsed_view_description,
-        )
+        result = fulcra_api.update_group(group_id=group_id, **kwargs)
         click.echo(json.dumps(result))
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
