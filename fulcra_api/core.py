@@ -2144,8 +2144,13 @@ class FulcraAPI:
         resp = self.fulcra_api("/input/v1/file_upload", query=params)
         return json.loads(resp)
 
-    def get_file_by_version(self, version_id: str) -> dict:
-        resp = self.fulcra_api(f"/input/v1/file_upload/{version_id}")
+    def get_file_by_version(
+        self, version_id: str, fulcra_userid: str | None = None
+    ) -> dict:
+        params = {}
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
+        resp = self.fulcra_api(f"/input/v1/file_upload/{version_id}", query=params)
         return json.loads(resp)
 
     def resolve_filepath(
