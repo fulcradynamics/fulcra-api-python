@@ -495,7 +495,7 @@ def update(
 
         updated_types = current_share.get("fulcra_data_types", [])
 
-        # Hancle clear
+        # Handle clear
         if clear:
             updated_types = []
             update_kwargs["share_all_data"] = False
