@@ -214,6 +214,17 @@ def time_range(func):
 
 
 def file_share_type(prefix: str, history: bool = False) -> str:
+    """
+    Return the share type string for a file or file history path or  prefix.
+
+    Args:
+        prefix: The file or file history path or prefix.
+        history: Whether to share the file history instead of only the live version (default: False).
+
+    Returns:
+        The share type string.
+    """
+
     if not prefix.startswith("/"):
         prefix = f"/{prefix}"
     if history:
@@ -222,6 +233,20 @@ def file_share_type(prefix: str, history: bool = False) -> str:
 
 
 def valid_share_types(fulcra_api: FulcraAPI, share_types: list[str]) -> list[str]:
+    """
+    Validate a list of data type and/or file shares.
+
+    Args:
+        fulcra_api: The FulcraAPI instance.
+        share_types: A list of share types to validate.
+
+    Raises:
+        click.ClickException: If any share type is invalid.
+
+    Returns:
+        A sorted de-duplicated list of valid share types.
+    """
+
     share_types = sorted(set(share_types))
     try:
         catalog = fulcra_api.v1_catalog(fulcra_userid=fulcra_api.get_fulcra_userid())
