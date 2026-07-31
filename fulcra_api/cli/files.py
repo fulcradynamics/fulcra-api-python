@@ -69,15 +69,19 @@ def file_list(
         for d in results.get("folders", []):
             click.echo(f"{d}/")
 
-    # Prefer the live version of each file
+    # Prefer the live and latest version of each file
     files = {}
     for f in results.get("files", []):
         name = f.get("name")
         if name not in files:
             files[name] = f
             continue
-        if f.get("state") == "uploaded":
+        if f.get("state") == "uploaded" and files[name].get("state") != "uploaded":
             files[name] = f
+            continue
+        if f.get("uploaded_at", "") > files[name].get("uploaded_at", ""):
+            files[name] = f
+            continue
 
     filtered_files = sorted(files.values(), key=lambda f: f.get("name"))
     for f in filtered_files:
