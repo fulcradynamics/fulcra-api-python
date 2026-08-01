@@ -137,6 +137,22 @@ def test_empty_body_is_sent(monkeypatch):
     assert captured["content_type"] is None
 
 
+def test_parse_iso_time_requires_timezone():
+    """Access-boundary timestamps must carry an explicit timezone offset."""
+    import click
+
+    from fulcra_api.cli.utils import parse_iso_time
+
+    dt = parse_iso_time("2026-07-01T00:00:00-07:00", "start time")
+    assert dt.utcoffset() is not None
+
+    with pytest.raises(click.ClickException, match="timezone offset"):
+        parse_iso_time("2026-07-01T00:00:00", "start time")
+
+    with pytest.raises(click.ClickException, match="Invalid start time"):
+        parse_iso_time("not-a-time", "start time")
+
+
 #
 # Live integration tests
 #

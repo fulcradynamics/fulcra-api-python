@@ -54,16 +54,25 @@ def parse_iso_time(value: str, name: str) -> datetime:
     """
     Parse a user-supplied ISO8601 time string, raising a friendly error.
 
+    The timestamp must include a timezone offset; these values define
+    access boundaries, so we refuse to guess what a naive time means.
+
     Params:
         value: The raw string to parse
         name: What the value is, for the error message (e.g. "start time")
     """
     try:
-        return datetime.fromisoformat(value)
+        dt = datetime.fromisoformat(value)
     except ValueError:
         raise click.ClickException(
             f"Invalid {name} format: {value}. Use ISO8601 format."
         )
+    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+        raise click.ClickException(
+            f"The {name} must include a timezone offset "
+            f"(e.g. {value}Z or {value}-07:00)."
+        )
+    return dt
 
 
 def parse_json_object(value: str, name: str) -> dict:
