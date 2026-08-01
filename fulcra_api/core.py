@@ -2337,8 +2337,6 @@ class FulcraAPI(FulcraDataAccessMixin):
         withdraw_markdown: Optional[str] = None,
         header_image_url: Optional[str] = None,
         preview_image_url: Optional[str] = None,
-        annotations: Optional[dict] = None,
-        view_description: Optional[dict] = None,
         friendly_id: Optional[str] = None,
     ) -> dict:
         """
@@ -2368,8 +2366,6 @@ class FulcraAPI(FulcraDataAccessMixin):
             withdraw_markdown: Optional markdown shown when a user leaves
             header_image_url: Optional URL of the group's header image
             preview_image_url: Optional URL of the group's preview image
-            annotations: Optional dict of additional group annotations
-            view_description: Optional dict describing the group's view
             friendly_id: Optional human-friendly identifier for the group
 
         Returns:
@@ -2399,8 +2395,6 @@ class FulcraAPI(FulcraDataAccessMixin):
             "withdraw_markdown": withdraw_markdown,
             "header_image_url": header_image_url,
             "preview_image_url": preview_image_url,
-            "annotations": annotations,
-            "view_description": view_description,
             "friendly_id": friendly_id,
         }
         resp = self.fulcra_api("/user/v1alpha1/pool", data=group_body, method="POST")

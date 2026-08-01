@@ -87,8 +87,6 @@ def show(fulcra_api: FulcraAPI, group_id: str):
 @click.option("--withdraw-markdown", help="Markdown shown when a user leaves")
 @click.option("--header-image-url", help="URL of the group's header image")
 @click.option("--preview-image-url", help="URL of the group's preview image")
-@click.option("--annotations", help="Additional group annotations (JSON object)")
-@click.option("--view-description", help="Description of the group's view (JSON object)")
 @click.option("--friendly-id", help="Human-friendly identifier for the group")
 @pass_fulcra_api
 @requires_auth
@@ -107,8 +105,6 @@ def create(
     withdraw_markdown,
     header_image_url,
     preview_image_url,
-    annotations,
-    view_description,
     friendly_id,
 ):
     """
@@ -157,14 +153,6 @@ def create(
         parse_iso_time(start_time, "start time") if start_time else None
     )
     parsed_end_time = parse_iso_time(end_time, "end time") if end_time else None
-    parsed_annotations = (
-        parse_json_object(annotations, "--annotations") if annotations else None
-    )
-    parsed_view_description = (
-        parse_json_object(view_description, "--view-description")
-        if view_description
-        else None
-    )
 
     try:
         result = fulcra_api.create_group(
@@ -181,8 +169,6 @@ def create(
             withdraw_markdown=withdraw_markdown,
             header_image_url=header_image_url,
             preview_image_url=preview_image_url,
-            annotations=parsed_annotations,
-            view_description=parsed_view_description,
             friendly_id=friendly_id,
         )
         click.echo(json.dumps(result))
