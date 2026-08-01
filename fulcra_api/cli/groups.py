@@ -18,7 +18,7 @@ def group():
     "--joined",
     is_flag=True,
     default=False,
-    help="List only groups you have joined instead of all public groups",
+    help="List only groups you have joined, including participant ID",
 )
 @pass_fulcra_api
 @requires_auth
@@ -45,7 +45,7 @@ def list_groups(fulcra_api: FulcraAPI, joined: bool):
 @requires_auth
 def show(fulcra_api: FulcraAPI, group_id: str):
     """
-    Show the description of a single data group.
+    Show the description of a data group.
 
     GROUP_ID: UUID of the group
     """
@@ -59,7 +59,7 @@ def show(fulcra_api: FulcraAPI, group_id: str):
 
 
 @group.command("create", short_help="Create a new group")
-@click.option("--title", required=True, help="Title of the group")
+@click.option("--title", required=True, help="Title")
 @click.option(
     "--public/--private",
     "is_public",
