@@ -1,5 +1,5 @@
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime
 from typing import Optional, Self
 
@@ -59,4 +59,9 @@ class FulcraCredentials:
                 o["id_token_expiration"]
             )
 
-        return FulcraCredentials(**o)
+        # Ignore keys written by newer versions of this library so that a
+        # credentials file is always readable by older releases.
+        known_fields = {f.name for f in fields(cls)}
+        return FulcraCredentials(
+            **{k: v for k, v in o.items() if k in known_fields}
+        )

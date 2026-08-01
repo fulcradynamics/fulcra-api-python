@@ -9,10 +9,12 @@ import click
 from fulcra_api.core import FulcraAPI
 
 from .utils import (
+    group_participant_options,
     parse_time,
     pass_fulcra_api,
     related_cli_commands,
     requires_auth,
+    resolve_data_source,
     resolve_data_type,
     time_range,
 )
@@ -55,18 +57,24 @@ def list_calendar_events(
 
 @click.command("apple-workouts", short_help="Return Apple workouts")
 @time_range
+@group_participant_options
 @pass_fulcra_api
 @requires_auth
 def list_apple_workouts(
-    fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime
+    fulcra_api: FulcraAPI,
+    start_time: datetime,
+    end_time: datetime,
+    group_id,
+    participant_id,
 ):
     """Return Apple Workout records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
+    source = resolve_data_source(fulcra_api, group_id, participant_id)
 
     try:
-        results = fulcra_api.apple_workouts(start_time, end_time)
+        results = source.apple_workouts(start_time, end_time)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -101,6 +109,7 @@ def list_apple_workouts(
     default=None,
     help="Aggregate functions (max, min, delta, mean, uniques, allpoints, rollingmean) to apply to time series window, can be passed multiple times.",
 )
+@group_participant_options
 @pass_fulcra_api
 @requires_auth
 def metric_time_series(
@@ -111,6 +120,8 @@ def metric_time_series(
     sample_rate: int,
     replace_nulls: bool,
     agg_function: Tuple[str],
+    group_id,
+    participant_id,
 ):
     """Return calculated time series data for METRIC across TIME_RANGE.
 
@@ -134,7 +145,8 @@ def metric_time_series(
             f"{data_type[0]['id']} cannot be returned with metric-time-series, use `fulcra get-records {metric}` instead to return raw sample records."
         )
 
-    df = fulcra_api.metric_time_series(
+    source = resolve_data_source(fulcra_api, group_id, participant_id)
+    df = source.metric_time_series(
         start_time,
         end_time,
         metric,
@@ -153,18 +165,24 @@ def metric_time_series(
     "google-location-updates", short_help="Return Google Maps location update records"
 )
 @time_range
+@group_participant_options
 @pass_fulcra_api
 @requires_auth
 def google_location_updates(
-    fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime
+    fulcra_api: FulcraAPI,
+    start_time: datetime,
+    end_time: datetime,
+    group_id,
+    participant_id,
 ):
     """Return raw Google location update sample records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
+    source = resolve_data_source(fulcra_api, group_id, participant_id)
 
     try:
-        results = fulcra_api.gmaps_location_updates(start_time, end_time)
+        results = source.gmaps_location_updates(start_time, end_time)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -176,18 +194,24 @@ def google_location_updates(
     "apple-location-updates", short_help="Return Apple location update records"
 )
 @time_range
+@group_participant_options
 @pass_fulcra_api
 @requires_auth
 def apple_location_updates(
-    fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime
+    fulcra_api: FulcraAPI,
+    start_time: datetime,
+    end_time: datetime,
+    group_id,
+    participant_id,
 ):
     """Return raw Apple location update sample records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
+    source = resolve_data_source(fulcra_api, group_id, participant_id)
 
     try:
-        results = fulcra_api.apple_location_updates(start_time, end_time)
+        results = source.apple_location_updates(start_time, end_time)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -199,18 +223,24 @@ def apple_location_updates(
     "apple-location-visits", short_help="Return Apple location visit records"
 )
 @time_range
+@group_participant_options
 @pass_fulcra_api
 @requires_auth
 def apple_location_visits(
-    fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime
+    fulcra_api: FulcraAPI,
+    start_time: datetime,
+    end_time: datetime,
+    group_id,
+    participant_id,
 ):
     """Return raw Apple location visit sample records across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
+    source = resolve_data_source(fulcra_api, group_id, participant_id)
 
     try:
-        results = fulcra_api.apple_location_visits(start_time, end_time)
+        results = source.apple_location_visits(start_time, end_time)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -243,6 +273,7 @@ def apple_location_visits(
     default=False,
     help="Reverse geolocate coordinates.",
 )
+@group_participant_options
 @pass_fulcra_api
 @requires_auth
 def location_time_series(
@@ -253,13 +284,16 @@ def location_time_series(
     sample_rate: int,
     look_back: int,
     reverse_geocode: bool,
+    group_id,
+    participant_id,
 ):
     """Return a computed time series of visited locations across TIME_RANGE. This uses the most precise underlying data sources available at the given time.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
     """
+    source = resolve_data_source(fulcra_api, group_id, participant_id)
     try:
-        results = fulcra_api.location_time_series(
+        results = source.location_time_series(
             start_time, end_time, change_meters, sample_rate, look_back, reverse_geocode
         )
     except HTTPError as exc:
@@ -291,6 +325,7 @@ def location_time_series(
     default=False,
     help="Reverse geolocate coordinates.",
 )
+@group_participant_options
 @pass_fulcra_api
 @requires_auth
 def location_at_time(
@@ -299,6 +334,8 @@ def location_at_time(
     window_size: int,
     include_after: bool,
     reverse_geocode: bool,
+    group_id,
+    participant_id,
 ):
     """Return the location at specified TIME.
 
@@ -307,8 +344,9 @@ def location_at_time(
     If no sample is available for the exact time, searches for the closest sample up to `window_size` seconds back. If `--include_after` is passed then also searches `window_size` seconds forward.
     """
 
+    source = resolve_data_source(fulcra_api, group_id, participant_id)
     try:
-        results = fulcra_api.location_at_time(
+        results = source.location_at_time(
             time, window_size, include_after, reverse_geocode
         )
     except HTTPError as exc:
@@ -361,6 +399,7 @@ def location_at_time(
     default=False,
     help="Do not clip the data to the requested date range.",
 )
+@group_participant_options
 @pass_fulcra_api
 @requires_auth
 def sleep_stages(
@@ -373,6 +412,8 @@ def sleep_stages(
     no_merge_overlapping: bool,
     no_merge_contiguous: bool,
     no_clip_to_range: bool,
+    group_id,
+    participant_id,
 ):
     """Return computed sleep stages from sleep data over TIME_RANGE.
 
@@ -410,8 +451,9 @@ def sleep_stages(
     if no_clip_to_range:
         kwargs["clip_to_range"] = False
 
+    source = resolve_data_source(fulcra_api, group_id, participant_id)
     try:
-        df = fulcra_api.sleep_stages(**kwargs)
+        df = source.sleep_stages(**kwargs)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -451,6 +493,7 @@ def sleep_stages(
     default=False,
     help="Do not clip the data to the requested date range.",
 )
+@group_participant_options
 @pass_fulcra_api
 @requires_auth
 def sleep_cycles(
@@ -461,6 +504,8 @@ def sleep_cycles(
     stage: Optional[Tuple[int]],
     gap_stage: Optional[Tuple[int]],
     no_clip_to_range: bool,
+    group_id,
+    participant_id,
 ):
     """Return computed sleep cycles summarized from sleep stages over TIME_RANGE.
 
@@ -481,8 +526,9 @@ def sleep_cycles(
     if no_clip_to_range:
         kwargs["clip_to_range"] = False
 
+    source = resolve_data_source(fulcra_api, group_id, participant_id)
     try:
-        df = fulcra_api.sleep_cycles(**kwargs)
+        df = source.sleep_cycles(**kwargs)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -542,6 +588,7 @@ def sleep_cycles(
     default=False,
     help="Do not clip the data to the requested date range.",
 )
+@group_participant_options
 @pass_fulcra_api
 @requires_auth
 def sleep_cycles_aggregated(
@@ -556,6 +603,8 @@ def sleep_cycles_aggregated(
     period: Optional[str],
     function: Tuple[str],
     time_zone: Optional[str],
+    group_id,
+    participant_id,
 ):
     """Return computed sleep cycles aggregated by a specific function over TIME_RANGE.
 
@@ -583,8 +632,9 @@ def sleep_cycles_aggregated(
     if function:
         kwargs["agg_functions"] = list(function)
 
+    source = resolve_data_source(fulcra_api, group_id, participant_id)
     try:
-        df = fulcra_api.sleep_agg(**kwargs)
+        df = source.sleep_agg(**kwargs)
     except HTTPError as exc:
         raise click.ClickException(exc)
 
@@ -607,6 +657,7 @@ def sleep_cycles_aggregated(
     callback=resolve_data_type(allow_multiple=True, user_id_param="user_id"),
 )
 @time_range
+@group_participant_options
 @pass_fulcra_api
 @requires_auth
 def get_records(
@@ -615,6 +666,8 @@ def get_records(
     start_time: datetime,
     end_time: datetime,
     user_id: str | None,
+    group_id,
+    participant_id,
 ):
     """Return raw sample records of DATA_TYPE across TIME_RANGE.
 
@@ -636,6 +689,9 @@ def get_records(
     """
 
     # data_type is a list of resolved catalog entries (see resolve_data_type)
+    if user_id and group_id:
+        raise click.UsageError("--user-id cannot be used with --group-id")
+    source = resolve_data_source(fulcra_api, group_id, participant_id)
     authenticated_user_id = fulcra_api.get_fulcra_userid()
 
     results = []
@@ -656,30 +712,27 @@ def get_records(
 
         record_type = dt.get("record_spec", {}).get("type")
         if dt["api_version"] == "v0" and record_type == "metric":
-            query_func = fulcra_api.metric_samples
+            query_func = source.metric_samples
             kwargs = {
                 "start_time": start_time,
                 "end_time": end_time,
                 "metric": dt["id"],
             }
-            if authenticated_user_id != dt["fulcra_userid"]:
+            if (
+                source is fulcra_api
+                and authenticated_user_id != dt["fulcra_userid"]
+            ):
                 kwargs["fulcra_userid"] = dt["fulcra_userid"]
-        elif dt["api_version"] == "v1alpha1" and record_type == "metric":
-            query_func = fulcra_api.fulcra_v1_api_path
+        elif dt["api_version"] == "v1alpha1" and record_type in ("metric", "event"):
+            query_func = source.fulcra_v1_api_path
             path = f"{record_type}/{base_type}"
             if user_annotation_id:
                 path = f"{path}/{user_annotation_id}"
             params = {"start_time": start_time, "end_time": end_time}
-            if authenticated_user_id != dt["fulcra_userid"]:
-                params["fulcra_userid"] = dt["fulcra_userid"]
-            kwargs = {"path": path, "params": params}
-        elif dt["api_version"] == "v1alpha1" and record_type == "event":
-            query_func = fulcra_api.fulcra_v1_api_path
-            path = f"{record_type}/{base_type}"
-            if user_annotation_id:
-                path = f"{path}/{user_annotation_id}"
-            params = {"start_time": start_time, "end_time": end_time}
-            if authenticated_user_id != dt["fulcra_userid"]:
+            if (
+                source is fulcra_api
+                and authenticated_user_id != dt["fulcra_userid"]
+            ):
                 params["fulcra_userid"] = dt["fulcra_userid"]
             kwargs = {"path": path, "params": params}
         else:

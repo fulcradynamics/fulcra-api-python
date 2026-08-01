@@ -12,6 +12,8 @@ plugins:
       handlers:
         python:
           paths: [.]
+          options:
+            inherited_members: true
 
 
 nav:
