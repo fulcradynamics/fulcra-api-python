@@ -7,7 +7,7 @@ import click
 
 from fulcra_api.core import FulcraAPI
 
-from .utils import pass_fulcra_api, requires_auth
+from .utils import parse_iso_time, pass_fulcra_api, requires_auth
 
 
 @click.group(help="Data sharing management sub-commands")
@@ -124,23 +124,10 @@ def create(
         raise click.ClickException(f"Failed to fetch catalog: {exc}\n{error_body}")
 
     # Parse time arguments if provided
-    parsed_start_time = None
-    parsed_end_time = None
-    if start_time:
-        try:
-            parsed_start_time = datetime.fromisoformat(start_time)
-        except ValueError:
-            raise click.ClickException(
-                f"Invalid start time format: {start_time}. Use ISO8601 format."
-            )
-
-    if end_time:
-        try:
-            parsed_end_time = datetime.fromisoformat(end_time)
-        except ValueError:
-            raise click.ClickException(
-                f"Invalid end time format: {end_time}. Use ISO8601 format."
-            )
+    parsed_start_time = (
+        parse_iso_time(start_time, "start time") if start_time else None
+    )
+    parsed_end_time = parse_iso_time(end_time, "end time") if end_time else None
 
     # Create the datashare
     try:
@@ -453,23 +440,13 @@ def update(
 
         # Handle start time
         if start_time_value:
-            try:
-                update_kwargs["time_start"] = datetime.fromisoformat(start_time_value)
-            except ValueError:
-                raise click.ClickException(
-                    f"Invalid start time format: {start_time_value}. Use ISO8601 format."
-                )
+            update_kwargs["time_start"] = parse_iso_time(start_time_value, "start time")
         elif no_start_time:
             update_kwargs["time_start"] = None
 
         # Handle end time
         if end_time_value:
-            try:
-                update_kwargs["time_end"] = datetime.fromisoformat(end_time_value)
-            except ValueError:
-                raise click.ClickException(
-                    f"Invalid end time format: {end_time_value}. Use ISO8601 format."
-                )
+            update_kwargs["time_end"] = parse_iso_time(end_time_value, "end time")
         elif no_end_time:
             update_kwargs["time_end"] = None
 

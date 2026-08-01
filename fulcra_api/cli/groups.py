@@ -1,36 +1,16 @@
 import json
-from datetime import datetime
 from urllib.error import HTTPError
 
 import click
 
 from fulcra_api.core import FulcraAPI
 
-from .utils import pass_fulcra_api, requires_auth
+from .utils import parse_iso_time, parse_json_object, pass_fulcra_api, requires_auth
 
 
 @click.group(help="Data group management sub-commands")
 def group():
     pass
-
-
-def _parse_json_option(value: str, option_name: str) -> dict:
-    try:
-        parsed = json.loads(value)
-    except json.JSONDecodeError as exc:
-        raise click.ClickException(f"Invalid JSON for {option_name}: {exc}")
-    if not isinstance(parsed, dict):
-        raise click.ClickException(f"{option_name} must be a JSON object")
-    return parsed
-
-
-def _parse_time_option(value: str, option_name: str) -> datetime:
-    try:
-        return datetime.fromisoformat(value)
-    except ValueError:
-        raise click.ClickException(
-            f"Invalid {option_name} format: {value}. Use ISO8601 format."
-        )
 
 
 @group.command("list", short_help="List public groups, or groups you've joined")
@@ -174,14 +154,14 @@ def create(
         raise click.ClickException(f"Failed to fetch catalog: {exc}\n{error_body}")
 
     parsed_start_time = (
-        _parse_time_option(start_time, "start time") if start_time else None
+        parse_iso_time(start_time, "start time") if start_time else None
     )
-    parsed_end_time = _parse_time_option(end_time, "end time") if end_time else None
+    parsed_end_time = parse_iso_time(end_time, "end time") if end_time else None
     parsed_annotations = (
-        _parse_json_option(annotations, "--annotations") if annotations else None
+        parse_json_object(annotations, "--annotations") if annotations else None
     )
     parsed_view_description = (
-        _parse_json_option(view_description, "--view-description")
+        parse_json_object(view_description, "--view-description")
         if view_description
         else None
     )
@@ -283,7 +263,7 @@ def update(
     elif no_preview_image_url:
         kwargs["preview_image_url"] = None
     if view_description:
-        kwargs["view_description"] = _parse_json_option(
+        kwargs["view_description"] = parse_json_object(
             view_description, "--view-description"
         )
     elif no_view_description:
@@ -429,7 +409,7 @@ def set_metadata(
     \b
     fulcra group set-metadata <GROUP-UUID> <PARTICIPANT-UUID> '{"nickname": "speedy"}'
     """
-    parsed_metadata = _parse_json_option(metadata, "METADATA")
+    parsed_metadata = parse_json_object(metadata, "METADATA")
 
     try:
         fulcra_api.set_group_participant_metadata(
@@ -468,7 +448,7 @@ def update_metadata(
     \b
     fulcra group update-metadata <GROUP-UUID> <PARTICIPANT-UUID> '{"score": 42}'
     """
-    parsed_values = _parse_json_option(values, "VALUES")
+    parsed_values = parse_json_object(values, "VALUES")
 
     try:
         fulcra_api.update_group_participant_metadata(

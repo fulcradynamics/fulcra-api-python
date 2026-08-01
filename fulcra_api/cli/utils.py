@@ -1,3 +1,4 @@
+import json
 import os
 import pathlib
 from datetime import datetime, timezone
@@ -47,6 +48,39 @@ def requires_auth(f):
         return f(fulcra_api, *args, **kwargs)
 
     return wrapper
+
+
+def parse_iso_time(value: str, name: str) -> datetime:
+    """
+    Parse a user-supplied ISO8601 time string, raising a friendly error.
+
+    Params:
+        value: The raw string to parse
+        name: What the value is, for the error message (e.g. "start time")
+    """
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        raise click.ClickException(
+            f"Invalid {name} format: {value}. Use ISO8601 format."
+        )
+
+
+def parse_json_object(value: str, name: str) -> dict:
+    """
+    Parse a user-supplied JSON object string, raising a friendly error.
+
+    Params:
+        value: The raw string to parse
+        name: What the value is, for the error message (e.g. "--annotations")
+    """
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise click.ClickException(f"Invalid JSON for {name}: {exc}")
+    if not isinstance(parsed, dict):
+        raise click.ClickException(f"{name} must be a JSON object")
+    return parsed
 
 
 def group_participant_options(f):
