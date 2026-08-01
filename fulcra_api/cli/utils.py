@@ -49,6 +49,41 @@ def requires_auth(f):
     return wrapper
 
 
+def group_participant_options(f):
+    """
+    Decorator adding --group-id/--participant-id options to a data command,
+    for querying data shared by a participant of a group the user owns.
+    """
+    f = click.option(
+        "--participant-id",
+        type=str,
+        default=None,
+        help="Participant ID within the group given by --group-id.",
+    )(f)
+    f = click.option(
+        "--group-id",
+        type=str,
+        default=None,
+        help="Query data shared by a participant of a group you own "
+        "(requires --participant-id).",
+    )(f)
+    return f
+
+
+def resolve_data_source(fulcra_api: FulcraAPI, group_id, participant_id):
+    """
+    Return the object to run a data query against: the client itself, or a
+    group participant accessor when --group-id/--participant-id were given.
+    """
+    if (group_id is None) != (participant_id is None):
+        raise click.UsageError(
+            "--group-id and --participant-id must be used together"
+        )
+    if group_id is not None:
+        return fulcra_api.group_participant(group_id, participant_id)
+    return fulcra_api
+
+
 def resolve_data_type(
     *,
     allow_multiple: bool = False,

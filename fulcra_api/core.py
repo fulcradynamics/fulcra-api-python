@@ -42,15 +42,17 @@ FULCRA_OIDC_SCOPE = os.environ.get(
 UNSET: Any = object()
 
 
-class FulcraV0DataMixin:
+class FulcraDataAccessMixin:
     """
-    Shared implementations of the v0 data-access operations.
+    Shared implementations of the data-access operations (v0 endpoints and
+    v1alpha1 annotation readers).
 
     These methods are available both on `FulcraAPI` (to access your own
     data, or another user's shared data via the `fulcra_userid` parameter)
     and on `FulcraGroupParticipant` (to access the data that a group
     participant shares with you).  Subclasses choose the data source that
-    requests are made against by implementing `_v0_data_path`.
+    requests are made against by implementing `_v0_data_path` and
+    `fulcra_v1_api`.
     """
 
     def _v0_data_path(
@@ -72,6 +74,14 @@ class FulcraV0DataMixin:
     ) -> Any:
         """
         Make an authenticated request to the Fulcra API.
+        """
+        raise NotImplementedError
+
+    def fulcra_v1_api(
+        self, data_class: str, data_type: str, params: dict = {}
+    ) -> bytes:
+        """
+        Make a call to the v1 API.
         """
         raise NotImplementedError
 
@@ -681,7 +691,203 @@ class FulcraV0DataMixin:
         return pd.read_feather(io.BytesIO(resp))
 
 
-class FulcraAPI(FulcraV0DataMixin):
+    def moment_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Moment Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api("event", "MomentAnnotation", params)
+        return json.loads(resp)
+
+    def duration_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Duration Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api("event", "DurationAnnotation", params)
+        return json.loads(resp)
+
+    def boolean_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Boolean Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api("metric", "BooleanAnnotation", params)
+        return json.loads(resp)
+
+    def numeric_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Numeric Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api("metric", "NumericAnnotation", params)
+        return json.loads(resp)
+
+    def scale_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Scale Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api("metric", "ScaleAnnotation", params)
+        return json.loads(resp)
+
+
+class FulcraAPI(FulcraDataAccessMixin):
     """
     The main class for making Fulcra API functions.
 
@@ -1706,202 +1912,7 @@ class FulcraAPI(FulcraV0DataMixin):
         if fulcra_userid is not None:
             params["fulcra_userid"] = fulcra_userid
 
-        resp = self.fulcra_api("/user/v1alpha1/annotation")
-        return json.loads(resp)
-
-    def moment_annotations(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        source: Optional[str] = None,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieves recorded Moment Annotations, along with any metadata, for the requested time ranges.
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
-            source: When specified, the full identifier of the source to query records from
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for
-
-        Returns:
-            A list of recorded annotations; each annotation is represented by a dict.
-
-        """
-        params = {}
-
-        params["start_time"] = start_time
-        params["end_time"] = end_time
-
-        if fulcra_userid is not None:
-            params["fulcra_userid"] = fulcra_userid
-
-        if "filter" not in params:
-            params["filter"] = []
-
-        if source is not None:
-            params["filter"].append(f"source_id:{source}")
-
-        resp = self.fulcra_v1_api("event", "MomentAnnotation", params)
-        return json.loads(resp)
-
-    def duration_annotations(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        source: Optional[str] = None,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieves recorded Duration Annotations, along with any metadata, for the requested time ranges.
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
-            source: When specified, the full identifier of the source to query records from
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for
-
-        Returns:
-            A list of recorded annotations; each annotation is represented by a dict.
-
-        """
-        params = {}
-
-        params["start_time"] = start_time
-        params["end_time"] = end_time
-
-        if fulcra_userid is not None:
-            params["fulcra_userid"] = fulcra_userid
-
-        if "filter" not in params:
-            params["filter"] = []
-
-        if source is not None:
-            params["filter"].append(f"source_id:{source}")
-
-        resp = self.fulcra_v1_api("event", "DurationAnnotation", params)
-        return json.loads(resp)
-
-    def boolean_annotations(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        source: Optional[str] = None,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieves recorded Boolean Annotations, along with any metadata, for the requested time ranges.
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
-            source: When specified, the full identifier of the source to query records from
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for
-
-        Returns:
-            A list of recorded annotations; each annotation is represented by a dict.
-
-        """
-        params = {}
-
-        params["start_time"] = start_time
-        params["end_time"] = end_time
-
-        if fulcra_userid is not None:
-            params["fulcra_userid"] = fulcra_userid
-
-        if "filter" not in params:
-            params["filter"] = []
-
-        if source is not None:
-            params["filter"].append(f"source_id:{source}")
-
-        resp = self.fulcra_v1_api("metric", "BooleanAnnotation", params)
-        return json.loads(resp)
-
-    def numeric_annotations(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        source: Optional[str] = None,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieves recorded Numeric Annotations, along with any metadata, for the requested time ranges.
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
-            source: When specified, the full identifier of the source to query records from
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for
-
-        Returns:
-            A list of recorded annotations; each annotation is represented by a dict.
-
-        """
-        params = {}
-
-        params["start_time"] = start_time
-        params["end_time"] = end_time
-
-        if fulcra_userid is not None:
-            params["fulcra_userid"] = fulcra_userid
-
-        if "filter" not in params:
-            params["filter"] = []
-
-        if source is not None:
-            params["filter"].append(f"source_id:{source}")
-
-        resp = self.fulcra_v1_api("metric", "NumericAnnotation", params)
-        return json.loads(resp)
-
-    def scale_annotations(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        source: Optional[str] = None,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieves recorded Scale Annotations, along with any metadata, for the requested time ranges.
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
-            source: When specified, the full identifier of the source to query records from
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for
-
-        Returns:
-            A list of recorded annotations; each annotation is represented by a dict.
-
-        """
-        params = {}
-
-        params["start_time"] = start_time
-        params["end_time"] = end_time
-
-        if fulcra_userid is not None:
-            params["fulcra_userid"] = fulcra_userid
-
-        if "filter" not in params:
-            params["filter"] = []
-
-        if source is not None:
-            params["filter"].append(f"source_id:{source}")
-
-        resp = self.fulcra_v1_api("metric", "ScaleAnnotation", params)
+        resp = self.fulcra_api("/user/v1alpha1/annotation", query=params)
         return json.loads(resp)
 
     def tags(self) -> list[dict[str, str]]:
@@ -2619,17 +2630,18 @@ class FulcraAPI(FulcraV0DataMixin):
         return FulcraGroupParticipant(self, group_id, participant_id)
 
 
-class FulcraGroupParticipant(FulcraV0DataMixin):
+class FulcraGroupParticipant(FulcraDataAccessMixin):
     """
     Accessor for the data that a group participant shares with the group
     owner.
 
     Obtain an instance via `FulcraAPI.group_participant`.  The data-access
-    methods (`metric_time_series`, `metric_samples`, `sleep_agg`, ...) have
-    the same parameters and return types as their `FulcraAPI` counterparts,
-    but are scoped to the participant's shared data; requests outside the
-    group's data types or time range are rejected by the server.  The
-    `fulcra_userid` parameter of these methods cannot be used here.
+    methods (`metric_time_series`, `metric_samples`, `moment_annotations`,
+    `sleep_agg`, ...) have the same parameters and return types as their
+    `FulcraAPI` counterparts, but are scoped to the participant's shared
+    data; requests outside the group's data types or time range are
+    rejected by the server.  The `fulcra_userid` parameter of these methods
+    cannot be used here.
 
     Requests are authenticated by the `FulcraAPI` client that created this
     accessor; only the group's owner can access participant data.
@@ -2678,6 +2690,39 @@ class FulcraGroupParticipant(FulcraV0DataMixin):
             f"/data/v0/pool/{self.group_id}/participant"
             f"/{self.participant_id}/{operation}"
         )
+
+    def _v1_pool_params(self, params: Optional[dict]) -> dict:
+        """
+        Return v1 API query params scoped to the participant's shared data.
+        """
+        params = dict(params) if params else {}
+        if params.get("fulcra_userid") is not None:
+            raise ValueError(
+                "fulcra_userid cannot be specified when accessing group "
+                "participant data"
+            )
+        params["pool_id"] = self.group_id
+        params["participant_id"] = self.participant_id
+        return params
+
+    def fulcra_v1_api(
+        self, data_class: str, data_type: str, params: dict = {}
+    ) -> bytes:
+        """
+        Make a call to the v1 API, scoped to the participant's shared data.
+        """
+        return self.client.fulcra_v1_api(
+            data_class, data_type, self._v1_pool_params(params)
+        )
+
+    def fulcra_v1_api_path(
+        self, path: str, params: Optional[dict[str, str]] = None
+    ) -> bytes:
+        """
+        Make a call to the v1 API using a full path, scoped to the
+        participant's shared data.
+        """
+        return self.client.fulcra_v1_api_path(path, self._v1_pool_params(params))
 
     def get_metadata(self) -> dict:
         """

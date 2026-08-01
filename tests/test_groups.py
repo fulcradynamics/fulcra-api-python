@@ -60,14 +60,55 @@ def test_group_participant_method_surface():
         "sleep_stages",
         "sleep_cycles",
         "sleep_agg",
+        "moment_annotations",
+        "duration_annotations",
+        "boolean_annotations",
+        "numeric_annotations",
+        "scale_annotations",
         "get_metadata",
         "set_metadata",
         "update_metadata",
     ]:
         assert callable(getattr(participant, name))
     # Operations without pool data routes must not exist on the accessor
-    for name in ["calendars", "calendar_events", "create_group", "authorize"]:
+    for name in [
+        "calendars",
+        "calendar_events",
+        "annotations_catalog",
+        "create_group",
+        "authorize",
+    ]:
         assert not hasattr(participant, name)
+
+
+def test_group_participant_v1_params():
+    client = offline_client()
+    participant = client.group_participant("gid-123", "pid-456")
+
+    captured = {}
+
+    def fake_fulcra_api(url_path, method="GET", query=None, **kwargs):
+        captured["path"] = url_path
+        captured["query"] = query
+        return b"[]"
+
+    client.fulcra_api = fake_fulcra_api
+
+    participant.moment_annotations("2026-07-01", "2026-07-02")
+    assert captured["path"] == "/data/v1alpha1/event/MomentAnnotation"
+    assert captured["query"]["pool_id"] == "gid-123"
+    assert captured["query"]["participant_id"] == "pid-456"
+
+    participant.fulcra_v1_api_path(
+        "metric/NumericAnnotation", {"start_time": "a", "end_time": "b"}
+    )
+    assert captured["path"] == "/data/v1alpha1/metric/NumericAnnotation"
+    assert captured["query"]["pool_id"] == "gid-123"
+
+    with pytest.raises(ValueError):
+        participant.moment_annotations(
+            "2026-07-01", "2026-07-02", fulcra_userid="someone-else"
+        )
 
 
 def test_empty_body_is_sent(monkeypatch):
@@ -282,6 +323,63 @@ def test_group_data_access_boundaries(fulcra_client):
             )
     finally:
         fulcra_client.delete_group(group_id)
+
+
+def test_group_v1alpha1_data_access(fulcra_client):
+    """
+    v1alpha1 data (annotations) must be accessible for group participants,
+    scoped to the group's shared data types.
+    """
+    import time
+    import uuid
+
+    record_id = str(uuid.uuid4())
+    fulcra_client.record_data_type(
+        "MomentAnnotation",
+        [{"id": record_id, "note": "group-v1-access-test"}],
+        "v1alpha1",
+    )
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = (now - datetime.timedelta(hours=1)).isoformat()
+    end = (now + datetime.timedelta(hours=1)).isoformat()
+
+    # Ingestion is asynchronous; wait for the record to become queryable.
+    for _ in range(15):
+        direct = fulcra_client.moment_annotations(start, end)
+        if any(r.get("id") == record_id for r in direct):
+            break
+        time.sleep(2)
+    else:
+        raise AssertionError("ingested record never became queryable")
+
+    group = fulcra_client.create_group(
+        title="fulcra-api-python v1alpha1 test",
+        is_public=False,
+        responsible_entity="Fulcra Dynamics",
+        description="Temporary group created by the test suite; safe to delete.",
+        fulcra_data_types=["MomentAnnotation"],
+        group_url="https://fulcradynamics.com/",
+    )
+    group_id = group["id"]
+
+    try:
+        participant_id = fulcra_client.join_group(group_id)["participant_id"]
+        participant = fulcra_client.group_participant(group_id, participant_id)
+
+        pooled = participant.moment_annotations(start, end)
+        assert any(r.get("id") == record_id for r in pooled)
+
+        # Annotation types outside the group's shared types must be denied.
+        with pytest.raises(HTTPError):
+            participant.duration_annotations(start, end)
+    finally:
+        fulcra_client.delete_group(group_id)
+        fulcra_client.record_data_type(
+            "DeletedRecord",
+            [{"record_id": record_id, "data_type": "MomentAnnotation"}],
+            "v1alpha1",
+        )
 
 
 def test_get_groups_public(fulcra_client):

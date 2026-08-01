@@ -155,7 +155,9 @@ def create(
 
         # TEMPORARY: Allow "calendars" and "calendar_events" even though they're not
         # in the v1 catalog yet. Remove this special case once they're added to the catalog.
-        temporary_allowed_types = {"calendars", "calendar_events"}
+        # "apple_workouts" is the resource name the group data routes check for
+        # workout access, but it is not a catalog ID.
+        temporary_allowed_types = {"calendars", "calendar_events", "apple_workouts"}
 
         invalid_types = [
             dt
