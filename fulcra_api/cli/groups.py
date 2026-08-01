@@ -129,11 +129,9 @@ def create(
         catalog = fulcra_api.v1_catalog()
         valid_data_type_ids = {item["id"] for item in catalog}
 
-        # TEMPORARY: Allow "calendars" and "calendar_events" even though they're not
-        # in the v1 catalog yet. Remove this special case once they're added to the catalog.
         # "apple_workouts" is the resource name the group data routes check for
         # workout access, but it is not a catalog ID.
-        temporary_allowed_types = {"calendars", "calendar_events", "apple_workouts"}
+        temporary_allowed_types = {"apple_workouts"}
 
         invalid_types = [
             dt
