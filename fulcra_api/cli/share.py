@@ -64,19 +64,19 @@ def list_incoming(fulcra_api: FulcraAPI):
     "--data-type",
     "data_types",
     multiple=True,
-    help="Data type ID to share (can be specified multiple times)",
+    help="Data type ID to share. Can be specified multiple times.",
 )
 @click.option(
     "--file",
     "files",
     multiple=True,
-    help='File to share (can be specified multiple times). Suffix with "/" to share a prefix. Shares the live version only.',
+    help='File or directory to share the latest version of. Can be specified multiple times. ',
 )
 @click.option(
     "--file-history",
     "file_histories",
     multiple=True,
-    help='File history to share, including live version (can be specified multiple times). Suffix with "/" to share a prefix.',
+    help='File or directory to share, including complete version history. Can be specified multiple times.',
 )
 @click.option(
     "--user-id",
@@ -125,6 +125,10 @@ def create(
     \b
     Share all data types:
     fulcra share create --name "Full Access" --share-all --user-id <USER-UUID>
+
+    \b
+    Share all files in the /collaboration/context/ directory:
+    fulcra share create --name "Context files" --file /collaboration/context/
     """
     # Validate data types against catalog
     share_types = list(data_types)
