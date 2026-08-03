@@ -218,7 +218,7 @@ def leave(fulcra_api: FulcraAPI, share_id: str):
     "--add-data-type",
     "add_data_types",
     multiple=True,
-    help="Add a data type to the share (can be specified multiple times)",
+    help="Add a data type to the share. Can be specified multiple times",
 )
 @click.option(
     "--remove-data-type",
