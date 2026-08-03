@@ -236,37 +236,37 @@ def leave(fulcra_api: FulcraAPI, share_id: str):
     "--add-file",
     "add_files",
     multiple=True,
-    help='Add a file to the share (can be specified multiple times). Suffix with "/" to share a prefix. Shares the live version only.',
+    help="Add a file or directory to share the latest version of. Can be specified multiple times.",
 )
 @click.option(
     "--remove-file",
     "remove_files",
     multiple=True,
-    help="Remove a live version file or prefix from the share (can be specified multiple times)",
+    help="Remove a file or directory sharing the latest version. Can be specified multiple times.",
 )
 @click.option(
     "--set-file",
     "set_files",
     multiple=True,
-    help="Replace all live version file and prefix shares with this list (can be specified multiple times)",
+    help="Replace all files or directories sharing the latest version with this list. Can be specified multiple times.",
 )
 @click.option(
     "--add-file-history",
     "add_file_histories",
     multiple=True,
-    help='Add a file history to the share, including live version (can be specified multiple times). Suffix with "/" to share a prefix.',
+    help="Add a file or directory to share, including complete version history. Can be specified multiple times.",
 )
 @click.option(
     "--remove-file-history",
     "remove_file_histories",
     multiple=True,
-    help="Remove a file or prefix history from the share (can be specified multiple times)",
+    help="Remove a file or directory sharing complete version history. Can be specified multiple times.",
 )
 @click.option(
     "--set-file-history",
     "set_file_histories",
     multiple=True,
-    help="Replace all file and prefix history shares with this list (can be specified multiple times)",
+    help="Replace all files or directories sharing complete version history with this list. Can be specified multiple times.",
 )
 @click.option(
     "--add-user-id",
