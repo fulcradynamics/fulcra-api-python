@@ -116,12 +116,6 @@ def file_stat(fulcra_api: FulcraAPI, path: str, user_id: str | None):
     default=None,
     help="Fulcra user ID of which files to fetch.",
 )
-@click.option(
-    "--version",
-    type=str,
-    default=None,
-    help="File version to download (defaults to latest).",
-)
 @pass_fulcra_api
 @requires_auth
 def file_download(
@@ -129,7 +123,6 @@ def file_download(
     remote_file: str,
     local_file: str | None,
     user_id: str | None,
-    version: str | None,
 ):
     """Download a file.
 
@@ -143,14 +136,7 @@ def file_download(
     remote_file = make_filepath(remote_file)
 
     try:
-        if version is not None:
-            f = [
-                fulcra_api.get_file_by_version(
-                    version_id=version, fulcra_userid=user_id
-                )
-            ]
-        else:
-            f = fulcra_api.resolve_filepath(remote_file, fulcra_userid=user_id)
+        f = fulcra_api.resolve_filepath(remote_file, fulcra_userid=user_id)
         resp = fulcra_api.download_file(f[0].get("id"), fulcra_userid=user_id)
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
