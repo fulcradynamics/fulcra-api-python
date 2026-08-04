@@ -74,10 +74,14 @@ def file_stat(fulcra_api: FulcraAPI, path: str, user_id: str | None):
 
     path = make_filepath(path)
 
+    # Only surface version history for the caller's own files; a recipient
+    # listing a shared file shouldn't see its history.
+    all_versions = user_id is None
+
     try:
         f = fulcra_api.resolve_filepath(
             path,
-            all_versions=True,
+            all_versions=all_versions,
             fulcra_userid=user_id,
         )
     except HTTPError as exc:
@@ -93,11 +97,12 @@ def file_stat(fulcra_api: FulcraAPI, path: str, user_id: str | None):
     )
     click.echo(f"Uploaded: {latest_version['uploaded_at']}")
     click.echo(f"Version: {latest_version['id']}")
-    click.echo(f"Previous Versions: {len(f[1:])}")
-    for file_version in f[1:]:
-        click.echo(
-            f"- {file_version['id']} {file_version['uploaded_at']} ({file_version['size']} bytes)"
-        )
+    if all_versions:
+        click.echo(f"Previous Versions: {len(f[1:])}")
+        for file_version in f[1:]:
+            click.echo(
+                f"- {file_version['id']} {file_version['uploaded_at']} ({file_version['size']} bytes)"
+            )
 
 
 @file.command("download", short_help="Download a file")
