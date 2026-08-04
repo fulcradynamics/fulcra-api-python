@@ -25,27 +25,9 @@ def file():
     default=None,
     help="Fulcra user ID of which files to fetch.",
 )
-@click.option(
-    "--base-name",
-    type=str,
-    default=None,
-    help="Filter files and folders by base name.",
-)
-@click.option(
-    "--include-deleted",
-    is_flag=True,
-    default=False,
-    help="Include deleted files.",
-)
 @pass_fulcra_api
 @requires_auth
-def file_list(
-    fulcra_api: FulcraAPI,
-    path: str,
-    user_id: str | None,
-    base_name: str | None,
-    include_deleted: bool,
-):
+def file_list(fulcra_api: FulcraAPI, path: str, user_id: str | None):
     """List uploaded files.
 
     PATH: Path to list files in [Default: /]
@@ -54,13 +36,7 @@ def file_list(
     path = make_filepath(path)
 
     try:
-        if include_deleted:
-            state = "uploaded,deleted"
-        else:
-            state = "uploaded"
-        results = fulcra_api.list_files(
-            path, fulcra_userid=user_id, base_name=base_name, state=state
-        )
+        results = fulcra_api.list_files(path, fulcra_userid=user_id)
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
         raise click.ClickException(f"Failed to list files: {exc}\n{error_body}")
@@ -69,32 +45,14 @@ def file_list(
         for d in results.get("folders", []):
             click.echo(f"{d}/")
 
-    # Prefer the live and latest version of each file
-    files = {}
     for f in results.get("files", []):
-        name = f.get("name")
-        if name not in files:
-            files[name] = f
-            continue
-        if f.get("state") == "uploaded" and files[name].get("state") != "uploaded":
-            files[name] = f
-            continue
-        if f.get("uploaded_at", "") > files[name].get("uploaded_at", ""):
-            files[name] = f
-            continue
-
-    filtered_files = sorted(files.values(), key=lambda f: f.get("name"))
-    for f in filtered_files:
         size, unit = human_size(f.get("size"))
         try:
             dt = datetime.fromisoformat(f.get("uploaded_at"))
         except TypeError:
             dt = datetime(1970, 1, 1, tzinfo=timezone.utc)
-        status = (
-            f" (deleted {f.get('deleted_at')})" if f.get("state") == "deleted" else ""
-        )
         click.echo(
-            f"{str(size) + unit:7} {dt.strftime('%Y-%m-%d %I:%M%p %Z')}  {f.get('name')}{status}"
+            f"{str(size) + unit:7} {dt.strftime('%Y-%m-%d %I:%M%p %Z')}  {f.get('name')}"
         )
 
 
