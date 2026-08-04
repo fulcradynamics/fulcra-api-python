@@ -64,17 +64,9 @@ def file_list(fulcra_api: FulcraAPI, path: str, user_id: str | None):
     default=None,
     help="Fulcra user ID of which files to fetch.",
 )
-@click.option(
-    "--include-deleted",
-    is_flag=True,
-    default=False,
-    help="Include deleted versions of the file.",
-)
 @pass_fulcra_api
 @requires_auth
-def file_stat(
-    fulcra_api: FulcraAPI, path: str, user_id: str | None, include_deleted: bool
-):
+def file_stat(fulcra_api: FulcraAPI, path: str, user_id: str | None):
     """Returns information about an uploaded file, including size, date uploaded, and all previously uploaded versions of the file.
 
     PATH: Full path of the file.
@@ -87,7 +79,6 @@ def file_stat(
             path,
             all_versions=True,
             fulcra_userid=user_id,
-            include_deleted=include_deleted,
         )
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
@@ -99,11 +90,6 @@ def file_stat(
 
     click.echo(
         f"{make_filepath(latest_version['path'], latest_version['name'])} ({latest_version['size']} bytes)"
-        + (
-            f" (deleted {latest_version['deleted_at']})"
-            if latest_version["state"] == "deleted"
-            else ""
-        )
     )
     click.echo(f"Uploaded: {latest_version['uploaded_at']}")
     click.echo(f"Version: {latest_version['id']}")
@@ -111,11 +97,6 @@ def file_stat(
     for file_version in f[1:]:
         click.echo(
             f"- {file_version['id']} {file_version['uploaded_at']} ({file_version['size']} bytes)"
-            + (
-                f" (deleted {file_version['deleted_at']})"
-                if file_version["state"] == "deleted"
-                else ""
-            )
         )
 
 
