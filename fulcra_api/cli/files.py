@@ -187,7 +187,7 @@ def file_download(
     "--name",
     type=str,
     default=None,
-    help="Name for the share. [Default: the file's name]",
+    help="Name for the share. [Default: the file's path]",
 )
 @pass_fulcra_api
 @requires_auth
@@ -205,7 +205,7 @@ def file_share(
     PATH: Full path of the file or directory to share.
     """
     if name is None:
-        name = pathlib.PurePath(path).name or path
+        name = "Full file access" if path == "/" else path
 
     try:
         result = fulcra_api.create_datashare(
