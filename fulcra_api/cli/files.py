@@ -1,3 +1,4 @@
+import json
 import os
 import pathlib
 from datetime import datetime, timezone
@@ -9,7 +10,13 @@ import puremagic
 
 from fulcra_api.core import FulcraAPI
 
-from .utils import human_size, make_filepath, pass_fulcra_api, requires_auth
+from .utils import (
+    file_share_type,
+    human_size,
+    make_filepath,
+    pass_fulcra_api,
+    requires_auth,
+)
 
 
 @click.group(help="File management sub-commands")
@@ -165,6 +172,53 @@ def file_download(
         raise click.ClickException(f"Cannot write to {dest}: {exc.strerror}")
 
     click.echo(f"⬇️ fulcra:{remote_file} -> {dest}")
+
+
+@file.command("share", short_help="Share a file with other users")
+@click.argument("path", type=str)
+@click.option(
+    "--to",
+    "user_ids",
+    multiple=True,
+    required=True,
+    help="Fulcra user ID to share the file with. Can be specified multiple times.",
+)
+@click.option(
+    "--name",
+    type=str,
+    default=None,
+    help="Name for the share. [Default: the file's name]",
+)
+@pass_fulcra_api
+@requires_auth
+def file_share(
+    fulcra_api: FulcraAPI,
+    path: str,
+    user_ids: list[str],
+    name: str | None,
+):
+    """Share a file (or directory) with one or more users.
+
+    Creates a new share containing only the latest version of the file at PATH,
+    granting access to each user given via --to.
+
+    PATH: Full path of the file or directory to share.
+    """
+    if name is None:
+        name = pathlib.PurePath(path).name or path
+
+    try:
+        result = fulcra_api.create_datashare(
+            datashare_name=name,
+            fulcra_data_types=[file_share_type(prefix=path)],
+            allowed_user_ids=sorted(user_ids),
+            share_all_data=False,
+        )
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to share file: {exc}\n{error_body}")
+
+    click.echo(json.dumps(result))
 
 
 @file.command("upload", short_help="Upload a file")
