@@ -70,13 +70,7 @@ def list_incoming(fulcra_api: FulcraAPI):
     "--file",
     "files",
     multiple=True,
-    help='File or directory to share the latest version of. Can be specified multiple times. ',
-)
-@click.option(
-    "--file-history",
-    "file_histories",
-    multiple=True,
-    help='File or directory to share, including complete version history. Can be specified multiple times.',
+    help="File or directory to share the latest version of. Can be specified multiple times. ",
 )
 @click.option(
     "--user-id",
@@ -106,7 +100,6 @@ def create(
     name: str,
     data_types: list[str],
     files: list[str],
-    file_histories: list[str],
     user_ids: list[str],
     start_time: str | None,
     end_time: str | None,
@@ -133,9 +126,7 @@ def create(
     # Validate data types against catalog
     share_types = list(data_types)
     for file in files:
-        share_types.append(file_share_type(prefix=file, history=False))
-    for file_history in file_histories:
-        share_types.append(file_share_type(prefix=file_history, history=True))
+        share_types.append(file_share_type(prefix=file))
 
     if not no_validate:
         share_types = valid_share_types(fulcra_api=fulcra_api, share_types=share_types)
@@ -251,24 +242,6 @@ def leave(fulcra_api: FulcraAPI, share_id: str):
     help="Replace all files or directories sharing the latest version with this list. Can be specified multiple times.",
 )
 @click.option(
-    "--add-file-history",
-    "add_file_histories",
-    multiple=True,
-    help="Add a file or directory to share, including complete version history. Can be specified multiple times.",
-)
-@click.option(
-    "--remove-file-history",
-    "remove_file_histories",
-    multiple=True,
-    help="Remove a file or directory sharing complete version history. Can be specified multiple times.",
-)
-@click.option(
-    "--set-file-history",
-    "set_file_histories",
-    multiple=True,
-    help="Replace all files or directories sharing complete version history with this list. Can be specified multiple times.",
-)
-@click.option(
     "--add-user-id",
     "add_user_ids",
     multiple=True,
@@ -354,9 +327,6 @@ def update(
     add_files: list[str],
     remove_files: list[str],
     set_files: list[str],
-    add_file_histories: list[str],
-    remove_file_histories: list[str],
-    set_file_histories: list[str],
     add_user_ids: list[str],
     remove_user_ids: list[str],
     set_user_ids: list[str],
@@ -446,11 +416,6 @@ def update(
             "--set-file cannot be used with --add-file or --remove-file"
         )
 
-    if set_file_histories and (add_file_histories or remove_file_histories):
-        raise click.UsageError(
-            "--set-file-history cannot be used with --add-file-history or --remove-file-history"
-        )
-
     # Validate mutual exclusivity for user IDs
     if set_user_ids and (add_user_ids or remove_user_ids):
         raise click.UsageError(
@@ -510,29 +475,16 @@ def update(
 
         if set_files:
             updated_types = [t for t in updated_types if not t.startswith("file:")] + [
-                file_share_type(prefix=f, history=False) for f in set_files
+                file_share_type(prefix=f) for f in set_files
             ]
-        if set_file_histories:
-            updated_types = [
-                t for t in updated_types if not t.startswith("filehistory:")
-            ] + [file_share_type(prefix=f, history=True) for f in set_file_histories]
 
         add_types = add_data_types or []
         if add_files:
-            add_types += [file_share_type(prefix=f, history=False) for f in add_files]
-        if add_file_histories:
-            add_types += [
-                file_share_type(prefix=f, history=True) for f in add_file_histories
-            ]
+            add_types += [file_share_type(prefix=f) for f in add_files]
+
         remove_types = remove_data_types or []
         if remove_files:
-            remove_types += [
-                file_share_type(prefix=f, history=False) for f in remove_files
-            ]
-        if remove_file_histories:
-            remove_types += [
-                file_share_type(prefix=f, history=True) for f in remove_file_histories
-            ]
+            remove_types += [file_share_type(prefix=f) for f in remove_files]
 
         for add_type in add_types:
             if add_type in updated_types:
