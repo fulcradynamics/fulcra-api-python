@@ -2128,17 +2128,38 @@ class FulcraAPI:
     # File functionality
     #
 
-    def list_files(self, path: str = "/", state: str = "uploaded") -> dict:
-        resp = self.fulcra_api(
-            "/input/v1/file_upload", query={"path": path, "state": state}
-        )
+    def list_files(
+        self,
+        path: str = "/",
+        state: str = "uploaded",
+        fulcra_userid: str | None = None,
+        base_name: str | None = None,
+    ) -> dict:
+        params = {"path": path, "state": state}
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
+        if base_name:
+            params["name"] = base_name
+
+        resp = self.fulcra_api("/input/v1/file_upload", query=params)
         return json.loads(resp)
 
-    def get_file_by_version(self, version_id: str) -> dict:
-        resp = self.fulcra_api(f"/input/v1/file_upload/{version_id}")
+    def get_file_by_version(
+        self, version_id: str, fulcra_userid: str | None = None
+    ) -> dict:
+        params = {}
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
+        resp = self.fulcra_api(f"/input/v1/file_upload/{version_id}", query=params)
         return json.loads(resp)
 
-    def resolve_filepath(self, filepath: str, all_versions: bool = False) -> list[dict]:
+    def resolve_filepath(
+        self,
+        filepath: str,
+        all_versions: bool = False,
+        fulcra_userid: str | None = None,
+        include_deleted: bool = False,
+    ) -> list[dict]:
         """Take a fully qualified file path and resolve it to the resource definition"""
         p = PurePath(filepath)
 
@@ -2150,9 +2171,16 @@ class FulcraAPI:
         else:
             state = "uploaded"
 
+        if include_deleted:
+            state += ",deleted"
+
+        params = {"path": str(path), "name": str(name), "state": state}
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
+
         resp = self.fulcra_api(
             "/input/v1/file_upload",
-            query={"path": str(path), "name": str(name), "state": state},
+            query=params,
         )
 
         rbody = json.loads(resp)
@@ -2161,7 +2189,9 @@ class FulcraAPI:
             files = sorted(rbody["files"], key=lambda d: d["uploaded_at"], reverse=True)
 
             # If there's no files or current versions, it doesn't exist
-            if len(files) == 0 or files[0]["state"] != "uploaded":
+            if (
+                len(files) == 0 or files[0]["state"] != "uploaded"
+            ) and not include_deleted:
                 raise Exception(f"File not found in Fulcra: {filepath}")
         else:
             files = rbody["files"]
@@ -2205,11 +2235,19 @@ class FulcraAPI:
 
         return r
 
-    def download_file(self, file_id: str) -> http.client.HTTPResponse:
+    def download_file(
+        self, file_id: str, fulcra_userid: str | None = None
+    ) -> http.client.HTTPResponse:
         """download a file and return the file object"""
 
+        params = {}
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
+
         resp = self.fulcra_api(
-            f"/input/v1/file_upload/{file_id}/download", return_http_response=True
+            f"/input/v1/file_upload/{file_id}/download",
+            query=params,
+            return_http_response=True,
         )
 
         return resp

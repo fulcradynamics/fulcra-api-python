@@ -19,9 +19,15 @@ def file():
 
 @file.command("list", short_help="List files")
 @click.argument("path", type=str, default="/")
+@click.option(
+    "--user-id",
+    type=str,
+    default=None,
+    help="Fulcra user ID of which files to fetch.",
+)
 @pass_fulcra_api
 @requires_auth
-def file_list(fulcra_api: FulcraAPI, path: str):
+def file_list(fulcra_api: FulcraAPI, path: str, user_id: str | None):
     """List uploaded files.
 
     PATH: Path to list files in [Default: /]
@@ -29,7 +35,11 @@ def file_list(fulcra_api: FulcraAPI, path: str):
 
     path = make_filepath(path)
 
-    results = fulcra_api.list_files(path)
+    try:
+        results = fulcra_api.list_files(path, fulcra_userid=user_id)
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to list files: {exc}\n{error_body}")
 
     if results.get("folders") is not None:
         for d in results.get("folders", []):
@@ -48,9 +58,15 @@ def file_list(fulcra_api: FulcraAPI, path: str):
 
 @file.command("stat", short_help="Get information about a file")
 @click.argument("path", type=str)
+@click.option(
+    "--user-id",
+    type=str,
+    default=None,
+    help="Fulcra user ID of which files to fetch.",
+)
 @pass_fulcra_api
 @requires_auth
-def file_stat(fulcra_api: FulcraAPI, path: str):
+def file_stat(fulcra_api: FulcraAPI, path: str, user_id: str | None):
     """Returns information about an uploaded file, including size, date uploaded, and all previously uploaded versions of the file.
 
     PATH: Full path of the file.
@@ -58,8 +74,19 @@ def file_stat(fulcra_api: FulcraAPI, path: str):
 
     path = make_filepath(path)
 
+    # Only surface version history for the caller's own files; a recipient
+    # listing a shared file shouldn't see its history.
+    all_versions = user_id is None
+
     try:
-        f = fulcra_api.resolve_filepath(path, all_versions=True)
+        f = fulcra_api.resolve_filepath(
+            path,
+            all_versions=all_versions,
+            fulcra_userid=user_id,
+        )
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to stat file: {exc}\n{error_body}")
     except Exception as exc:
         raise click.ClickException(exc)
 
@@ -70,11 +97,12 @@ def file_stat(fulcra_api: FulcraAPI, path: str):
     )
     click.echo(f"Uploaded: {latest_version['uploaded_at']}")
     click.echo(f"Version: {latest_version['id']}")
-    click.echo(f"Previous Versions: {len(f[1:])}")
-    for file_version in f[1:]:
-        click.echo(
-            f"- {file_version['id']} {file_version['uploaded_at']} ({file_version['size']} bytes)"
-        )
+    if all_versions:
+        click.echo(f"Previous Versions: {len(f[1:])}")
+        for file_version in f[1:]:
+            click.echo(
+                f"- {file_version['id']} {file_version['uploaded_at']} ({file_version['size']} bytes)"
+            )
 
 
 @file.command("download", short_help="Download a file")
@@ -82,10 +110,19 @@ def file_stat(fulcra_api: FulcraAPI, path: str):
 @click.argument(
     "local_file", type=click.Path(allow_dash=True), required=False, default=None
 )
+@click.option(
+    "--user-id",
+    type=str,
+    default=None,
+    help="Fulcra user ID of which files to fetch.",
+)
 @pass_fulcra_api
 @requires_auth
 def file_download(
-    fulcra_api: FulcraAPI, remote_file: str, local_file: str | None = None
+    fulcra_api: FulcraAPI,
+    remote_file: str,
+    local_file: str | None,
+    user_id: str | None,
 ):
     """Download a file.
 
@@ -99,11 +136,14 @@ def file_download(
     remote_file = make_filepath(remote_file)
 
     try:
-        f = fulcra_api.resolve_filepath(remote_file)
+        f = fulcra_api.resolve_filepath(remote_file, fulcra_userid=user_id)
+        resp = fulcra_api.download_file(f[0].get("id"), fulcra_userid=user_id)
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to download file: {exc}\n{error_body}")
     except Exception as exc:
         raise click.ClickException(exc)
 
-    resp = fulcra_api.download_file(f[0].get("id"))
     remote_name = pathlib.PurePath(f[0].get("name")).name
 
     if local_file == "-":  # "-" → stdout
@@ -157,7 +197,8 @@ def file_upload(fulcra_api: FulcraAPI, local_file: click.File, remote_file: str)
         new_file = fulcra_api.upload_file(local_file, file_type, file_size, path)
         full_path = make_filepath(new_file["file"]["path"], new_file["file"]["name"])
     except HTTPError as exc:
-        raise click.ClickException(exc.fp.read())
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to upload file: {exc}\n{error_body}")
 
     click.echo(f"⬆️ {local_file.name} -> fulcra:{full_path}")
 
@@ -175,6 +216,9 @@ def file_delete(fulcra_api: FulcraAPI, path):
 
     try:
         f = fulcra_api.resolve_filepath(path)
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to delete file: {exc}\n{error_body}")
     except Exception as exc:
         raise click.ClickException(exc)
 
@@ -199,7 +243,8 @@ def file_restore(fulcra_api: FulcraAPI, version_id):
         if exc.status == 404:
             raise click.ClickException(f"File version {version_id} not found")
         else:
-            raise click.ClickException(exc)
+            error_body = exc.read().decode("utf-8")
+            raise click.ClickException(f"Failed to restore file: {exc}\n{error_body}")
 
     full_file_name = make_filepath(file_version["path"], file_version["name"])
 
