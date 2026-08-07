@@ -7,7 +7,7 @@ import click
 
 from fulcra_api.core import FulcraAPI
 
-from .utils import pass_fulcra_api, requires_auth
+from .utils import file_share_type, pass_fulcra_api, requires_auth, valid_share_types
 
 
 @click.group(help="Data sharing management sub-commands")
@@ -69,8 +69,13 @@ def list_incoming(fulcra_api: FulcraAPI):
     "--data-type",
     "data_types",
     multiple=True,
-    required=True,
-    help="Data type ID to share (can be specified multiple times)",
+    help="Data type ID to share. Can be specified multiple times.",
+)
+@click.option(
+    "--file",
+    "files",
+    multiple=True,
+    help="File or directory to share the latest version of. Can be specified multiple times. ",
 )
 @click.option(
     "--user-id",
@@ -87,16 +92,24 @@ def list_incoming(fulcra_api: FulcraAPI):
     default=False,
     help="Share all data types",
 )
+@click.option(
+    "--no-validate",
+    is_flag=True,
+    default=False,
+    help="Skip data type validation",
+)
 @pass_fulcra_api
 @requires_auth
 def create(
     fulcra_api: FulcraAPI,
-    datashare_name,
-    data_types,
-    user_ids,
-    start_time,
-    end_time,
-    share_all,
+    datashare_name: str | None,
+    data_types: list[str],
+    files: list[str],
+    user_ids: list[str],
+    start_time: str | None,
+    end_time: str | None,
+    share_all: bool,
+    no_validate: bool,
 ):
     """
     Create a new share to share your data with other users.
@@ -110,29 +123,18 @@ def create(
     \b
     Share all data types:
     fulcra share create --name "Full Access" --share-all --user-id <USER-UUID>
+
+    \b
+    Share all files in the /collaboration/context/ directory:
+    fulcra share create --name "Context files" --file /collaboration/context/
     """
     # Validate data types against catalog
-    try:
-        catalog = fulcra_api.v1_catalog()
-        valid_data_type_ids = {item["id"] for item in catalog}
+    share_types = list(data_types)
+    for file in files:
+        share_types.append(file_share_type(prefix=file))
 
-        # TEMPORARY: Allow "calendars" and "calendar_events" even though they're not
-        # in the v1 catalog yet. Remove this special case once they're added to the catalog.
-        temporary_allowed_types = {"calendars", "calendar_events"}
-
-        invalid_types = [
-            dt
-            for dt in data_types
-            if dt not in valid_data_type_ids and dt not in temporary_allowed_types
-        ]
-        if invalid_types:
-            raise click.ClickException(
-                f"Invalid data type(s): {', '.join(invalid_types)}. "
-                f"Use 'fulcra catalog' to see valid data types."
-            )
-    except HTTPError as exc:
-        error_body = exc.read().decode("utf-8")
-        raise click.ClickException(f"Failed to fetch catalog: {exc}\n{error_body}")
+    if not no_validate:
+        share_types = valid_share_types(fulcra_api=fulcra_api, share_types=share_types)
 
     # Parse time arguments if provided
     parsed_start_time = None
@@ -164,7 +166,7 @@ def create(
     try:
         result = fulcra_api.create_datashare(
             datashare_name=datashare_name,
-            fulcra_data_types=sorted(data_types),
+            fulcra_data_types=share_types,
             allowed_user_ids=sorted(user_ids),
             share_all_data=share_all,
             time_start=parsed_start_time,
@@ -219,7 +221,7 @@ def leave(fulcra_api: FulcraAPI, share_id: str):
     "--add-data-type",
     "add_data_types",
     multiple=True,
-    help="Add a data type to the share (can be specified multiple times)",
+    help="Add a data type to the share. Can be specified multiple times",
 )
 @click.option(
     "--remove-data-type",
@@ -232,6 +234,24 @@ def leave(fulcra_api: FulcraAPI, share_id: str):
     "set_data_types",
     multiple=True,
     help="Replace all data types with this list (can be specified multiple times)",
+)
+@click.option(
+    "--add-file",
+    "add_files",
+    multiple=True,
+    help="Add a file or directory to share the latest version of. Can be specified multiple times.",
+)
+@click.option(
+    "--remove-file",
+    "remove_files",
+    multiple=True,
+    help="Remove a file or directory sharing the latest version. Can be specified multiple times.",
+)
+@click.option(
+    "--set-file",
+    "set_files",
+    multiple=True,
+    help="Replace all files or directories sharing the latest version with this list. Can be specified multiple times.",
 )
 @click.option(
     "--add-user-id",
@@ -293,23 +313,42 @@ def leave(fulcra_api: FulcraAPI, share_id: str):
     default=False,
     help="Remove end time (make share open-ended at end)",
 )
+@click.option(
+    "--no-validate",
+    "no_validate",
+    is_flag=True,
+    default=False,
+    help="Skip data type validation",
+)
+@click.option(
+    "--clear",
+    "clear",
+    is_flag=True,
+    default=False,
+    help="Remove all shared data and files from the share, then add any specified by other options",
+)
 @pass_fulcra_api
 @requires_auth
 def update(
     fulcra_api: FulcraAPI,
     share_id: str,
-    name,
-    add_data_types,
-    remove_data_types,
-    set_data_types,
-    add_user_ids,
-    remove_user_ids,
-    set_user_ids,
-    share_all_data,
-    start_time_value,
-    no_start_time,
-    end_time_value,
-    no_end_time,
+    name: str | None,
+    add_data_types: list[str],
+    remove_data_types: list[str],
+    set_data_types: list[str],
+    add_files: list[str],
+    remove_files: list[str],
+    set_files: list[str],
+    add_user_ids: list[str],
+    remove_user_ids: list[str],
+    set_user_ids: list[str],
+    share_all_data: bool | None,
+    start_time_value: str | None,
+    no_start_time: bool,
+    end_time_value: str | None,
+    no_end_time: bool,
+    no_validate: bool,
+    clear: bool,
 ):
     """
     Update an existing share by modifying data types, users, or settings.
@@ -359,6 +398,9 @@ def update(
             add_data_types,
             remove_data_types,
             set_data_types,
+            add_files,
+            remove_files,
+            set_files,
             add_user_ids,
             remove_user_ids,
             set_user_ids,
@@ -367,6 +409,7 @@ def update(
             no_start_time,
             end_time_value,
             no_end_time,
+            clear,
         ]
     )
 
@@ -377,6 +420,12 @@ def update(
     if set_data_types and (add_data_types or remove_data_types):
         raise click.UsageError(
             "--set-data-type cannot be used with --add-data-type or --remove-data-type"
+        )
+
+    # Validate mutual exclusivity for file prefixes
+    if set_files and (add_files or remove_files):
+        raise click.UsageError(
+            "--set-file cannot be used with --add-file or --remove-file"
         )
 
     # Validate mutual exclusivity for user IDs
@@ -425,25 +474,48 @@ def update(
         if name:
             update_kwargs["datashare_name"] = name
 
+        updated_types = current_share.get("fulcra_data_types", [])
+
+        # Handle clear
+        if clear:
+            updated_types = []
+            update_kwargs["share_all_data"] = False
+
         # Handle data types
         if set_data_types:
-            update_kwargs["fulcra_data_types"] = sorted(set_data_types)
-        elif add_data_types or remove_data_types:
-            current_data_types = set(update_kwargs["fulcra_data_types"] or [])
+            updated_types = set_data_types
 
-            for dt in add_data_types:
-                if dt in current_data_types:
-                    click.echo(f"Warning: {dt} already in share, skipping", err=True)
-                else:
-                    current_data_types.add(dt)
+        if set_files:
+            updated_types = [t for t in updated_types if not t.startswith("file:")] + [
+                file_share_type(prefix=f) for f in set_files
+            ]
 
-            for dt in remove_data_types:
-                if dt not in current_data_types:
-                    click.echo(f"Warning: {dt} not in share, skipping", err=True)
-                else:
-                    current_data_types.remove(dt)
+        add_types = add_data_types or []
+        if add_files:
+            add_types += [file_share_type(prefix=f) for f in add_files]
 
-            update_kwargs["fulcra_data_types"] = sorted(current_data_types)
+        remove_types = remove_data_types or []
+        if remove_files:
+            remove_types += [file_share_type(prefix=f) for f in remove_files]
+
+        for add_type in add_types:
+            if add_type in updated_types:
+                click.echo(f"Warning: {add_type} already in share, skipping", err=True)
+            else:
+                updated_types.append(add_type)
+
+        for remove_type in remove_types:
+            if remove_type not in updated_types:
+                click.echo(f"Warning: {remove_type} not in share, skipping", err=True)
+            else:
+                updated_types = [t for t in updated_types if t != remove_type]
+
+        if not no_validate:
+            updated_types = valid_share_types(
+                fulcra_api=fulcra_api, share_types=updated_types
+            )
+
+        update_kwargs["fulcra_data_types"] = updated_types
 
         # Handle user IDs
         if set_user_ids:
