@@ -59,7 +59,12 @@ def list_incoming(fulcra_api: FulcraAPI):
 
 
 @share.command("create", short_help="Create a new share")
-@click.option("--name", required=True, help="Name for this share")
+@click.option(
+    "--name",
+    "datashare_name",
+    default=None,
+    help="Name for this share, defaults to authenticated user's name or email",
+)
 @click.option(
     "--data-type",
     "data_types",
@@ -97,7 +102,7 @@ def list_incoming(fulcra_api: FulcraAPI):
 @requires_auth
 def create(
     fulcra_api: FulcraAPI,
-    name: str,
+    datashare_name: str | None,
     data_types: list[str],
     files: list[str],
     user_ids: list[str],
@@ -150,10 +155,17 @@ def create(
                 f"Invalid end time format: {end_time}. Use ISO8601 format."
             )
 
+    if datashare_name is None:
+        datashare_name = (
+            fulcra_api.get_authenticated_user_name()
+            or fulcra_api.get_authenticated_user_email()
+            or fulcra_api.get_fulcra_userid()
+        )
+
     # Create the datashare
     try:
         result = fulcra_api.create_datashare(
-            datashare_name=name,
+            datashare_name=datashare_name,
             fulcra_data_types=share_types,
             allowed_user_ids=sorted(user_ids),
             share_all_data=share_all,

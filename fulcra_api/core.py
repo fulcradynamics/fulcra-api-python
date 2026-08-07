@@ -450,6 +450,23 @@ class FulcraAPI:
         """
         return self.fulcra_api(f"/data/v1alpha1/{path}", query=params if params else {})
 
+    @staticmethod
+    def _decode_jwt_claims(token: str) -> dict:
+        """
+        Decode and return the claims (payload) from a JWT without verifying it.
+
+        Args:
+            token: The JWT to decode.
+
+        Returns:
+            A dict containing all claims from the token's payload.
+        """
+        segs = token.split(".")
+        if len(segs) < 2:
+            raise Exception("Token is in an incorrect format.")
+        payload = segs[1] + "=="  # add extra padding to prevent b64decode from breaking
+        return json.loads(base64.urlsafe_b64decode(payload))
+
     def get_token_claims(self) -> dict:
         """
         Decode and return all claims from the access token.
@@ -462,11 +479,49 @@ class FulcraAPI:
             or self.fulcra_credentials.access_token is None
         ):
             raise Exception("Authorization must occur before retrieving token claims.")
-        segs = self.fulcra_credentials.access_token.split(".")
-        if len(segs) < 2:
-            raise Exception("Authorized token is in an incorrect format.")
-        payload = segs[1] + "=="  # add extra padding to prevent b64decode from breaking
-        return json.loads(base64.b64decode(payload))
+        return self._decode_jwt_claims(self.fulcra_credentials.access_token)
+
+    def get_id_token_claims(self) -> dict:
+        """
+        Decode and return all claims from the ID token.
+
+        Returns:
+            A dict containing all JWT claims from the ID token.
+        """
+        if (
+            self.fulcra_credentials is None
+            or self.fulcra_credentials.id_token is None
+        ):
+            raise Exception(
+                "Authorization must occur before retrieving ID token claims."
+            )
+        return self._decode_jwt_claims(self.fulcra_credentials.id_token)
+
+    def get_authenticated_user_name(self) -> Optional[str]:
+        """
+        Retrieve the display name of the currently authorized user.
+
+        The name is read from the `name` claim of the ID token.
+
+        Returns:
+            The authenticated user's name, or None if the ID token has no name
+            claim.
+        """
+        claims = self.get_id_token_claims()
+        return claims.get("name")
+
+    def get_authenticated_user_email(self) -> Optional[str]:
+        """
+        Retrieve the email address of the currently authorized user.
+
+        The email is read from the `email` claim of the ID token.
+
+        Returns:
+            The authenticated user's email, or None if the ID token has no email
+            claim.
+        """
+        claims = self.get_id_token_claims()
+        return claims.get("email")
 
     def get_fulcra_userid(self) -> str:
         """
