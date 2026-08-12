@@ -1326,6 +1326,23 @@ class FulcraAPI(FulcraDataAccessMixin):
             fulcra_userid = self.get_fulcra_userid()
         return f"/data/v0/{fulcra_userid}/{operation}"
 
+    @staticmethod
+    def _decode_jwt_claims(token: str) -> dict:
+        """
+        Decode and return the claims (payload) from a JWT without verifying it.
+
+        Args:
+            token: The JWT to decode.
+
+        Returns:
+            A dict containing all claims from the token's payload.
+        """
+        segs = token.split(".")
+        if len(segs) < 2:
+            raise Exception("Token is in an incorrect format.")
+        payload = segs[1] + "=="  # add extra padding to prevent b64decode from breaking
+        return json.loads(base64.urlsafe_b64decode(payload))
+
     def get_token_claims(self) -> dict:
         """
         Decode and return all claims from the access token.
@@ -1338,11 +1355,49 @@ class FulcraAPI(FulcraDataAccessMixin):
             or self.fulcra_credentials.access_token is None
         ):
             raise Exception("Authorization must occur before retrieving token claims.")
-        segs = self.fulcra_credentials.access_token.split(".")
-        if len(segs) < 2:
-            raise Exception("Authorized token is in an incorrect format.")
-        payload = segs[1] + "=="  # add extra padding to prevent b64decode from breaking
-        return json.loads(base64.b64decode(payload))
+        return self._decode_jwt_claims(self.fulcra_credentials.access_token)
+
+    def get_id_token_claims(self) -> dict:
+        """
+        Decode and return all claims from the ID token.
+
+        Returns:
+            A dict containing all JWT claims from the ID token.
+        """
+        if (
+            self.fulcra_credentials is None
+            or self.fulcra_credentials.id_token is None
+        ):
+            raise Exception(
+                "Authorization must occur before retrieving ID token claims."
+            )
+        return self._decode_jwt_claims(self.fulcra_credentials.id_token)
+
+    def get_authenticated_user_name(self) -> Optional[str]:
+        """
+        Retrieve the display name of the currently authorized user.
+
+        The name is read from the `name` claim of the ID token.
+
+        Returns:
+            The authenticated user's name, or None if the ID token has no name
+            claim.
+        """
+        claims = self.get_id_token_claims()
+        return claims.get("name")
+
+    def get_authenticated_user_email(self) -> Optional[str]:
+        """
+        Retrieve the email address of the currently authorized user.
+
+        The email is read from the `email` claim of the ID token.
+
+        Returns:
+            The authenticated user's email, or None if the ID token has no email
+            claim.
+        """
+        claims = self.get_id_token_claims()
+        return claims.get("email")
 
     def get_fulcra_userid(self) -> str:
         """
@@ -2189,17 +2244,38 @@ class FulcraAPI(FulcraDataAccessMixin):
     # File functionality
     #
 
-    def list_files(self, path: str = "/", state: str = "uploaded") -> dict:
-        resp = self.fulcra_api(
-            "/input/v1/file_upload", query={"path": path, "state": state}
-        )
+    def list_files(
+        self,
+        path: str = "/",
+        state: str = "uploaded",
+        fulcra_userid: str | None = None,
+        base_name: str | None = None,
+    ) -> dict:
+        params = {"path": path, "state": state}
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
+        if base_name:
+            params["name"] = base_name
+
+        resp = self.fulcra_api("/input/v1/file_upload", query=params)
         return json.loads(resp)
 
-    def get_file_by_version(self, version_id: str) -> dict:
-        resp = self.fulcra_api(f"/input/v1/file_upload/{version_id}")
+    def get_file_by_version(
+        self, version_id: str, fulcra_userid: str | None = None
+    ) -> dict:
+        params = {}
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
+        resp = self.fulcra_api(f"/input/v1/file_upload/{version_id}", query=params)
         return json.loads(resp)
 
-    def resolve_filepath(self, filepath: str, all_versions: bool = False) -> list[dict]:
+    def resolve_filepath(
+        self,
+        filepath: str,
+        all_versions: bool = False,
+        fulcra_userid: str | None = None,
+        include_deleted: bool = False,
+    ) -> list[dict]:
         """Take a fully qualified file path and resolve it to the resource definition"""
         p = PurePath(filepath)
 
@@ -2211,9 +2287,16 @@ class FulcraAPI(FulcraDataAccessMixin):
         else:
             state = "uploaded"
 
+        if include_deleted:
+            state += ",deleted"
+
+        params = {"path": str(path), "name": str(name), "state": state}
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
+
         resp = self.fulcra_api(
             "/input/v1/file_upload",
-            query={"path": str(path), "name": str(name), "state": state},
+            query=params,
         )
 
         rbody = json.loads(resp)
@@ -2222,7 +2305,9 @@ class FulcraAPI(FulcraDataAccessMixin):
             files = sorted(rbody["files"], key=lambda d: d["uploaded_at"], reverse=True)
 
             # If there's no files or current versions, it doesn't exist
-            if len(files) == 0 or files[0]["state"] != "uploaded":
+            if (
+                len(files) == 0 or files[0]["state"] != "uploaded"
+            ) and not include_deleted:
                 raise Exception(f"File not found in Fulcra: {filepath}")
         else:
             files = rbody["files"]
@@ -2266,11 +2351,19 @@ class FulcraAPI(FulcraDataAccessMixin):
 
         return r
 
-    def download_file(self, file_id: str) -> http.client.HTTPResponse:
+    def download_file(
+        self, file_id: str, fulcra_userid: str | None = None
+    ) -> http.client.HTTPResponse:
         """download a file and return the file object"""
 
+        params = {}
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
+
         resp = self.fulcra_api(
-            f"/input/v1/file_upload/{file_id}/download", return_http_response=True
+            f"/input/v1/file_upload/{file_id}/download",
+            query=params,
+            return_http_response=True,
         )
 
         return resp
