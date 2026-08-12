@@ -2418,7 +2418,6 @@ class FulcraAPI(FulcraDataAccessMixin):
     def create_group(
         self,
         title: str,
-        is_public: bool,
         responsible_entity: str,
         description: str,
         fulcra_data_types: List[str],
@@ -2445,7 +2444,6 @@ class FulcraAPI(FulcraDataAccessMixin):
 
         Args:
             title: Title of the group
-            is_public: Whether the group is publicly listed
             responsible_entity: The person or organization responsible for
                 the group
             description: Description of the group
@@ -2467,7 +2465,6 @@ class FulcraAPI(FulcraDataAccessMixin):
         Examples:
                 >>> group = fulcra_client.create_group(
                 ...     title="Step Challenge",
-                ...     is_public=True,
                 ...     responsible_entity="Fulcra Dynamics",
                 ...     description="A month-long step challenge.",
                 ...     fulcra_data_types=["StepCount"],
@@ -2476,7 +2473,7 @@ class FulcraAPI(FulcraDataAccessMixin):
         """
         group_body = {
             "title": title,
-            "is_public": is_public,
+            "is_public": False,
             "responsible_entity": responsible_entity,
             "description": description,
             "time_start": time_start.isoformat() if time_start else None,

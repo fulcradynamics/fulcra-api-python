@@ -137,6 +137,38 @@ def test_empty_body_is_sent(monkeypatch):
     assert captured["content_type"] is None
 
 
+def test_create_group_is_always_private():
+    """Groups created through this library are never publicly listed."""
+    import inspect
+
+    from fulcra_api.cli.groups import create
+
+    client = offline_client()
+    captured = {}
+
+    def fake_fulcra_api(url_path, method="GET", data=None, **kwargs):
+        captured["data"] = data
+        return b'{"pool": {}}'
+
+    client.fulcra_api = fake_fulcra_api
+
+    client.create_group(
+        title="t",
+        responsible_entity="r",
+        description="d",
+        fulcra_data_types=["StepCount"],
+        group_url="https://example.com/",
+    )
+    assert captured["data"]["is_public"] is False
+
+    # Neither the API nor the CLI may expose a way to ask for a public group.
+    assert "is_public" not in inspect.signature(client.create_group).parameters
+    cli_option_names = {
+        opt for param in create.params for opt in getattr(param, "opts", [])
+    }
+    assert "--public" not in cli_option_names
+
+
 def test_parse_iso_time_requires_timezone():
     """Access-boundary timestamps must carry an explicit timezone offset."""
     import click
@@ -161,14 +193,13 @@ def test_parse_iso_time_requires_timezone():
 def test_group_lifecycle(fulcra_client):
     group = fulcra_client.create_group(
         title="fulcra-api-python integration test",
-        is_public=False,
         responsible_entity="Fulcra Dynamics",
         description="Temporary group created by the test suite; safe to delete.",
         fulcra_data_types=["StepCount"],
         group_url="https://fulcradynamics.com/",
     )
     group_id = group["id"]
-    assert group["is_public"] is False
+    assert group["is_public"] is False  # groups created via the API are private
 
     try:
         fetched = fulcra_client.get_group(group_id)
@@ -259,7 +290,6 @@ def test_group_data_access_boundaries(fulcra_client):
     time_end = datetime.datetime.fromisoformat("2024-01-26 00:00:00-08:00")
     group = fulcra_client.create_group(
         title="fulcra-api-python boundary test",
-        is_public=False,
         responsible_entity="Fulcra Dynamics",
         description="Temporary group created by the test suite; safe to delete.",
         fulcra_data_types=["StepCount"],
@@ -371,7 +401,6 @@ def test_group_v1alpha1_data_access(fulcra_client):
 
     group = fulcra_client.create_group(
         title="fulcra-api-python v1alpha1 test",
-        is_public=False,
         responsible_entity="Fulcra Dynamics",
         description="Temporary group created by the test suite; safe to delete.",
         fulcra_data_types=["MomentAnnotation"],

@@ -61,12 +61,6 @@ def show(fulcra_api: FulcraAPI, group_id: str):
 @group.command("create", short_help="Create a new group")
 @click.option("--title", required=True, help="Title")
 @click.option(
-    "--public/--private",
-    "is_public",
-    default=False,
-    help="Whether the group is publicly listed (default: private)",
-)
-@click.option(
     "--responsible-entity",
     required=True,
     help="The person or organization responsible for the group",
@@ -93,7 +87,6 @@ def show(fulcra_api: FulcraAPI, group_id: str):
 def create(
     fulcra_api: FulcraAPI,
     title,
-    is_public,
     responsible_entity,
     description,
     data_types,
@@ -118,8 +111,8 @@ def create(
     Examples:
 
     \b
-    Create a public group:
-    fulcra group create --title "Step Challenge" --public \\
+    Create a group:
+    fulcra group create --title "Step Challenge" \\
         --responsible-entity "Fulcra Dynamics" \\
         --description "A month-long step challenge." \\
         --data-type StepCount --url https://example.com/challenge
@@ -155,7 +148,6 @@ def create(
     try:
         result = fulcra_api.create_group(
             title=title,
-            is_public=is_public,
             responsible_entity=responsible_entity,
             description=description,
             fulcra_data_types=sorted(data_types),
