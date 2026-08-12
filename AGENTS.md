@@ -9,6 +9,9 @@ In addition, there are facilities to help users record new free-form data:  thei
 
 Data is primarily collected through the human's phone; the human installs [Context by Fulcra](https://apps.apple.com/us/app/context-by-fulcra-health-hub/id1633037434) and lets the app sync their data to their account.
 
+## Repository Development
+
+Always use `uv` to run Python commands in this repository. For example, run tests with `uv run python -m pytest [options...]`; do not invoke `python`, `python -m pytest`, or `pytest` directly.
 
 ### Interactive Access to the User's Data
 The human user gets to investigate their data interactively using beautiful mobile and [web apps](https://context.fulcradynamics.com/).
@@ -16,7 +19,7 @@ The human user gets to investigate their data interactively using beautiful mobi
 ### Agentic/Programmatic Access To the User's Data
 * Fully supported [OAuth2 REST API](https://fulcradynamics.github.io/developer-docs/):
     * [OpenAPI spec](https://api.fulcradynamics.com/openapi.json)
-* [Python client library](https://fulcradynamics.github.io/fulcra-api-python/) (`pip install fulcra-api`): For an easy way to use the client library. Handles authentication for you.
+* [Python client library](https://fulcradynamics.github.io/fulcra-api-python/) (`pip install fulcra-api`): For an easy way to use the client library. Handles authentication for you. Also installs the `fulcra` command-line tool (see "Command-Line Interface" below).
 * [MCP Server Docs](https://fulcradynamics.github.io/developer-docs/mcp-server/): A guide on how to use the MCP server.
 * [MCP server](https://mcp.fulcradynamics.com): The endpoint to the public MCP server. The server uses Streamable HTTP transport with OAuth2 authorization. Context users can use this server with their own account to securely access their data.
 * [MCP server source code](https://github.com/fulcradynamics/fulcra-context-mcp): The open-source repository for the MCP server. Useful for inspecting available tools, running locally, or contributing.
@@ -40,6 +43,10 @@ Type "help", "copyright", "credits" or "license" for more information.
 ```
 
 The `authorize()` call will poll while the user reaches the URL. If the call times out, call `authorize()` again to get a new URL.
+
+#### Shell-first agents
+
+Agents that can run shell commands can use the `fulcra` CLI (installed with `pip install fulcra-api`). `fulcra auth login` runs the same device authorization flow and caches credentials in `~/.config/fulcra/credentials.json`, so subsequent commands don't need to re-authenticate. For non-interactive use, `fulcra auth login --get-auth-url` prints the auth URL and a device code without polling; send the URL to the user, then complete with `fulcra auth login --device-code <DEVICE CODE>`.
 
 #### Text-first agents
 
@@ -131,7 +138,71 @@ data = fulcra.metric_time_series(
 )
 ```
 
-### Jupyter Notebook Demos
+## Command-Line Interface
+
+Installing the `fulcra-api` package provides a `fulcra` command (also available as `fulcra-api`). Sub-commands return JSON by default, designed for piping into tools like `jq`.
+
+Typical flow:
+
+```sh
+fulcra auth login                # one-time device auth; credentials are cached
+fulcra catalog                   # list queryable Fulcra data types
+fulcra user-info                 # info about the authenticated user
+fulcra metric-time-series HeartRate "1 day" --sample-rate 3600
+fulcra sleep-cycles "1 week"
+```
+
+Notes:
+
+- Time ranges can be given as two ISO8601 start/end arguments or a single relative interval like `"1 week"`, `"2 days"`, or `"3h"`. Ordinary query commands accept naive absolute timestamps, localize them to the machine's local timezone, and convert them to UTC. Timestamps that define access boundaries, such as group or share start and end times, must include an explicit timezone offset.
+- Command families: data queries (`metric-time-series`, `sleep-cycles`, `sleep-stages`, `sleep-cycles-aggregated`, `location-at-time`, `location-time-series`, `apple-workouts`, `calendar-events`, `get-records`, `data-updates`, ...), data writing (`record`, `delete`), and management sub-command groups (`auth`, `data-type`, `file`, `share`, `tag`, `group`).
+- `fulcra <command> --help` and `fulcra <group> <subcommand> --help` document every option.
+- `fulcra auth print-access-token` prints the OAuth2 access token, useful for calling the REST API directly.
+
+## Data Groups
+
+Data groups let a group owner collect read-only shared data from other Fulcra users who opt in. When a participant joins a group, they share the group's declared data types, within the group's declared time range, with the owner — until they leave. Most group parameters are immutable after creation, so the terms participants agreed to can't be changed later. Participant IDs are anonymized, per-group UUIDs that don't reveal the participant's Fulcra UserID.
+
+Groups created through this library and CLI are always private (not publicly listed); creating public groups is not available to normal users.
+
+### Python API
+
+On `FulcraAPI`:
+
+- Discovery/membership: `get_groups(subscribed_only=...)`, `get_group(group_id)`, `join_group(group_id)`, `leave_group(group_id)`
+- Owner operations: `create_group(...)`, `update_group(group_id, ...)` (only description, header/preview image URLs, and view description are editable), `delete_group(group_id)`, `get_group_participants(group_id)`, `get_group_jwks()`
+- Participant metadata (owner only): `get_group_participant_metadata`, `set_group_participant_metadata` (replace), `update_group_participant_metadata` (merge)
+- Data access: `group_participant(group_id, participant_id)` returns a `FulcraGroupParticipant` accessor with the same data-access methods as the client (`metric_time_series`, `metric_samples`, `sleep_agg`, annotations, ...), scoped to that participant's shared data. Requests outside the group's data types or time range are rejected by the server.
+
+```python
+for pid in fulcra.get_group_participants(group_id):
+    participant = fulcra.group_participant(group_id, pid)
+    df = participant.metric_time_series(
+        start_time="2026-07-01T00:00:00Z",
+        end_time="2026-07-02T00:00:00Z",
+        metric="StepCount",
+    )
+```
+
+### CLI
+
+`fulcra group` sub-commands: `list` (public groups, or `--joined` for your memberships), `show`, `create`, `update`, `delete`, `join`, `leave`, `participants`, `get-metadata`, `set-metadata`, `update-metadata`, and `jwks` (public keys for validating participant JWTs).
+
+```sh
+fulcra group create --title "Step Challenge" \
+    --responsible-entity "Fulcra Dynamics" \
+    --description "A month-long step challenge." \
+    --data-type StepCount --url https://example.com/challenge
+```
+
+To query a participant's shared data, pass `--group-id` and `--participant-id` (both required together) to the data query commands (`metric-time-series`, the sleep and location commands, `apple-workouts`, and `get-records`; not the calendar commands):
+
+```sh
+fulcra metric-time-series StepCount "1 week" \
+    --group-id <GROUP-UUID> --participant-id <PARTICIPANT-UUID>
+```
+
+## Jupyter Notebook Demos
 
 Ready-to-run demo notebooks are available at the [Fulcra demos repository](https://github.com/fulcradynamics/demos). These notebooks walk through common use cases like querying health metrics, analyzing sleep, and correlating data across domains. They can also be opened directly in [Google Colab](https://colab.research.google.com/) for one-click, zero-install demos.
 
