@@ -169,6 +169,54 @@ def test_create_group_is_always_private():
     assert "--public" not in cli_option_names
 
 
+@pytest.mark.parametrize("parameter_name", ["time_start", "time_end"])
+def test_create_group_requires_timezone(parameter_name):
+    """Group access boundaries must carry an explicit timezone offset."""
+    client = offline_client()
+
+    def unexpected_request(*args, **kwargs):
+        raise AssertionError("create_group sent a request with a naive datetime")
+
+    client.fulcra_api = unexpected_request
+    kwargs = {
+        "title": "t",
+        "responsible_entity": "r",
+        "description": "d",
+        "fulcra_data_types": ["StepCount"],
+        "group_url": "https://example.com/",
+        parameter_name: datetime.datetime(2026, 7, 1),
+    }
+
+    with pytest.raises(
+        ValueError, match=f"{parameter_name} must include a timezone offset"
+    ):
+        client.create_group(**kwargs)
+
+
+def test_create_group_accepts_timezone_aware_boundaries():
+    client = offline_client()
+    captured = {}
+
+    def fake_fulcra_api(url_path, method="GET", data=None, **kwargs):
+        captured["data"] = data
+        return b'{"pool": {}}'
+
+    client.fulcra_api = fake_fulcra_api
+    offset = datetime.timezone(datetime.timedelta(hours=-7))
+    client.create_group(
+        title="t",
+        responsible_entity="r",
+        description="d",
+        fulcra_data_types=["StepCount"],
+        group_url="https://example.com/",
+        time_start=datetime.datetime(2026, 7, 1, tzinfo=offset),
+        time_end=datetime.datetime(2026, 7, 2, tzinfo=offset),
+    )
+
+    assert captured["data"]["time_start"] == "2026-07-01T00:00:00-07:00"
+    assert captured["data"]["time_end"] == "2026-07-02T00:00:00-07:00"
+
+
 def test_parse_iso_time_requires_timezone():
     """Access-boundary timestamps must carry an explicit timezone offset."""
     import click
@@ -258,15 +306,12 @@ def test_group_lifecycle(fulcra_client):
         assert df.shape == (1440, 1)
 
         # Metrics outside the group's shared data types must be denied.
-        try:
+        with pytest.raises(HTTPError):
             participant.metric_samples(
                 start_time="2024-01-24 00:00:00-08:00",
                 end_time="2024-01-25 00:00:00-08:00",
                 metric="HeartRate",
             )
-            assert False
-        except Exception:
-            assert True
 
         fulcra_client.leave_group(group_id)
         joined = fulcra_client.get_groups(subscribed_only=True)
@@ -274,11 +319,8 @@ def test_group_lifecycle(fulcra_client):
     finally:
         fulcra_client.delete_group(group_id)
 
-    try:
+    with pytest.raises(HTTPError):
         fulcra_client.get_group(group_id)
-        assert False
-    except Exception:
-        assert True
 
 
 def test_group_data_access_boundaries(fulcra_client):

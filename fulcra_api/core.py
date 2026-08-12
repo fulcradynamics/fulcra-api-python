@@ -2450,8 +2450,10 @@ class FulcraAPI(FulcraDataAccessMixin):
             fulcra_data_types: List of Fulcra data types that participants
                 will share
             group_url: URL of the webapp associated with this group
-            time_start: Optional start of the shared data time range
-            time_end: Optional end of the shared data time range
+            time_start: Optional start of the shared data time range. Must
+                include a timezone offset.
+            time_end: Optional end of the shared data time range. Must include
+                a timezone offset.
             detail_markdown: Optional markdown shown on the group's detail view
             agreement_markdown: Optional markdown shown when a user joins
             withdraw_markdown: Optional markdown shown when a user leaves
@@ -2471,6 +2473,15 @@ class FulcraAPI(FulcraDataAccessMixin):
                 ...     group_url="https://example.com/challenge",
                 ... )
         """
+        for parameter_name, value in (
+            ("time_start", time_start),
+            ("time_end", time_end),
+        ):
+            if value is not None and (
+                value.tzinfo is None or value.utcoffset() is None
+            ):
+                raise ValueError(f"{parameter_name} must include a timezone offset")
+
         group_body = {
             "title": title,
             "is_public": False,
