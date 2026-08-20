@@ -19,7 +19,7 @@ CREDS_FILE = pathlib.Path(CONFIG_PATH / "credentials.json")
 
 def ensure_config_directory():
     try:
-        os.mkdir(CONFIG_PATH)
+        CONFIG_PATH.mkdir(parents=True, exist_ok=True)
     except FileExistsError:
         pass
 
