@@ -5,11 +5,11 @@ import json
 import time
 import urllib.parse
 import urllib.request
+from urllib.error import HTTPError
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
 
 from .credentials import FulcraCredentials
-
 
 @dataclass
 class FulcraOIDCProvider:
@@ -20,13 +20,14 @@ class FulcraOIDCProvider:
 
     def authorize_via_device_flow(
         self,
-        poll_timeout: datetime.timedelta = datetime.timedelta(seconds=120),
-        poll_interval: datetime.timedelta = datetime.timedelta(seconds=0.5),
         prompt_callback: Optional[Callable] = None,
     ) -> FulcraCredentials:
         """Get a device code, prompt the user via a callback, then poll for a valid token"""
 
-        device_code, uri, code = self.get_device_code()
+        device_code, uri, code, timeout, interval = self.get_device_code()
+
+        poll_timeout = datetime.timedelta(seconds=timeout)
+        poll_interval = datetime.timedelta(seconds=interval)
 
         if prompt_callback is not None:
             prompt_callback(device_code, uri, code)
@@ -40,8 +41,8 @@ class FulcraOIDCProvider:
     def poll_for_token(
         self,
         device_code: str,
-        poll_timeout: datetime.timedelta = datetime.timedelta(seconds=120),
-        poll_interval: datetime.timedelta = datetime.timedelta(seconds=0.5),
+        poll_timeout: datetime.timedelta = datetime.timedelta(seconds=900),
+        poll_interval: datetime.timedelta = datetime.timedelta(seconds=5),
     ) -> FulcraCredentials:
         end_at = datetime.datetime.now() + poll_timeout
         creds = None
@@ -52,11 +53,34 @@ class FulcraOIDCProvider:
                     {"device_code": device_code},
                 )
                 break
+            except HTTPError as e:
+                body = json.loads(e.fp.read())
+
+                if e.status == 403 and body.get('error') == "authorization_pending":
+                    if datetime.datetime.now() > end_at:
+                        raise Exception("Polling timeout")
+
+                    time.sleep(poll_interval.total_seconds())
+                    continue
+
+                if e.status == 403 and body.get('error') == "expired_token":
+                    raise Exception(body.get('error_description'))
+
+                if e.status == 403 and body.get('error') == 'access_denied':
+                    raise Exception("User cancelled request")
+
+                if e.status == 429:
+                    if datetime.datetime.now() > end_at:
+                        raise Exception("Polling timeout")
+
+                    poll_interval += poll_interval
+                    time.sleep(poll_interval.total_seconds())
+                    continue
+
+                raise e
+
             except Exception as e:
-                if datetime.datetime.now() > end_at:
-                    raise e
-                time.sleep(poll_interval.total_seconds())
-                continue
+                raise e
 
         return creds
 
@@ -87,7 +111,7 @@ class FulcraOIDCProvider:
 
         return f"https://{self.domain}/authorize?{urllib.parse.urlencode(params)}"
 
-    def get_device_code(self) -> Tuple[str, str, str]:
+    def get_device_code(self) -> Tuple[str, str, str, int, int]:
         """requests a device code and complete verification URI from auth0"""
 
         body = urllib.parse.urlencode(
@@ -114,7 +138,7 @@ class FulcraOIDCProvider:
         bdata = response.read()
         data = json.loads(bdata)
 
-        r = (data["device_code"], data["verification_uri_complete"], data["user_code"])
+        r = (data["device_code"], data["verification_uri_complete"], data["user_code"], data['expires_in'], data['interval'])
 
         return r
 
@@ -137,23 +161,18 @@ class FulcraOIDCProvider:
             method="POST",
         )
         response = urllib.request.urlopen(request)
+        body = json.loads(response.read())
 
-        if response.status != 200:
-            raise Exception(
-                f"Got non-200 response when requesting token: {response.status}"
-            )
-
-        data = json.loads(response.read())
-        if "access_token" not in data:
+        if "access_token" not in body:
             raise Exception("Got invalid response when requesting token")
 
-        access_token = data["access_token"]
+        access_token = body["access_token"]
         expires_in = datetime.datetime.now() + datetime.timedelta(
-            seconds=float(data["expires_in"])
+            seconds=float(body["expires_in"])
         )
 
-        refresh_token = data.get("refresh_token")
-        id_token = data.get("id_token")
+        refresh_token = body.get("refresh_token")
+        id_token = body.get("id_token")
 
         return FulcraCredentials(
             access_token=access_token,
