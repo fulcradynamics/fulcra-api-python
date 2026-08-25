@@ -312,7 +312,9 @@ def record(
 @click.argument(
     "data_type",
     callback=resolve_data_type(
-        api_version_param="api_version", default_to_authenticated=True
+        api_version_param="api_version",
+        default_to_authenticated=True,
+        recordable_only=True,
     ),
 )
 @click.argument("record_id", required=False)
