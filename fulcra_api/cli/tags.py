@@ -18,6 +18,12 @@ def tag():
 @click.option("-n", "--name", type=str, help="Filter results by partial name.")
 @click.option("--tag-name", type=str, help="Filter results by full tag name.")
 @click.option("--tag-id", type=str, help="Filter results by tag ID.")
+@click.option(
+    "--show-id",
+    type=bool,
+    default=False,
+    is_flag=True,
+)
 @pass_fulcra_api
 @requires_auth
 def tag_list(
@@ -25,6 +31,7 @@ def tag_list(
     name: Optional[str],
     tag_name: Optional[str],
     tag_id: Optional[str],
+    show_id: bool,
 ):
     """
     Return a list of user-defined tags that can be used when creating and recording custom data types.
@@ -48,7 +55,13 @@ def tag_list(
                 t for t in response if tag_id.lower() == t.get("id", "").lower()
             ]
 
-        click.echo(json.dumps(response))
+        if show_id:
+            click.echo(json.dumps(response))
+        else:
+            tag_names = [t["name"] for t in response]
+            for name in tag_names:
+                click.echo(name)
+
     except HTTPError as exc:
         raise click.ClickException(f"Failed to get tags: {exc}")
 
