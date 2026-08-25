@@ -56,12 +56,11 @@ def tag_list(
                 t for t in response if tag_id.lower() == t.get("id", "").lower()
             ]
 
-        if show_id:
-            click.echo(json.dumps(response))
-        else:
-            tag_names = [t["name"] for t in response]
-            for name in tag_names:
-                click.echo(name)
+        for t in response:
+            if show_id:
+                click.echo(f"{t['name']}\t{t['id']}")
+            else:
+                click.echo(t["name"])
 
     except HTTPError as exc:
         raise click.ClickException(f"Failed to get tags: {exc}")
