@@ -23,7 +23,7 @@ def tag():
     type=bool,
     default=False,
     is_flag=True,
-    help="Include tag ID in results",
+    help="Include tag ID in results.",
 )
 @pass_fulcra_api
 @requires_auth
