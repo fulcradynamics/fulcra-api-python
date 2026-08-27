@@ -807,10 +807,19 @@ def user_info(fulcra_api: FulcraAPI):
 @click.command(
     "data-updates", short_help="Return data/file updates that occurred during a period"
 )
+@click.option(
+    "--user-id",
+    type=str,
+    default=None,
+    is_eager=True,
+    help="Fulcra user ID to query data updates for (requires an active datashare from that user).",
+)
 @time_range
 @pass_fulcra_api
 @requires_auth
-def data_updates(fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime):
+def data_updates(
+    fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime, user_id: str | None
+):
     """Return a summary of the data that was updated across TIME_RANGE.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
@@ -819,7 +828,9 @@ def data_updates(fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime
     the number of records processed for each) and any uploaded files that changed.
     """
     try:
-        resp = fulcra_api.data_updates(start_time, end_time)
+        resp = fulcra_api.data_updates(
+            start_time=start_time, end_time=end_time, fulcra_userid=user_id
+        )
     except HTTPError as exc:
         raise click.ClickException(exc) from exc
 
