@@ -33,15 +33,15 @@ def auth():
     "-p",
     "--poll-timeout",
     type=click.FloatRange(min=0),
-    default=120.0,
-    help="Number of seconds to poll while waiting for the web auth flow to be completed. Ignored if --get-auth-url is passed.",
+    default=900,
+    help="Number of seconds to poll while waiting for the web auth flow to be completed. Use with --device-code.",
 )
 @click.option(
     "-i",
     "--poll-interval",
-    type=click.FloatRange(min=0.5),
-    default=0.5,
-    help="Number of seconds between polling attempts. Ignored if --get-auth-url is passed.",
+    type=click.FloatRange(min=5),
+    default=5,
+    help="Number of seconds between polling attempts. Use with --device-code.",
 )
 @pass_fulcra_api
 def login(
@@ -53,7 +53,7 @@ def login(
 ):
     """Authenticates to the Fulcra Platform.
 
-    The OAuth Device Authorization Flow isused to authenticate a user to the Fulcra Life API. Run interactively. A URL will be presented to load in browser. A new browser session will be automatically launched on supported platforms, and this command will poll for a valid token from the completion of the flow for up to two minutes.
+    The OAuth Device Authorization Flow isused to authenticate a user to the Fulcra Life API. Run interactively. A URL will be presented to load in browser. A new browser session will be automatically launched on supported platforms, and this command will poll for a valid token from the completion of the flow for up to the given Auth0 timeout.
 
     Credentials are persisted on the filesystem at ~/.config/fulcra/credentials.json
     """
@@ -65,7 +65,7 @@ def login(
 
     if get_auth_url:
         try:
-            device_code, uri, code = fulcra_api.oidc.get_device_code()
+            device_code, uri, code, timeout, interval = fulcra_api.oidc.get_device_code()
         except Exception as exc:
             print(exc)
             raise click.ClickException("Authorization failed, try again.") from exc
@@ -79,7 +79,7 @@ def login(
         click.echo(
             "After finishing the web auth flow, complete authentication with the device code by running:\n"
         )
-        click.echo(f"fulcra-api auth login --device-code {device_code}")
+        click.echo(f"fulcra-api auth login --device-code {device_code} --poll-timeout {timeout} --poll-interval {interval}")
         return
 
     if device_code is not None:
@@ -111,9 +111,7 @@ def login(
 
     try:
         creds = fulcra_api.oidc.authorize_via_device_flow(
-            prompt_callback=prompt,
-            poll_timeout=datetime.timedelta(seconds=poll_timeout),
-            poll_interval=datetime.timedelta(seconds=poll_interval),
+            prompt_callback=prompt
         )
     except Exception as exc:
         raise click.ClickException(f"Authorization failed, try again: {exc}") from exc

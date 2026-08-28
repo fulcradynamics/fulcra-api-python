@@ -4,6 +4,7 @@ from urllib.error import HTTPError
 from uuid import UUID
 
 import click
+from click_option_group import optgroup
 
 from fulcra_api.core import FulcraAPI
 
@@ -29,26 +30,39 @@ def data_type():
     multiple=True,
     help="Tags to attach to the data type",
 )
-@click.option(
+@optgroup.group(
+    "Metric options",
+    help="Only applicable when BASE_DATA_TYPE is a metric record type",
+)
+@optgroup.option(
     "-k",
     "--kind",
-    "metric_kind",
+    "--metric-aggregation",
+    "metric_agg",
     type=click.Choice(
         [
             "cumulative",
             "discrete",
         ]
     ),
+    help="Metric aggregation"
 )
-@click.option(
+@optgroup.option(
     "-v",
     "--value",
+    "--metric-value",
     "raw_value",
     type=str,
     help="Default value for recording the data type",
 )
-@click.option("-u", "--unit", "unit", type=str, help="Unit for recording the data type")
-@click.option(
+@optgroup.option(
+    "-u", "--unit", "--metric-unit", "unit", type=str, help="Unit for recording the data type"
+)
+@optgroup.group(
+    "Scale options",
+    help="Only applicable when BASE_DATA_TYPE is ScaleAnnotation",
+)
+@optgroup.option(
     "-s",
     "--scale-label",
     "scale_labels",
@@ -67,7 +81,7 @@ def data_type_create(
     name: str,
     description: Optional[str],
     tags: List[str],
-    metric_kind: Optional[str],
+    metric_agg: Optional[str],
     raw_value: Optional[str],
     unit: Optional[str],
     scale_labels: List[str],
@@ -75,9 +89,9 @@ def data_type_create(
 ):
     """Create a new data type from a base data type.
 
-    BASE_DATA_TYPE: The base data type to create from. Use fulcra catalog --base-types-only for valid options
+    BASE_DATA_TYPE: The base data type to create from. List valid base types with fulcra catalog --base-types-only
 
-    NAME: The given name of the data type
+    NAME: The name of the data type to create
 
     Use -d/--description to add an optional description
     """
@@ -104,10 +118,10 @@ def data_type_create(
     fulcra_data_type = filtered_base_data_types[0]
     if fulcra_data_type.get("record_spec", {}).get("type") != "metric":
         if (
-            metric_kind is not None
-        ):  # TODO: DurationAnnotation actually does support metric_kind
+            metric_agg is not None
+        ):  # TODO: DurationAnnotation actually does support metric_agg
             raise click.BadOptionUsage(
-                "metric_kind",
+                "metric_agg",
                 f"-k / --kind cannot be used with base data type {base_data_type}",
             )
 
@@ -172,7 +186,7 @@ def data_type_create(
             name=name,
             description=description,
             tags=tags,
-            metric_kind=metric_kind,
+            metric_kind=metric_agg,
             value=value,
             unit=unit,
             scale_labels=scale_labels,

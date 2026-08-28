@@ -21,6 +21,7 @@ dependencies = [
     "dateparser>=1.4.0",
     "puremagic>=1.30",
     "jsonschema>=4.0.0",
+    "click-option-group>=0.5.9",
 ]
 packages = [{ include = "fulcra_api" }]
 

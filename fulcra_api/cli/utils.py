@@ -20,7 +20,7 @@ CREDS_FILE = pathlib.Path(CONFIG_PATH / "credentials.json")
 
 def ensure_config_directory():
     try:
-        os.mkdir(CONFIG_PATH)
+        CONFIG_PATH.mkdir(parents=True, exist_ok=True)
     except FileExistsError:
         pass
 
@@ -133,6 +133,7 @@ def resolve_data_type(
     user_id_param: str | None = None,
     api_version_param: str | None = None,
     default_to_authenticated: bool = False,
+    recordable_only: bool = False,
 ):
     """
     Build a Click argument callback that resolves a data type string to its
@@ -153,6 +154,10 @@ def resolve_data_type(
         default_to_authenticated: When no user ID is available, scope resolution to
             the authenticated user (used by commands that only operate on the
             caller's own types).
+        recordable_only: Ignore matches that aren't valid write targets when
+            disambiguating -- both non-recordable types and v0 types (a legacy
+            read-only API). Used by write commands like `record`. Raises if the
+            type resolves only to non-writable entries.
     """
 
     def callback(ctx: click.Context, param: click.Parameter, value):
@@ -184,6 +189,25 @@ def resolve_data_type(
             )
         except (ValueError, HTTPError) as exc:
             raise click.BadParameter(str(exc), ctx=ctx, param=param)
+
+        # Write commands can only target recordable types, so read-only matches
+        # are noise when disambiguating. v0 is a legacy read-only API and is never
+        # a valid write target regardless of its recordable flag (most v0 types
+        # inherit the default recordable=True), matching `catalog --recordable-only`.
+        if recordable_only:
+            writable = [
+                dt
+                for dt in resolved
+                if dt.get("recordable", False) and dt.get("api_version") != "v0"
+            ]
+            if not writable:
+                raise click.BadParameter(
+                    f"'{value}' is not recordable; run "
+                    "`fulcra catalog --recordable-only` for recordable types",
+                    ctx=ctx,
+                    param=param,
+                )
+            resolved = writable
 
         if not allow_multiple and len(resolved) > 1:
             versions = ", ".join(sorted(dt["api_version"] for dt in resolved))
