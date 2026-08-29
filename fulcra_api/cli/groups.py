@@ -18,7 +18,7 @@ def group():
     "--joined",
     is_flag=True,
     default=False,
-    help="List only groups you have joined, including participant ID",
+    help="List only groups you've joined, including your participant ID",
 )
 @pass_fulcra_api
 @requires_auth
@@ -103,7 +103,7 @@ def create(
     """
     Create a new data group that other Fulcra users can join.
 
-    Participants who join share read-only access to the selected data types
+    Participants who join grant read-only access to the selected data types
     for the selected time range until they leave the group.  Most group
     parameters are immutable after creation; see 'fulcra group update' for
     the fields that can be changed later.
