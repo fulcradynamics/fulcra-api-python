@@ -188,7 +188,7 @@ for pid in fulcra.get_group_participants(group_id):
 
 ### CLI
 
-`fulcra group` sub-commands: `list` (public groups, or `--joined` for your memberships), `show`, `create`, `update`, `delete`, `join`, `leave`, `participants`, `get-metadata`, `set-metadata`, `update-metadata`, and `jwks` (public keys for validating participant JWTs).
+`fulcra group` sub-commands: `list` (public groups, or `--joined` for your memberships), `show`, `create`, `update`, `delete`, `join`, `leave`, `participants`, `get-metadata`, `set-metadata`, and `update-metadata`.
 
 ```sh
 fulcra group create --title "Step Challenge" \
