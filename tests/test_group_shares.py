@@ -198,6 +198,53 @@ def test_list_shared_data_types_request():
     }
 
 
+NAIVE = datetime.datetime(2026, 7, 1)
+AWARE = datetime.datetime(2026, 7, 1, tzinfo=datetime.UTC)
+
+
+@pytest.mark.parametrize("bound", ["time_start", "time_end"])
+def test_create_datashare_requires_a_timezone_offset(bound):
+    """
+    A share's time bounds decide who may read what, so a naive timestamp is
+    refused rather than resolved against some unagreed timezone.
+    """
+    client = offline_client()
+    client.fulcra_api = lambda *a, **k: pytest.fail("request should not be made")
+
+    with pytest.raises(ValueError, match=f"{bound} must include a timezone offset"):
+        client.create_datashare(
+            datashare_name="n", fulcra_data_types=[], **{bound: NAIVE}
+        )
+
+
+@pytest.mark.parametrize("bound", ["time_start", "time_end"])
+def test_update_datashare_requires_a_timezone_offset(bound):
+    client = offline_client()
+    client.fulcra_api = lambda *a, **k: pytest.fail("request should not be made")
+
+    with pytest.raises(ValueError, match=f"{bound} must include a timezone offset"):
+        client.update_datashare(datashare_id=SHARE_ID, **{bound: NAIVE})
+
+
+@pytest.mark.parametrize("bound", ["time_start", "time_end"])
+def test_the_timezone_guard_leaves_partial_updates_alone(bound):
+    """
+    The guard must not disturb the two non-datetime cases: omitting a bound
+    leaves it as it is, and an explicit None makes it open-ended.
+    """
+    assert bound not in update_datashare_body()
+    assert update_datashare_body(**{bound: None}) == {bound: None}
+
+
+def test_create_datashare_serializes_an_aware_time_bound():
+    client = offline_client()
+    captured = capture_request(client)
+    client.create_datashare(
+        datashare_name="n", fulcra_data_types=[], time_start=AWARE
+    )
+    assert captured["data"]["time_start"] == AWARE.isoformat()
+
+
 #
 # CLI
 #
