@@ -175,7 +175,7 @@ def test_update_datashare_clears_a_time_bound_with_an_explicit_none(field):
 
 
 def test_update_datashare_serializes_a_time_bound():
-    when = datetime.datetime(2026, 7, 1, tzinfo=datetime.timezone.utc)
+    when = datetime.datetime(2026, 7, 1, tzinfo=datetime.UTC)
     assert update_datashare_body(time_start=when)["time_start"] == when.isoformat()
 
 

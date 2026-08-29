@@ -9,7 +9,6 @@ from fulcra_api.core import FulcraGroupParticipant
 
 from .conftest import offline_client
 
-
 #
 # Offline tests (no authorization required)
 #
@@ -482,7 +481,7 @@ def test_group_v1alpha1_data_access(fulcra_client):
         "v1alpha1",
     )
 
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     start = (now - datetime.timedelta(hours=1)).isoformat()
     end = (now + datetime.timedelta(hours=1)).isoformat()
 

@@ -78,7 +78,7 @@ class FulcraDataAccessMixin:
         raise NotImplementedError
 
     def fulcra_v1_api(
-        self, data_class: str, data_type: str, params: dict = {}
+        self, data_class: str, data_type: str, params: Optional[dict] = None
     ) -> bytes:
         """
         Make a call to the v1 API.
@@ -985,7 +985,7 @@ class FulcraAPI(FulcraDataAccessMixin):
                 creds.access_token_expiration,
                 creds.refresh_token,
             )
-        except Exception as exc:
+        except Exception:
             return (None, None, None)
 
     def authorize(self):
@@ -1280,7 +1280,7 @@ class FulcraAPI(FulcraDataAccessMixin):
             raise
 
     def fulcra_v1_api(
-        self, data_class: str, data_type: str, params: dict = {}
+        self, data_class: str, data_type: str, params: Optional[dict] = None
     ) -> bytes:
         """
         Make a call to the v1 API.
@@ -2988,7 +2988,7 @@ class FulcraGroupParticipant(FulcraDataAccessMixin):
         return params
 
     def fulcra_v1_api(
-        self, data_class: str, data_type: str, params: dict = {}
+        self, data_class: str, data_type: str, params: Optional[dict] = None
     ) -> bytes:
         """
         Make a call to the v1 API, scoped to the participant's shared data.
