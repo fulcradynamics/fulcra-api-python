@@ -42,26 +42,35 @@ FULCRA_OIDC_SCOPE = os.environ.get(
 UNSET: Any = object()
 
 
-def _require_timezone_aware(**boundaries: Any) -> None:
+def _boundary_timestamp(value: Any, name: str) -> Any:
     """
-    Reject timezone-naive access boundaries.
+    Normalize an access boundary to a timezone-aware datetime.
+
+    Accepts an ISO 8601 string or a `datetime`, as the rest of the API's time
+    parameters do.  UNSET (the parameter was not passed) and None (the bound
+    is being cleared) pass through untouched.
 
     A share or group's start and end times decide who may read what, so a
     naive timestamp is refused rather than guessed at: the server would
     resolve it against a timezone neither side agreed on.  Ordinary data
     queries take naive timestamps happily; only these boundaries do not.
 
-    UNSET (the parameter was not passed) and None (the bound is being
-    cleared) are both skipped.
-
     Raises:
-        ValueError: if any given boundary lacks a timezone offset.
+        ValueError: if the value is not a valid ISO 8601 timestamp, or if it
+            carries no timezone offset.
     """
-    for name, value in boundaries.items():
-        if value is UNSET or value is None:
-            continue
-        if value.tzinfo is None or value.utcoffset() is None:
-            raise ValueError(f"{name} must include a timezone offset")
+    if value is UNSET or value is None:
+        return value
+    if isinstance(value, str):
+        try:
+            value = datetime.datetime.fromisoformat(value)
+        except ValueError:
+            raise ValueError(
+                f"{name} must be a valid ISO 8601 timestamp, not {value!r}"
+            ) from None
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{name} must include a timezone offset")
+    return value
 
 
 class FulcraDataAccessMixin:
@@ -1731,8 +1740,8 @@ class FulcraAPI(FulcraDataAccessMixin):
         fulcra_data_types: List[str],
         allowed_user_ids: Optional[List[str]] = None,
         share_all_data: bool = False,
-        time_start: Optional[datetime.datetime] = None,
-        time_end: Optional[datetime.datetime] = None,
+        time_start: Optional[str | datetime.datetime] = None,
+        time_end: Optional[str | datetime.datetime] = None,
         allowed_group_ids: Optional[List[str]] = None,
     ) -> dict:
         """
@@ -1749,10 +1758,10 @@ class FulcraAPI(FulcraDataAccessMixin):
             fulcra_data_types: List of data type IDs to share
             allowed_user_ids: List of Fulcra user IDs to share with
             share_all_data: Whether to share all data types (default: False)
-            time_start: Optional start time for data range.  Must include a
-                timezone offset.
-            time_end: Optional end time for data range.  Must include a
-                timezone offset.
+            time_start: Optional start of the shared range, as an ISO 8601
+                string or `datetime`.  Must include a timezone offset.
+            time_end: Optional end of the shared range, as an ISO 8601 string
+                or `datetime`.  Must include a timezone offset.
             allowed_group_ids: List of group UUIDs to share with.  Every group
                 must exist; if any does not, the server rejects the whole
                 request and no datashare is created.
@@ -1775,7 +1784,8 @@ class FulcraAPI(FulcraDataAccessMixin):
                 ...     allowed_group_ids=["cf362f80-ef41-4c08-b5e3-b18bd3d1524b"],
                 ... )
         """
-        _require_timezone_aware(time_start=time_start, time_end=time_end)
+        time_start = _boundary_timestamp(time_start, "time_start")
+        time_end = _boundary_timestamp(time_end, "time_end")
 
         permissions = [
             {"allowed_fulcra_userid": user_id} for user_id in (allowed_user_ids or [])
@@ -1811,8 +1821,8 @@ class FulcraAPI(FulcraDataAccessMixin):
         fulcra_data_types: Optional[List[str]] = UNSET,
         allowed_user_ids: Optional[List[str]] = UNSET,
         share_all_data: Optional[bool] = UNSET,
-        time_start: Optional[datetime.datetime] = UNSET,
-        time_end: Optional[datetime.datetime] = UNSET,
+        time_start: Optional[str | datetime.datetime] = UNSET,
+        time_end: Optional[str | datetime.datetime] = UNSET,
         allowed_group_ids: Optional[List[str]] = UNSET,
     ) -> dict:
         """
@@ -1835,10 +1845,12 @@ class FulcraAPI(FulcraDataAccessMixin):
             allowed_user_ids: Replacement list of Fulcra user IDs to share
                 with; an empty list removes every individual recipient
             share_all_data: Whether to share all data types
-            time_start: New start of the shared range, or None to make it
-                open-ended at the start.  Must include a timezone offset.
-            time_end: New end of the shared range, or None to make it
-                open-ended at the end.  Must include a timezone offset.
+            time_start: New start of the shared range, as an ISO 8601 string
+                or `datetime`, or None to make it open-ended at the start.
+                Must include a timezone offset.
+            time_end: New end of the shared range, as an ISO 8601 string or
+                `datetime`, or None to make it open-ended at the end.  Must
+                include a timezone offset.
             allowed_group_ids: Replacement list of group UUIDs to share with;
                 an empty list stops sharing with every group.  Every group must
                 exist; if any does not, the server rejects the whole request
@@ -1868,7 +1880,8 @@ class FulcraAPI(FulcraDataAccessMixin):
             ...     datashare_id=share_id, time_start=None, time_end=None
             ... )
         """
-        _require_timezone_aware(time_start=time_start, time_end=time_end)
+        time_start = _boundary_timestamp(time_start, "time_start")
+        time_end = _boundary_timestamp(time_end, "time_end")
 
         datashare_body: dict = {}
         for key, value in (
@@ -2610,8 +2623,8 @@ class FulcraAPI(FulcraDataAccessMixin):
         *,
         group_url: str,
         fulcra_data_types: Optional[List[str]] = None,
-        time_start: Optional[datetime.datetime] = None,
-        time_end: Optional[datetime.datetime] = None,
+        time_start: Optional[str | datetime.datetime] = None,
+        time_end: Optional[str | datetime.datetime] = None,
         detail_markdown: Optional[str] = None,
         agreement_markdown: Optional[str] = None,
         withdraw_markdown: Optional[str] = None,
@@ -2646,10 +2659,10 @@ class FulcraAPI(FulcraDataAccessMixin):
             fulcra_data_types: Optional list of Fulcra data types that
                 participants will share.  When omitted, participants share
                 nothing.
-            time_start: Optional start of the shared data time range. Must
-                include a timezone offset.
-            time_end: Optional end of the shared data time range. Must include
-                a timezone offset.
+            time_start: Optional start of the shared data time range, as an
+                ISO 8601 string or `datetime`.  Must include a timezone offset.
+            time_end: Optional end of the shared data time range, as an ISO
+                8601 string or `datetime`.  Must include a timezone offset.
             detail_markdown: Optional markdown shown on the group's detail view
             agreement_markdown: Optional markdown shown when a user joins
             withdraw_markdown: Optional markdown shown when a user leaves
@@ -2680,7 +2693,8 @@ class FulcraAPI(FulcraDataAccessMixin):
                 >>> group["fulcra_data_types"]
                 []
         """
-        _require_timezone_aware(time_start=time_start, time_end=time_end)
+        time_start = _boundary_timestamp(time_start, "time_start")
+        time_end = _boundary_timestamp(time_end, "time_end")
 
         group_body = {
             "title": title,

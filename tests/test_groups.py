@@ -237,13 +237,15 @@ def test_create_group_requires_timezone(parameter_name):
         "description": "d",
         "fulcra_data_types": ["StepCount"],
         "group_url": "https://example.com/",
-        parameter_name: datetime.datetime(2026, 7, 1),
     }
 
-    with pytest.raises(
-        ValueError, match=f"{parameter_name} must include a timezone offset"
-    ):
-        client.create_group(**kwargs)
+    # A naive ISO string is the same mistake as a naive datetime, and must not
+    # slip past just because it arrived as text.
+    for naive in (datetime.datetime(2026, 7, 1), "2026-07-01T00:00:00"):
+        with pytest.raises(
+            ValueError, match=f"{parameter_name} must include a timezone offset"
+        ):
+            client.create_group(**kwargs, **{parameter_name: naive})
 
 
 def test_create_group_accepts_timezone_aware_boundaries():
@@ -268,6 +270,29 @@ def test_create_group_accepts_timezone_aware_boundaries():
 
     assert captured["data"]["time_start"] == "2026-07-01T00:00:00-07:00"
     assert captured["data"]["time_end"] == "2026-07-02T00:00:00-07:00"
+
+    # ISO strings are accepted too, as everywhere else in the API
+    client.create_group(
+        title="t",
+        responsible_entity="r",
+        description="d",
+        fulcra_data_types=["StepCount"],
+        group_url="https://example.com/",
+        time_start="2026-07-01T00:00:00Z",
+        time_end="2026-07-02T00:00:00-07:00",
+    )
+
+    assert captured["data"]["time_start"] == "2026-07-01T00:00:00+00:00"
+    assert captured["data"]["time_end"] == "2026-07-02T00:00:00-07:00"
+
+    with pytest.raises(ValueError, match="must be a valid ISO 8601 timestamp"):
+        client.create_group(
+            title="t",
+            responsible_entity="r",
+            description="d",
+            group_url="https://example.com/",
+            time_start="not-a-time",
+        )
 
 
 def test_parse_iso_time_requires_timezone():

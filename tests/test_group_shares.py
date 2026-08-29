@@ -211,10 +211,13 @@ def test_create_datashare_requires_a_timezone_offset(bound):
     client = offline_client()
     client.fulcra_api = lambda *a, **k: pytest.fail("request should not be made")
 
-    with pytest.raises(ValueError, match=f"{bound} must include a timezone offset"):
-        client.create_datashare(
-            datashare_name="n", fulcra_data_types=[], **{bound: NAIVE}
-        )
+    for naive in (NAIVE, "2026-07-01T00:00:00"):
+        with pytest.raises(
+            ValueError, match=f"{bound} must include a timezone offset"
+        ):
+            client.create_datashare(
+                datashare_name="n", fulcra_data_types=[], **{bound: naive}
+            )
 
 
 @pytest.mark.parametrize("bound", ["time_start", "time_end"])
@@ -222,8 +225,11 @@ def test_update_datashare_requires_a_timezone_offset(bound):
     client = offline_client()
     client.fulcra_api = lambda *a, **k: pytest.fail("request should not be made")
 
-    with pytest.raises(ValueError, match=f"{bound} must include a timezone offset"):
-        client.update_datashare(datashare_id=SHARE_ID, **{bound: NAIVE})
+    for naive in (NAIVE, "2026-07-01T00:00:00"):
+        with pytest.raises(
+            ValueError, match=f"{bound} must include a timezone offset"
+        ):
+            client.update_datashare(datashare_id=SHARE_ID, **{bound: naive})
 
 
 @pytest.mark.parametrize("bound", ["time_start", "time_end"])
@@ -234,6 +240,45 @@ def test_the_timezone_guard_leaves_partial_updates_alone(bound):
     """
     assert bound not in update_datashare_body()
     assert update_datashare_body(**{bound: None}) == {bound: None}
+
+
+@pytest.mark.parametrize("method", ["create_datashare", "update_datashare"])
+@pytest.mark.parametrize(
+    "given,expected",
+    [
+        ("2026-07-01T00:00:00Z", "2026-07-01T00:00:00+00:00"),
+        ("2026-07-01T00:00:00-07:00", "2026-07-01T00:00:00-07:00"),
+        (AWARE, AWARE.isoformat()),
+    ],
+)
+def test_time_bounds_accept_a_string_or_a_datetime(method, given, expected):
+    """Boundaries take an ISO 8601 string or a datetime, like every other
+    time parameter in the API."""
+    client = offline_client()
+    captured = capture_request(client)
+
+    if method == "create_datashare":
+        client.create_datashare(
+            datashare_name="n", fulcra_data_types=[], time_start=given
+        )
+    else:
+        client.update_datashare(datashare_id=SHARE_ID, time_start=given)
+
+    assert captured["data"]["time_start"] == expected
+
+
+@pytest.mark.parametrize("method", ["create_datashare", "update_datashare"])
+def test_time_bounds_reject_an_unparseable_string(method):
+    client = offline_client()
+    client.fulcra_api = lambda *a, **k: pytest.fail("request should not be made")
+
+    with pytest.raises(ValueError, match="must be a valid ISO 8601 timestamp"):
+        if method == "create_datashare":
+            client.create_datashare(
+                datashare_name="n", fulcra_data_types=[], time_start="not-a-time"
+            )
+        else:
+            client.update_datashare(datashare_id=SHARE_ID, time_start="not-a-time")
 
 
 def test_create_datashare_serializes_an_aware_time_bound():
