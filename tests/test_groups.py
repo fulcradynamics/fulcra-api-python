@@ -5,15 +5,9 @@ from urllib.error import HTTPError
 
 import pytest
 
-from fulcra_api.core import FulcraAPI, FulcraGroupParticipant
-from fulcra_api.credentials import FulcraCredentials
+from fulcra_api.core import FulcraGroupParticipant
 
-
-@pytest.fixture(scope="session")
-def fulcra_client() -> FulcraAPI:
-    fulcra = FulcraAPI()
-    fulcra.authorize()
-    return fulcra
+from .conftest import offline_client
 
 
 #
@@ -21,20 +15,12 @@ def fulcra_client() -> FulcraAPI:
 #
 
 
-def offline_client() -> FulcraAPI:
-    return FulcraAPI(
-        credentials=FulcraCredentials(
-            access_token="fake-token",
-            access_token_expiration=datetime.datetime.now()
-            + datetime.timedelta(hours=1),
-        )
-    )
-
-
 def test_group_participant_paths():
     client = offline_client()
     participant = client.group_participant("gid-123", "pid-456")
     assert isinstance(participant, FulcraGroupParticipant)
+    # The data API's routes and query params still spell a group "pool"; that
+    # is a wire-level name only.
     assert (
         participant._v0_data_path("metric_samples")
         == "/data/v0/pool/gid-123/participant/pid-456/metric_samples"
@@ -70,7 +56,7 @@ def test_group_participant_method_surface():
         "update_metadata",
     ]:
         assert callable(getattr(participant, name))
-    # Operations without pool data routes must not exist on the accessor
+    # Operations without group data routes must not exist on the accessor
     for name in [
         "calendars",
         "calendar_events",
@@ -132,7 +118,7 @@ def test_empty_body_is_sent(monkeypatch):
     assert captured["data"] == b"{}"
     assert captured["content_type"] == "application/json"
 
-    client.fulcra_api("/user/v1alpha1/pool")
+    client.fulcra_api("/user/v1/group")
     assert captured["data"] is None
     assert captured["content_type"] is None
 
@@ -148,7 +134,7 @@ def test_create_group_is_always_private():
 
     def fake_fulcra_api(url_path, method="GET", data=None, **kwargs):
         captured["data"] = data
-        return b'{"pool": {}}'
+        return b'{"group": {}}'
 
     client.fulcra_api = fake_fulcra_api
 
@@ -167,6 +153,74 @@ def test_create_group_is_always_private():
         opt for param in create.params for opt in getattr(param, "opts", [])
     }
     assert "--public" not in cli_option_names
+
+
+def test_create_group_without_data_types():
+    """
+    A group need not collect anything, but the key still has to be sent -- the
+    server requires it to be present, and rejects the request without it.
+    """
+    client = offline_client()
+    captured = {}
+
+    def fake_fulcra_api(url_path, method="GET", data=None, **kwargs):
+        captured["data"] = data
+        return b'{"group": {}}'
+
+    client.fulcra_api = fake_fulcra_api
+
+    client.create_group(
+        title="t",
+        responsible_entity="r",
+        description="d",
+        group_url="https://example.com/",
+    )
+    assert captured["data"]["fulcra_data_types"] == []
+
+
+def test_create_group_rejects_positional_arguments():
+    """
+    Everything after the description is keyword-only, so an old positional call
+    fails loudly instead of quietly binding group_url to the data type list.
+    """
+    client = offline_client()
+    client.fulcra_api = lambda *a, **k: pytest.fail("request should not be made")
+
+    with pytest.raises(TypeError):
+        client.create_group("t", "r", "d", ["StepCount"], "https://example.com/")
+
+
+def test_cli_group_create_without_data_types_skips_the_catalog():
+    """
+    With nothing to validate, creating a group must not depend on the catalog
+    being reachable.
+    """
+    from click.testing import CliRunner
+
+    from fulcra_api.cli.groups import create
+
+    client = offline_client()
+    captured = {}
+
+    def fake_fulcra_api(url_path, method="GET", data=None, **kwargs):
+        captured["data"] = data
+        return b'{"group": {"id": "gid"}}'
+
+    client.fulcra_api = fake_fulcra_api
+    client.v1_catalog = lambda *a, **k: pytest.fail("catalog should not be fetched")
+
+    result = CliRunner().invoke(
+        create,
+        [
+            "--title", "t",
+            "--responsible-entity", "r",
+            "--description", "d",
+            "--url", "https://example.com/",
+        ],
+        obj=client,
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["data"]["fulcra_data_types"] == []
 
 
 @pytest.mark.parametrize("parameter_name", ["time_start", "time_end"])
@@ -199,7 +253,7 @@ def test_create_group_accepts_timezone_aware_boundaries():
 
     def fake_fulcra_api(url_path, method="GET", data=None, **kwargs):
         captured["data"] = data
-        return b'{"pool": {}}'
+        return b'{"group": {}}'
 
     client.fulcra_api = fake_fulcra_api
     offset = datetime.timezone(datetime.timedelta(hours=-7))
@@ -454,8 +508,8 @@ def test_group_v1alpha1_data_access(fulcra_client):
         participant_id = fulcra_client.join_group(group_id)["participant_id"]
         participant = fulcra_client.group_participant(group_id, participant_id)
 
-        pooled = participant.moment_annotations(start, end)
-        assert any(r.get("id") == record_id for r in pooled)
+        shared = participant.moment_annotations(start, end)
+        assert any(r.get("id") == record_id for r in shared)
 
         # Annotation types outside the group's shared types must be denied.
         with pytest.raises(HTTPError):
@@ -467,6 +521,38 @@ def test_group_v1alpha1_data_access(fulcra_client):
             [{"record_id": record_id, "data_type": "MomentAnnotation"}],
             "v1alpha1",
         )
+
+
+def test_group_with_no_data_types(fulcra_client):
+    """
+    A group that collects nothing can be created and joined; participants
+    simply share no data with its owner.
+    """
+    group = fulcra_client.create_group(
+        title="fulcra-api-python empty group test",
+        responsible_entity="Fulcra Dynamics",
+        description="Temporary group created by the test suite; safe to delete.",
+        group_url="https://fulcradynamics.com/",
+    )
+    group_id = group["id"]
+    assert group["fulcra_data_types"] == []
+
+    try:
+        participant_id = fulcra_client.join_group(group_id)["participant_id"]
+        assert participant_id in fulcra_client.get_group_participants(group_id)
+
+        # Nothing is shared, so any data request must be denied.
+        participant = fulcra_client.group_participant(group_id, participant_id)
+        with pytest.raises(HTTPError):
+            participant.metric_samples(
+                start_time="2024-01-24 00:00:00-08:00",
+                end_time="2024-01-25 00:00:00-08:00",
+                metric="StepCount",
+            )
+
+        fulcra_client.leave_group(group_id)
+    finally:
+        fulcra_client.delete_group(group_id)
 
 
 def test_get_groups_public(fulcra_client):

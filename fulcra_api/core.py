@@ -1707,13 +1707,20 @@ class FulcraAPI(FulcraDataAccessMixin):
         self,
         datashare_name: str,
         fulcra_data_types: List[str],
-        allowed_user_ids: List[str],
+        allowed_user_ids: Optional[List[str]] = None,
         share_all_data: bool = False,
         time_start: Optional[datetime.datetime] = None,
         time_end: Optional[datetime.datetime] = None,
+        allowed_group_ids: Optional[List[str]] = None,
     ) -> dict:
         """
         Creates a new datashare to share your data with other users.
+
+        A datashare can name individual users (`allowed_user_ids`), whole data
+        groups (`allowed_group_ids`), or both.  Sharing with a group grants
+        access to everyone who is currently a participant in it: members who
+        join later gain access, and members who leave lose it.  You do not
+        have to own a group to share your data into it.
 
         Args:
             datashare_name: Name for this datashare
@@ -1722,6 +1729,9 @@ class FulcraAPI(FulcraDataAccessMixin):
             share_all_data: Whether to share all data types (default: False)
             time_start: Optional start time for data range
             time_end: Optional end time for data range
+            allowed_group_ids: List of group UUIDs to share with.  Every group
+                must exist; if any does not, the server rejects the whole
+                request and no datashare is created.
 
         Returns:
             A dict containing the created datashare information.
@@ -1732,16 +1742,24 @@ class FulcraAPI(FulcraDataAccessMixin):
                 ...     fulcra_data_types=["HeartRate", "StepCount"],
                 ...     allowed_user_ids=["a24a9667-c2c6-4bbf-9a0f-4Bej0afcb521"]
                 ... )
+
+            To share with everyone in a group instead:
+
+                >>> datashare = fulcra_client.create_datashare(
+                ...     datashare_name="Step Challenge Share",
+                ...     fulcra_data_types=["StepCount"],
+                ...     allowed_group_ids=["cf362f80-ef41-4c08-b5e3-b18bd3d1524b"],
+                ... )
         """
         permissions = [
-            {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
+            {"allowed_fulcra_userid": user_id} for user_id in (allowed_user_ids or [])
         ]
 
         # Temporary until we can get the user name from the identity token,
         # or until we don't require it in the datashare body
         fulcra_user_name = self.get_fulcra_userid()
 
-        datashare_body = {
+        datashare_body: dict = {
             "datashare_name": datashare_name,
             "fulcra_user_name": fulcra_user_name,
             "time_start": time_start.isoformat() if time_start else None,
@@ -1750,71 +1768,104 @@ class FulcraAPI(FulcraDataAccessMixin):
             "share_all_data": share_all_data,
             "permissions": permissions,
         }
+        if allowed_group_ids is not None:
+            datashare_body["group_permissions"] = [
+                {"allowed_group_id": group_id} for group_id in allowed_group_ids
+            ]
 
         resp = self.fulcra_api(
-            "/user/v1alpha1/datashares", data=datashare_body, method="POST"
+            "/user/v1/datashare", data=datashare_body, method="POST"
         )
         return json.loads(resp)
 
     def update_datashare(
         self,
         datashare_id: str,
-        datashare_name: str,
-        fulcra_data_types: List[str],
-        allowed_user_ids: List[str],
-        share_all_data: bool,
-        time_start: Optional[datetime.datetime],
-        time_end: Optional[datetime.datetime],
+        datashare_name: Optional[str] = UNSET,
+        fulcra_data_types: Optional[List[str]] = UNSET,
+        allowed_user_ids: Optional[List[str]] = UNSET,
+        share_all_data: Optional[bool] = UNSET,
+        time_start: Optional[datetime.datetime] = UNSET,
+        time_end: Optional[datetime.datetime] = UNSET,
+        allowed_group_ids: Optional[List[str]] = UNSET,
     ) -> dict:
         """
-        Updates an existing datashare with a complete replacement of all fields.
+        Updates the editable fields of a datashare that you created.
 
-        Note: This method requires all fields to be provided. The CLI handles fetching
-        current values and building the complete update. Direct API users should fetch
-        the current share via get_datashares() first if they only want to modify
-        specific fields.
+        Only the fields you pass are changed; everything else is left alone.
+        In particular, the individual recipients (`allowed_user_ids`) and the
+        groups (`allowed_group_ids`) are independent lists: changing one never
+        disturbs the other, and passing an empty list for either removes all of
+        that kind of grant.
+
+        `time_start` and `time_end` accept an explicit None, which makes that
+        end of the share's range open.  Passing None for any other parameter is
+        ignored by the server, since there is nothing sensible to clear it to.
 
         Args:
             datashare_id: UUID of the datashare to update
-            datashare_name: Name for the datashare
-            fulcra_data_types: List of data type IDs to share
-            allowed_user_ids: List of Fulcra user IDs to share with
+            datashare_name: New name for the datashare
+            fulcra_data_types: Replacement list of data type IDs to share
+            allowed_user_ids: Replacement list of Fulcra user IDs to share
+                with; an empty list removes every individual recipient
             share_all_data: Whether to share all data types
-            time_start: Start time for data range, or None for open-ended
-            time_end: End time for data range, or None for open-ended
+            time_start: New start of the shared range, or None to make it
+                open-ended at the start
+            time_end: New end of the shared range, or None to make it
+                open-ended at the end
+            allowed_group_ids: Replacement list of group UUIDs to share with;
+                an empty list stops sharing with every group.  Every group must
+                exist; if any does not, the server rejects the whole request
+                and nothing about the share changes.
 
         Returns:
-            A dict containing the updated datashare information.
+            A dict containing the updated datashare.
 
         Examples:
-                >>> # Fetch current share first
-                >>> shares = fulcra_client.get_datashares()
-                >>> current = next(s for s in shares if s["datashare_id"] == share_id)
-                >>>
-                >>> # Update with modified values
-                >>> updated = fulcra_client.update_datashare(
-                ...     datashare_id=share_id,
-                ...     datashare_name="Updated Research Share",
-                ...     fulcra_data_types=["HeartRate", "StepCount"],
-                ...     allowed_user_ids=current["permissions"],
-                ...     share_all_data=current["share_all_data"],
-                ...     time_start=None,
-                ...     time_end=None
-                ... )
+            Rename a share, touching nothing else:
+
+            >>> updated = fulcra_client.update_datashare(
+            ...     datashare_id=share_id,
+            ...     datashare_name="Updated Research Share",
+            ... )
+
+            Add a group without disturbing the individual recipients:
+
+            >>> updated = fulcra_client.update_datashare(
+            ...     datashare_id=share_id,
+            ...     allowed_group_ids=["cf362f80-ef41-4c08-b5e3-b18bd3d1524b"],
+            ... )
+
+            Make the share open-ended at both ends:
+
+            >>> updated = fulcra_client.update_datashare(
+            ...     datashare_id=share_id, time_start=None, time_end=None
+            ... )
         """
-        datashare_body = {
-            "datashare_name": datashare_name,
-            "fulcra_data_types": fulcra_data_types,
-            "share_all_data": share_all_data,
-            "time_start": time_start.isoformat() if time_start else None,
-            "time_end": time_end.isoformat() if time_end else None,
-            "permissions": [
-                {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
-            ],
-        }
+        datashare_body: dict = {}
+        for key, value in (
+            ("datashare_name", datashare_name),
+            ("fulcra_data_types", fulcra_data_types),
+            ("share_all_data", share_all_data),
+        ):
+            if value is not UNSET:
+                datashare_body[key] = value
+        for key, value in (("time_start", time_start), ("time_end", time_end)):
+            if value is not UNSET:
+                datashare_body[key] = value.isoformat() if value else None
+        if allowed_user_ids is not UNSET:
+            datashare_body["permissions"] = [
+                {"allowed_fulcra_userid": user_id}
+                for user_id in (allowed_user_ids or [])
+            ]
+        if allowed_group_ids is not UNSET:
+            datashare_body["group_permissions"] = [
+                {"allowed_group_id": group_id}
+                for group_id in (allowed_group_ids or [])
+            ]
 
         resp = self.fulcra_api(
-            f"/user/v1alpha1/datashare/{datashare_id}",
+            f"/user/v1/datashare/{datashare_id}",
             data=datashare_body,
             method="PUT",
         )
@@ -1825,7 +1876,9 @@ class FulcraAPI(FulcraDataAccessMixin):
         Retrieves all datashares created by the authenticated user.
 
         Returns a list of datashares that you have created to share your data
-        with others.
+        with others.  Each one lists its individual recipients under
+        `permissions` and the groups it is shared with under
+        `group_permissions`.
 
         Returns:
             A list of datashare dicts.
@@ -1835,12 +1888,32 @@ class FulcraAPI(FulcraDataAccessMixin):
                 >>> datashares[0]
                 {'datashare_id': '...', 'datashare_name': 'My Share', ...}
         """
-        resp = self.fulcra_api("/user/v1alpha1/datashares")
+        resp = self.fulcra_api("/user/v1/datashare")
+        return json.loads(resp)
+
+    def get_datashare(self, datashare_id: str) -> dict:
+        """
+        Retrieves a single datashare that you created.
+
+        Args:
+            datashare_id: UUID of the datashare
+
+        Returns:
+            The datashare, represented by a dict.
+
+        Examples:
+                >>> share = fulcra_client.get_datashare(
+                ...     "cf362f80-ef41-4c08-b5e3-b18bd3d1524b"
+                ... )
+                >>> share["group_permissions"]
+                [{'allowed_group_id': '...'}]
+        """
+        resp = self.fulcra_api(f"/user/v1/datashare/{datashare_id}")
         return json.loads(resp)
 
     def delete_datashare(self, datashare_id: str):
         """
-        Deletes a datashare that you created.
+        Deletes a datashare that you created, revoking every grant it confers.
 
         Args:
             datashare_id: UUID of the datashare to delete
@@ -1848,7 +1921,7 @@ class FulcraAPI(FulcraDataAccessMixin):
         Examples:
                 >>> fulcra_client.delete_datashare("cf362f80-ef41-4c08-b5e3-b18bd3d1524b")
         """
-        self.fulcra_api(f"/user/v1alpha1/datashare/{datashare_id}", method="DELETE")
+        self.fulcra_api(f"/user/v1/datashare/{datashare_id}", method="DELETE")
 
     def data_updates(
         self,
@@ -1892,30 +1965,116 @@ class FulcraAPI(FulcraDataAccessMixin):
 
     def get_shared_datasets(self) -> List[Dict]:
         """
-        Retrieves datasets that have been shared with the currently authenticated user
+        Retrieves the datasets that the authenticated user can read.
+
+        There is one entry per grant, and `grant_type` says where each one
+        comes from:
+
+        - `self`: your own data.  Always the first entry, and the only one
+          with a null `grant_id` and `datashare_id`.
+        - `user`: a datashare somebody granted to you directly.
+        - `group`: a datashare granted to a data group you participate in;
+          `group_id` names the group.
+
+        Because the two kinds of grant are independent, someone who holds both
+        a direct grant and a group grant on the same datashare gets two
+        entries: they carry the same `datashare_id` and differ in
+        `grant_type`.  The sharer is identified by `sharing_fulcra_userid`.
+
+        Pass an entry's `grant_id` to `delete_dataset_permission` to give up
+        that access; see that method for which grants you are allowed to
+        remove.
 
         Examples:
 
                 >>> datasets = fulcra_client.get_shared_datasets()
-                >>> datasets[0]
-                {'permission_id': 'cf362f80-ef41-4c08-b5e3-b18bd3d1524b', 'created_at': '2024-08-21T17:52:10.658596Z', 'time_start': None, 'time_end': None, 'fulcra_userid': 'a24a9667-c2c6-4bbf-9a0f-4Bej0afcb521', 'fulcra_user_name': 'John Doe', 'fulcra_user_picture': 'https://lh3.googleusercontent.com/a/ACg8ocL-ggGYjOFq23Dfbf5GohDXbk01AoGmL0gCSbooVBXDgWeTLJk=s47-d', 'datashare_name': 'Provisioned for data analysis'}
+                >>> [d["grant_type"] for d in datasets]
+                ['self', 'user', 'group']
+                >>> datasets[2]["group_id"]
+                'cf362f80-ef41-4c08-b5e3-b18bd3d1524b'
         """
-        resp = self.fulcra_api("/user/v1alpha1/datasets")
+        resp = self.fulcra_api("/user/v1/dataset")
         return json.loads(resp)
 
-    def delete_dataset_permission(self, permission_id: str):
+    def delete_dataset_permission(self, grant_id: str):
         """
-        Revokes your permission to access a dataset that was shared with you.
+        Gives up your access to a dataset that was shared with you.
+
+        Which grants you may remove depends on the grant's `grant_type`, as
+        reported by `get_shared_datasets`:
+
+        - A `user` grant may be removed by the person it was granted to.
+        - A `group` grant may only be removed by the person who created the
+          datashare, since it confers access on everyone in the group.  If you
+          reach a dataset through a group and want out, use `leave_group`
+          instead.
 
         Args:
-            permission_id: UUID of the dataset permission to revoke
+            grant_id: The `grant_id` of the dataset grant to remove
 
         Examples:
                 >>> fulcra_client.delete_dataset_permission("cf362f80-ef41-4c08-b5e3-b18bd3d1524b")
         """
-        self.fulcra_api(
-            f"/user/v1alpha1/dataset/permission/{permission_id}", method="DELETE"
+        self.fulcra_api(f"/user/v1/dataset/{grant_id}", method="DELETE")
+
+    def list_shared_data_types(
+        self,
+        fulcra_userid: str,
+        start_time: str | datetime.datetime,
+        end_time: str | datetime.datetime,
+    ) -> dict:
+        """
+        Summarizes what another user has shared with you over a time range.
+
+        Use this before querying someone else's data, rather than discovering
+        the boundaries of your access by being denied.
+
+        A share counts toward the answer only if it *fully covers* the
+        requested window, and the end of the window is compared strictly
+        (`end_time < time_end`) -- so asking for exactly a share's declared
+        range reports nothing, and you should ask about a window strictly
+        inside it.  Access granted through a data group counts the same as a
+        direct grant, so the answer changes as you join and leave groups.
+
+        Having nothing shared with you is a normal answer, not an error: you
+        get `all_data_types` False and an empty list.  Asking about yourself
+        always reports `all_data_types` True.
+
+        Shared file paths are not reported here, and the legacy `input:custom`
+        type is omitted.
+
+        Args:
+            fulcra_userid: The Fulcra UserID of the person sharing with you
+            start_time: The start of the range (inclusive), as an ISO 8601
+                string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string
+                or `datetime` object
+
+        Returns:
+            A dict with two keys:
+
+            - `all_data_types`: True if everything is shared with you, in
+              which case `fulcra_data_types` is empty -- check this flag
+              before reading the list
+            - `fulcra_data_types`: the sorted data types you may read
+
+        Examples:
+            >>> allowed = fulcra_client.list_shared_data_types(
+            ...     "a24a9667-c2c6-4bbf-9a0f-4bef0afcb521",
+            ...     start_time="2026-08-01T00:00:00Z",
+            ...     end_time="2026-08-08T00:00:00Z",
+            ... )
+            >>> allowed
+            {'all_data_types': False, 'fulcra_data_types': ['HeartRate', 'StepCount']}
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+        }
+        resp = self.fulcra_api(
+            f"/user/v1/shared/{fulcra_userid}/data_types", query=params
         )
+        return json.loads(resp)
 
     def get_user_info(self) -> Dict:
         """
@@ -2399,7 +2558,7 @@ class FulcraAPI(FulcraDataAccessMixin):
         query = {}
         if subscribed_only:
             query["subscribed_only"] = "true"
-        resp = self.fulcra_api("/user/v1alpha1/pool", query=query)
+        resp = self.fulcra_api("/user/v1/group", query=query)
         return json.loads(resp)
 
     def get_group(self, group_id: str) -> dict:
@@ -2412,7 +2571,7 @@ class FulcraAPI(FulcraDataAccessMixin):
         Returns:
             The group, represented by a dict.
         """
-        resp = self.fulcra_api(f"/user/v1alpha1/pool/{group_id}")
+        resp = self.fulcra_api(f"/user/v1/group/{group_id}")
         return json.loads(resp)
 
     def create_group(
@@ -2420,8 +2579,9 @@ class FulcraAPI(FulcraDataAccessMixin):
         title: str,
         responsible_entity: str,
         description: str,
-        fulcra_data_types: List[str],
+        *,
         group_url: str,
+        fulcra_data_types: Optional[List[str]] = None,
         time_start: Optional[datetime.datetime] = None,
         time_end: Optional[datetime.datetime] = None,
         detail_markdown: Optional[str] = None,
@@ -2440,16 +2600,24 @@ class FulcraAPI(FulcraDataAccessMixin):
 
         Most group parameters are immutable after creation; for example, the group
         owner can't later change the conditions of the data you agreed to share when
-        you join. 
+        you join.
+
+        A group does not have to collect anything.  Omit `fulcra_data_types`
+        and joining shares no data at all, which makes the group a pure
+        audience: other users can share their own data with everyone in it by
+        naming it in `allowed_group_ids` on `create_datashare`.  Since the
+        group's data types are immutable too, such a group can never start
+        collecting data later.
 
         Args:
             title: Title of the group
             responsible_entity: The person or organization responsible for
                 the group
             description: Description of the group
-            fulcra_data_types: List of Fulcra data types that participants
-                will share
             group_url: URL of the webapp associated with this group
+            fulcra_data_types: Optional list of Fulcra data types that
+                participants will share.  When omitted, participants share
+                nothing.
             time_start: Optional start of the shared data time range. Must
                 include a timezone offset.
             time_end: Optional end of the shared data time range. Must include
@@ -2472,6 +2640,17 @@ class FulcraAPI(FulcraDataAccessMixin):
                 ...     fulcra_data_types=["StepCount"],
                 ...     group_url="https://example.com/challenge",
                 ... )
+
+            A group that collects nothing, to share data into later:
+
+                >>> group = fulcra_client.create_group(
+                ...     title="Research Cohort",
+                ...     responsible_entity="Fulcra Dynamics",
+                ...     description="Members receive data shared with them.",
+                ...     group_url="https://example.com/cohort",
+                ... )
+                >>> group["fulcra_data_types"]
+                []
         """
         for parameter_name, value in (
             ("time_start", time_start),
@@ -2489,8 +2668,10 @@ class FulcraAPI(FulcraDataAccessMixin):
             "description": description,
             "time_start": time_start.isoformat() if time_start else None,
             "time_end": time_end.isoformat() if time_end else None,
-            "fulcra_data_types": fulcra_data_types,
-            "pool_url": group_url,
+            # The server requires the key to be present; an empty list is what
+            # makes a group that collects nothing.
+            "fulcra_data_types": fulcra_data_types or [],
+            "group_url": group_url,
             "detail_markdown": detail_markdown,
             "agreement_markdown": agreement_markdown,
             "withdraw_markdown": withdraw_markdown,
@@ -2498,8 +2679,8 @@ class FulcraAPI(FulcraDataAccessMixin):
             "preview_image_url": preview_image_url,
             "friendly_id": friendly_id,
         }
-        resp = self.fulcra_api("/user/v1alpha1/pool", data=group_body, method="POST")
-        return json.loads(resp)["pool"]
+        resp = self.fulcra_api("/user/v1/group", data=group_body, method="POST")
+        return json.loads(resp)["group"]
 
     def update_group(
         self,
@@ -2560,7 +2741,7 @@ class FulcraAPI(FulcraDataAccessMixin):
             if v is not UNSET
         }
         resp = self.fulcra_api(
-            f"/user/v1alpha1/pool/{group_id}", data=group_body, method="PUT"
+            f"/user/v1/group/{group_id}", data=group_body, method="PUT"
         )
         return json.loads(resp)
 
@@ -2571,7 +2752,7 @@ class FulcraAPI(FulcraDataAccessMixin):
         Args:
             group_id: UUID of the group to delete
         """
-        self.fulcra_api(f"/user/v1alpha1/pool/{group_id}", method="DELETE")
+        self.fulcra_api(f"/user/v1/group/{group_id}", method="DELETE")
 
     def join_group(self, group_id: str) -> dict:
         """
@@ -2586,11 +2767,10 @@ class FulcraAPI(FulcraDataAccessMixin):
             group_id: UUID of the group to join
 
         Returns:
-            A dict containing your `participant_id` and `joined_at` time.
+            A dict containing the `group_id`, your `participant_id`, and your
+            `joined_at` time.
         """
-        resp = self.fulcra_api(
-            f"/user/v1alpha1/pool/{group_id}/membership", method="POST"
-        )
+        resp = self.fulcra_api(f"/user/v1/group/{group_id}/membership", method="POST")
         return json.loads(resp)
 
     def leave_group(self, group_id: str):
@@ -2600,7 +2780,7 @@ class FulcraAPI(FulcraDataAccessMixin):
         Args:
             group_id: UUID of the group to leave
         """
-        self.fulcra_api(f"/user/v1alpha1/pool/{group_id}/membership", method="DELETE")
+        self.fulcra_api(f"/user/v1/group/{group_id}/membership", method="DELETE")
 
     def get_group_participants(self, group_id: str) -> List[str]:
         """
@@ -2615,7 +2795,7 @@ class FulcraAPI(FulcraDataAccessMixin):
         Returns:
             A list of participant ID strings.
         """
-        resp = self.fulcra_api(f"/user/v1alpha1/pool/{group_id}/participants")
+        resp = self.fulcra_api(f"/user/v1/group/{group_id}/participants")
         return json.loads(resp)
 
     def get_group_participant_metadata(
@@ -2632,7 +2812,7 @@ class FulcraAPI(FulcraDataAccessMixin):
             The participant's metadata, represented by a dict.
         """
         resp = self.fulcra_api(
-            f"/user/v1alpha1/pool/{group_id}/participants/{participant_id}/metadata"
+            f"/user/v1/group/{group_id}/participants/{participant_id}/metadata"
         )
         return json.loads(resp)
 
@@ -2651,7 +2831,7 @@ class FulcraAPI(FulcraDataAccessMixin):
             metadata: The new metadata object
         """
         self.fulcra_api(
-            f"/user/v1alpha1/pool/{group_id}/participants/{participant_id}/metadata",
+            f"/user/v1/group/{group_id}/participants/{participant_id}/metadata",
             data=metadata,
             method="PUT",
         )
@@ -2672,9 +2852,9 @@ class FulcraAPI(FulcraDataAccessMixin):
             values: The metadata values to set
         """
         self.fulcra_api(
-            f"/user/v1alpha1/pool/{group_id}/participants/{participant_id}/metadata_values",
+            f"/user/v1/group/{group_id}/participants/{participant_id}/metadata",
             data=values,
-            method="POST",
+            method="PATCH",
         )
 
     def get_group_jwks(self) -> dict:
@@ -2691,7 +2871,7 @@ class FulcraAPI(FulcraDataAccessMixin):
         Returns:
             The JWKS, represented by a dict.
         """
-        resp = self.fulcra_api("/user/v1alpha1/pool/.well-known/jwks.json")
+        resp = self.fulcra_api("/user/v1/group/.well-known/jwks.json")
         return json.loads(resp)
 
     def group_participant(
@@ -2775,6 +2955,10 @@ class FulcraGroupParticipant(FulcraDataAccessMixin):
         """
         Build the request path for a v0 data operation on the participant's
         shared data.
+
+        The data API still spells a group "pool" in its route; that is a
+        wire-level name only, and does not appear anywhere in this library's
+        interface.
         """
         if fulcra_userid is not None:
             raise ValueError(
@@ -2786,9 +2970,12 @@ class FulcraGroupParticipant(FulcraDataAccessMixin):
             f"/{self.participant_id}/{operation}"
         )
 
-    def _v1_pool_params(self, params: Optional[dict]) -> dict:
+    def _v1_group_params(self, params: Optional[dict]) -> dict:
         """
         Return v1 API query params scoped to the participant's shared data.
+
+        As in `_v0_data_path`, the data API's query parameter for the group is
+        still named `pool_id` on the wire.
         """
         params = dict(params) if params else {}
         if params.get("fulcra_userid") is not None:
@@ -2807,7 +2994,7 @@ class FulcraGroupParticipant(FulcraDataAccessMixin):
         Make a call to the v1 API, scoped to the participant's shared data.
         """
         return self.client.fulcra_v1_api(
-            data_class, data_type, self._v1_pool_params(params)
+            data_class, data_type, self._v1_group_params(params)
         )
 
     def fulcra_v1_api_path(
@@ -2817,7 +3004,7 @@ class FulcraGroupParticipant(FulcraDataAccessMixin):
         Make a call to the v1 API using a full path, scoped to the
         participant's shared data.
         """
-        return self.client.fulcra_v1_api_path(path, self._v1_pool_params(params))
+        return self.client.fulcra_v1_api_path(path, self._v1_group_params(params))
 
     def get_metadata(self) -> dict:
         """

@@ -70,8 +70,8 @@ def show(fulcra_api: FulcraAPI, group_id: str):
     "--data-type",
     "data_types",
     multiple=True,
-    required=True,
-    help="Data type ID that participants will share (can be specified multiple times)",
+    help="Data type ID that participants will share (can be specified "
+    "multiple times).  Omit to create a group that collects nothing.",
 )
 @click.option("--url", "group_url", required=True, help="URL of the group's webapp")
 @click.option("--start-time", type=str, help="Optional start time (ISO8601 format)")
@@ -101,12 +101,17 @@ def create(
     friendly_id,
 ):
     """
-    Create a new data group that other Fulcra users can join.
+    Create a data group that other Fulcra users can join.
 
-    Participants who join grant read-only access to the selected data types
-    for the selected time range until they leave the group.  Most group
-    parameters are immutable after creation; see 'fulcra group update' for
-    the fields that can be changed later.
+    If the group has any data types associated with it, then Participants who join 
+    grant read-only access to those types to the group owner for the selected time range 
+    until they leave the group.  Most group parameters are immutable after creation; 
+    see 'fulcra group update' for the fields that can be changed later.
+
+    With no --data-type, joining shares no data at all, which makes the group a 
+    pure audience: other users can share their own data with everyone in it using
+    'fulcra share create --group-id'.  The group's data types are immutable
+    too, so such a group can never start collecting data later.
 
     Examples:
 
@@ -116,29 +121,39 @@ def create(
         --responsible-entity "Fulcra Dynamics" \\
         --description "A month-long step challenge." \\
         --data-type StepCount --url https://example.com/challenge
+
+    \b
+    Create a group that collects nothing, to share data into later:
+    fulcra group create --title "Research Cohort" \\
+        --responsible-entity "Fulcra Dynamics" \\
+        --description "Members receive data shared with them." \\
+        --url https://example.com/cohort
     """
-    # Validate data types against catalog
-    try:
-        catalog = fulcra_api.v1_catalog()
-        valid_data_type_ids = {item["id"] for item in catalog}
+    # Validate data types against catalog.  With none given there is nothing
+    # to check, and fetching the catalog anyway would let an unrelated network
+    # failure block creating a group that collects nothing.
+    if data_types:
+        try:
+            catalog = fulcra_api.v1_catalog()
+            valid_data_type_ids = {item["id"] for item in catalog}
 
-        # "apple_workouts" is the resource name the group data routes check for
-        # workout access, but it is not a catalog ID.
-        temporary_allowed_types = {"apple_workouts"}
+            # "apple_workouts" is the resource name the group data routes check
+            # for workout access, but it is not a catalog ID.
+            temporary_allowed_types = {"apple_workouts"}
 
-        invalid_types = [
-            dt
-            for dt in data_types
-            if dt not in valid_data_type_ids and dt not in temporary_allowed_types
-        ]
-        if invalid_types:
-            raise click.ClickException(
-                f"Invalid data type(s): {', '.join(invalid_types)}. "
-                f"Use 'fulcra catalog' to see valid data types."
-            )
-    except HTTPError as exc:
-        error_body = exc.read().decode("utf-8")
-        raise click.ClickException(f"Failed to fetch catalog: {exc}\n{error_body}")
+            invalid_types = [
+                dt
+                for dt in data_types
+                if dt not in valid_data_type_ids and dt not in temporary_allowed_types
+            ]
+            if invalid_types:
+                raise click.ClickException(
+                    f"Invalid data type(s): {', '.join(invalid_types)}. "
+                    f"Use 'fulcra catalog' to see valid data types."
+                )
+        except HTTPError as exc:
+            error_body = exc.read().decode("utf-8")
+            raise click.ClickException(f"Failed to fetch catalog: {exc}\n{error_body}")
 
     parsed_start_time = (
         parse_iso_time(start_time, "start time") if start_time else None
@@ -301,7 +316,7 @@ def join(fulcra_api: FulcraAPI, group_id: str):
 @requires_auth
 def leave(fulcra_api: FulcraAPI, group_id: str):
     """
-    Leave a data group, revoking the owner's access to your data.
+    Leave a data group.
 
     GROUP_ID: UUID of the group to leave
     """
@@ -435,21 +450,3 @@ def update_metadata(
         error_body = exc.read().decode("utf-8")
         raise click.ClickException(f"Failed to update metadata: {exc}\n{error_body}")
 
-
-@group.command("jwks", short_help="Get the group public keys (JWKS)")
-@pass_fulcra_api
-@requires_auth
-def jwks(fulcra_api: FulcraAPI):
-    """
-    Get the group public keys as a JWKS.
-
-    Group webapps can use these keys to validate the participant JWTs that
-    Context sends when authenticating requests.
-    """
-    try:
-        result = fulcra_api.get_group_jwks()
-    except HTTPError as exc:
-        error_body = exc.read().decode("utf-8")
-        raise click.ClickException(f"Failed to retrieve JWKS: {exc}\n{error_body}")
-
-    click.echo(json.dumps(result))

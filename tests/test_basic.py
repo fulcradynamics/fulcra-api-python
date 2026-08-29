@@ -2,17 +2,6 @@ import uuid
 from datetime import datetime
 from typing import List
 
-import pytest
-
-from fulcra_api.core import FulcraAPI
-
-
-@pytest.fixture(scope="session")
-def fulcra_client() -> FulcraAPI:
-    fulcra = FulcraAPI()
-    fulcra.authorize()
-    return fulcra
-
 
 def test_auth(fulcra_client):
     fuuid = uuid.UUID(fulcra_client.get_fulcra_userid())
