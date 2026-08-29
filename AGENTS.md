@@ -165,6 +165,8 @@ Data groups let a group owner collect read-only shared data from other Fulcra us
 
 Groups created through this library and CLI are always private (not publicly listed); creating public groups is not available to normal users.
 
+Data types are optional. A group created without any collects nothing when people join, which makes it a pure audience — others can then share their own data with everyone in it (see "Sharing Data With a Group" below). A group's data types are immutable, so one created empty can never start collecting later.
+
 ### Python API
 
 On `FulcraAPI`:
@@ -201,6 +203,82 @@ To query a participant's shared data, pass `--group-id` and `--participant-id` (
 fulcra metric-time-series StepCount "1 week" \
     --group-id <GROUP-UUID> --participant-id <PARTICIPANT-UUID>
 ```
+
+## Sharing Data With a Group
+
+Groups and shares point in opposite directions, and it's easy to confuse them:
+
+- **A group** collects data *inward*. Participants join, and the group's owner can read the data types they agreed to share.
+- **A share** pushes data *outward*. You choose what to share and who receives it. A share can name individual users, whole groups, or both — and sharing into a group grants access to everyone currently participating in it. **You do not have to own a group to share your data into it.**
+
+Access through a group share is live, not a snapshot: members who join later gain access, and members who leave lose it. Access also ends if the group is deleted, the group is removed from the share, or the share is deleted.
+
+A share carries two independent recipient lists, `permissions` (users) and `group_permissions` (groups). Changing one never disturbs the other. Naming a group that doesn't exist is rejected outright with a 400, and the share is left exactly as it was.
+
+### Python API
+
+```python
+# Share your step counts with everyone in a group
+share = fulcra.create_datashare(
+    datashare_name="Step Challenge Share",
+    fulcra_data_types=["StepCount"],
+    allowed_group_ids=[group_id],
+)
+
+# Stop sharing with every group, leaving individual recipients untouched
+fulcra.update_datashare(
+    datashare_id=share["datashare"]["datashare_id"],
+    allowed_group_ids=[],
+)
+```
+
+`update_datashare` changes only the fields you pass and leaves everything else alone, so there's no need to fetch the share first. Passing an empty list for `allowed_user_ids` or `allowed_group_ids` removes all of that kind of grant; the two are independent, so changing one never disturbs the other. `time_start` and `time_end` accept an explicit `None`, which makes that end of the range open.
+
+### CLI
+
+```sh
+fulcra share create --name "Step Challenge" --data-type StepCount --group-id <GROUP-UUID>
+fulcra share update <SHARE-UUID> --add-group-id <GROUP-UUID>
+fulcra share update <SHARE-UUID> --remove-group-id <GROUP-UUID>
+fulcra share update <SHARE-UUID> --no-group-id     # stop sharing with every group
+```
+
+`fulcra share create` needs at least one `--user-id` or `--group-id`. `fulcra share list-outgoing` shows each share's `group_permissions`.
+
+### Receiving data through a group
+
+`get_shared_datasets()` / `fulcra share list-incoming` return one entry per *grant*, and `grant_type` says where each comes from:
+
+- `self` — your own data. Always the first entry, and the only one with a null `grant_id` and `datashare_id`. The CLI hides it.
+- `user` — a share granted to you directly.
+- `group` — a share granted to a data group you participate in; `group_id` names the group.
+
+Because the two kinds of grant are independent, someone holding both on the same share gets **two** entries with the same `datashare_id`, differing in `grant_type`. The sharer is `sharing_fulcra_userid`.
+
+To give up access, pass a grant's `grant_id` to `delete_dataset_permission()` / `fulcra share leave`. You may remove a `user` grant addressed to you. A `group` grant confers access on everyone in the group, so only the person who created the share can remove it — to give up *your* access, leave the group (`leave_group()` / `fulcra group leave`).
+
+### Checking what you may read
+
+Before querying someone else's data, ask what they actually share with you, rather than discovering the limits by being denied:
+
+```python
+allowed = fulcra.list_shared_data_types(
+    user_id, start_time="2026-08-01T00:00:00Z", end_time="2026-08-08T00:00:00Z"
+)
+# {'all_data_types': False, 'fulcra_data_types': ['HeartRate', 'StepCount']}
+```
+
+```sh
+fulcra share shared-data-types <USER-UUID> "1 week"
+```
+
+Rules worth knowing, because they surprise people:
+
+- **Check `all_data_types` first.** When it's true everything is shared and `fulcra_data_types` is *empty* — an empty list does not mean "nothing".
+- **A share counts only if it fully covers the window you ask about**, and the end is compared strictly. Asking for exactly a share's declared range reports nothing; ask about a window strictly inside it.
+- **Nothing shared is a normal answer**, not an error — you get `all_data_types: false` and an empty list.
+- **Group membership counts**, so the answer changes as you join and leave groups.
+- Shared file paths aren't listed here, and the legacy `input:custom` type is omitted.
 
 ## Jupyter Notebook Demos
 
