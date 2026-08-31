@@ -167,6 +167,8 @@ Groups created through this library and CLI are always private (not publicly lis
 
 Data types are optional. A group created without any collects nothing when people join, which makes it a pure audience — others can then share their own data with everyone in it (see "Sharing Data With a Group" below). A group's data types are immutable, so one created empty can never start collecting later.
 
+The group's URL is optional too: a group with no webapp behind it reads back with `group_url: null`.
+
 ### Python API
 
 On `FulcraAPI`:

@@ -73,7 +73,7 @@ def show(fulcra_api: FulcraAPI, group_id: str):
     help="Data type ID that participants will share (can be specified "
     "multiple times).  Omit to create a group that collects nothing.",
 )
-@click.option("--url", "group_url", required=True, help="URL of the group's webapp")
+@click.option("--url", "group_url", help="Optional URL of the group's webapp")
 @click.option("--start-time", type=str, help="Optional start time (ISO8601 format)")
 @click.option("--end-time", type=str, help="Optional end time (ISO8601 format)")
 @click.option("--detail-markdown", help="Markdown shown on the group's detail view")
@@ -126,8 +126,7 @@ def create(
     Create a group that collects nothing, to share data into later:
     fulcra group create --title "Research Cohort" \\
         --responsible-entity "Fulcra Dynamics" \\
-        --description "Members receive data shared with them." \\
-        --url https://example.com/cohort
+        --description "Members receive data shared with them."
     """
     # Validate data types against catalog.  With none given there is nothing
     # to check, and fetching the catalog anyway would let an unrelated network

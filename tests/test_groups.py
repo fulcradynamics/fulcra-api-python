@@ -177,10 +177,56 @@ def test_create_group_without_data_types():
     assert captured["data"]["fulcra_data_types"] == []
 
 
+def test_create_group_without_a_url():
+    """
+    A group need not have a webapp behind it.  The server made group_url
+    optional, so the client must neither require it nor omit the key.
+    """
+    client = offline_client()
+    captured = {}
+
+    def fake_fulcra_api(url_path, method="GET", data=None, **kwargs):
+        captured["data"] = data
+        return b'{"group": {}}'
+
+    client.fulcra_api = fake_fulcra_api
+
+    client.create_group(title="t", responsible_entity="r", description="d")
+    assert captured["data"]["group_url"] is None
+
+
+def test_cli_group_create_without_a_url():
+    """`--url` is optional at the CLI too, and sends no URL when omitted."""
+    from click.testing import CliRunner
+
+    from fulcra_api.cli.groups import create
+
+    client = offline_client()
+    captured = {}
+
+    def fake_fulcra_api(url_path, method="GET", data=None, **kwargs):
+        captured["data"] = data
+        return b'{"group": {"id": "gid"}}'
+
+    client.fulcra_api = fake_fulcra_api
+
+    result = CliRunner().invoke(
+        create,
+        [
+            "--title", "t",
+            "--responsible-entity", "r",
+            "--description", "d",
+        ],
+        obj=client,
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["data"]["group_url"] is None
+
+
 def test_create_group_rejects_positional_arguments():
     """
     Everything after the description is keyword-only, so an old positional call
-    fails loudly instead of quietly binding group_url to the data type list.
+    fails loudly instead of quietly binding an argument to the wrong parameter.
     """
     client = offline_client()
     client.fulcra_api = lambda *a, **k: pytest.fail("request should not be made")

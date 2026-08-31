@@ -2621,8 +2621,8 @@ class FulcraAPI(FulcraDataAccessMixin):
         responsible_entity: str,
         description: str,
         *,
-        group_url: str,
         fulcra_data_types: Optional[List[str]] = None,
+        group_url: Optional[str] = None,
         time_start: Optional[str | datetime.datetime] = None,
         time_end: Optional[str | datetime.datetime] = None,
         detail_markdown: Optional[str] = None,
@@ -2655,10 +2655,10 @@ class FulcraAPI(FulcraDataAccessMixin):
             responsible_entity: The person or organization responsible for
                 the group
             description: Description of the group
-            group_url: URL of the webapp associated with this group
             fulcra_data_types: Optional list of Fulcra data types that
                 participants will share.  When omitted, participants share
                 nothing.
+            group_url: Optional URL of the webapp associated with this group
             time_start: Optional start of the shared data time range, as an
                 ISO 8601 string or `datetime`.  Must include a timezone offset.
             time_end: Optional end of the shared data time range, as an ISO
@@ -2688,7 +2688,6 @@ class FulcraAPI(FulcraDataAccessMixin):
                 ...     title="Research Cohort",
                 ...     responsible_entity="Fulcra Dynamics",
                 ...     description="Members receive data shared with them.",
-                ...     group_url="https://example.com/cohort",
                 ... )
                 >>> group["fulcra_data_types"]
                 []
