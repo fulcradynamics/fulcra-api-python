@@ -703,9 +703,10 @@ def get_records(
 )
 @click.option("-d", "--data-type", type=str, help="Data Type to look up by ID.")
 @click.option("-n", "--name", type=str, help="Filter results by partial name.")
-@click.option("--base-types-only", is_flag=True, default=False)
+@click.option("--base-types-only", "--base-types", help="Only return base types that can be used with data-type create", is_flag=True, default=False)
 @click.option(
     "--recordable-only",
+    "--recordable",
     is_flag=True,
     default=False,
     help="Only show recordable data types.",
