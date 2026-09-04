@@ -488,10 +488,7 @@ class FulcraAPI:
         Returns:
             A dict containing all JWT claims from the ID token.
         """
-        if (
-            self.fulcra_credentials is None
-            or self.fulcra_credentials.id_token is None
-        ):
+        if self.fulcra_credentials is None or self.fulcra_credentials.id_token is None:
             raise Exception(
                 "Authorization must occur before retrieving ID token claims."
             )
@@ -1401,6 +1398,7 @@ class FulcraAPI:
         self,
         start_time: str | datetime.datetime,
         end_time: str | datetime.datetime,
+        fulcra_userid: str | None,
     ) -> dict:
         """
         Retrieve a summary of the data that was updated during the specified
@@ -1413,6 +1411,7 @@ class FulcraAPI:
         Params:
             start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
             end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
+            fulcra_userid: Optional Fulcra user ID to get updates for
 
         Returns:
             A dict with two keys:
@@ -1434,6 +1433,10 @@ class FulcraAPI:
             "start_time": start_time,
             "end_time": end_time,
         }
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
         resp = self.fulcra_api("/data/v1/updates", query=params)
         return json.loads(resp)
 
