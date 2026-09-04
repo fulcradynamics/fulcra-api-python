@@ -823,4 +823,6 @@ def data_updates(fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime
     except HTTPError as exc:
         raise click.ClickException(exc) from exc
 
-    click.echo(json.dumps(resp))
+    click.echo(
+        json.dumps({"start_time": str(start_time), "end_time": str(end_time), **resp})
+    )
