@@ -89,7 +89,7 @@ def data_type_create(
 ):
     """Create a new data type from a base data type.
 
-    BASE_DATA_TYPE: The base data type to create from. List valid base types with fulcra catalog --base-types-only
+    BASE_DATA_TYPE: The base data type to create from. List valid base types with fulcra catalog --base-types --recordable
 
     NAME: The name of the data type to create
 
