@@ -1,3 +1,4 @@
+import json
 import os
 import pathlib
 from datetime import datetime, timezone
@@ -47,6 +48,83 @@ def requires_auth(f):
         return f(fulcra_api, *args, **kwargs)
 
     return wrapper
+
+
+def parse_iso_time(value: str, name: str) -> datetime:
+    """
+    Parse a user-supplied ISO8601 time string, raising a friendly error.
+
+    The timestamp must include a timezone offset; these values define
+    access boundaries, so we refuse to guess what a naive time means.
+
+    Params:
+        value: The raw string to parse
+        name: What the value is, for the error message (e.g. "start time")
+    """
+    try:
+        dt = datetime.fromisoformat(value)
+    except ValueError:
+        raise click.ClickException(
+            f"Invalid {name} format: {value}. Use ISO8601 format."
+        )
+    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+        raise click.ClickException(
+            f"The {name} must include a timezone offset "
+            f"(e.g. {value}Z or {value}-07:00)."
+        )
+    return dt
+
+
+def parse_json_object(value: str, name: str) -> dict:
+    """
+    Parse a user-supplied JSON object string, raising a friendly error.
+
+    Params:
+        value: The raw string to parse
+        name: What the value is, for the error message (e.g. "--annotations")
+    """
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise click.ClickException(f"Invalid JSON for {name}: {exc}")
+    if not isinstance(parsed, dict):
+        raise click.ClickException(f"{name} must be a JSON object")
+    return parsed
+
+
+def group_participant_options(f):
+    """
+    Decorator adding --group-id/--participant-id options to a data command,
+    for querying data shared by a participant of a group the user owns.
+    """
+    f = click.option(
+        "--participant-id",
+        type=str,
+        default=None,
+        help="Participant ID within the group given by --group-id.",
+    )(f)
+    f = click.option(
+        "--group-id",
+        type=str,
+        default=None,
+        help="Query data shared by a participant of a group you own "
+        "(requires --participant-id).",
+    )(f)
+    return f
+
+
+def resolve_data_source(fulcra_api: FulcraAPI, group_id, participant_id):
+    """
+    Return the object to run a data query against: the client itself, or a
+    group participant accessor when --group-id/--participant-id were given.
+    """
+    if (group_id is None) != (participant_id is None):
+        raise click.UsageError(
+            "--group-id and --participant-id must be used together"
+        )
+    if group_id is not None:
+        return fulcra_api.group_participant(group_id, participant_id)
+    return fulcra_api
 
 
 def resolve_data_type(

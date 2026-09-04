@@ -7,10 +7,17 @@ import click
 
 from fulcra_api.core import FulcraAPI
 
-from .utils import file_share_type, pass_fulcra_api, requires_auth, valid_share_types
+from .utils import (
+    file_share_type,
+    parse_iso_time,
+    pass_fulcra_api,
+    requires_auth,
+    time_range,
+    valid_share_types,
+)
 
 
-@click.group(help="Data sharing management sub-commands")
+@click.group(help="Data sharing sub-commands")
 def share():
     pass
 
@@ -20,7 +27,7 @@ def share():
 @requires_auth
 def list_outgoing(fulcra_api: FulcraAPI):
     """
-    List all shares that you have created to share your data with others.
+    List all data shares that you have created to share your data with others.
     """
     try:
         results = fulcra_api.get_datashares()
@@ -39,7 +46,12 @@ def list_outgoing(fulcra_api: FulcraAPI):
 @requires_auth
 def list_incoming(fulcra_api: FulcraAPI):
     """
-    List all shares that others have shared with you.
+    List all data shares that are shared with you.
+
+    Each entry is one grant.  Shares addressed to you individually have
+    grant_type "user"; those made to a data group you participate in have
+    grant_type "group" and name the group in group_id.  Holding both kinds of
+    grant on one share produces one entry for each.
     """
     try:
         results = fulcra_api.get_shared_datasets()
@@ -49,16 +61,13 @@ def list_incoming(fulcra_api: FulcraAPI):
             f"Failed to retrieve incoming shares: {exc}\n{error_body}"
         )
 
-    authenticated_userid = fulcra_api.get_fulcra_userid()
-    # filter out dataset that is automatically generated for each user; it reflects that
-    # they share all data with themselves
-    for dataset in [
-        r for r in results if r.get("permission_id") != authenticated_userid
-    ]:
+    # Skip the entry for the user's own data; it only reflects that they can
+    # read everything of their own.
+    for dataset in [r for r in results if r.get("grant_type") != "self"]:
         click.echo(json.dumps(dataset))
 
 
-@share.command("create", short_help="Create a new share")
+@share.command("create", short_help="Create a new data share")
 @click.option(
     "--name",
     "datashare_name",
@@ -75,14 +84,20 @@ def list_incoming(fulcra_api: FulcraAPI):
     "--file",
     "files",
     multiple=True,
-    help="File or directory to share the latest version of. Can be specified multiple times. ",
+    help="File or directory to share the latest version of.",
 )
 @click.option(
     "--user-id",
     "user_ids",
     multiple=True,
-    required=True,
-    help="User ID to share with (can be specified multiple times)",
+    help="User ID to share with",
+)
+@click.option(
+    "--group-id",
+    "group_ids",
+    multiple=True,
+    help="Group to share with, granting access to everyone currently "
+    "participating in it (can be specified multiple times)",
 )
 @click.option("--start-time", type=str, help="Optional start time (ISO8601 format)")
 @click.option("--end-time", type=str, help="Optional end time (ISO8601 format)")
@@ -106,13 +121,20 @@ def create(
     data_types: list[str],
     files: list[str],
     user_ids: list[str],
+    group_ids: list[str],
     start_time: str | None,
     end_time: str | None,
     share_all: bool,
     no_validate: bool,
 ):
     """
-    Create a new share to share your data with other users.
+    Create a new share to share a specific subset of your data with other users.
+
+    Recipients can be individual users (--user-id), data groups
+    (--group-id), or both; at least one is required.  Sharing with a group
+    grants read-only access to everyone currently participating in it: members who join
+    later gain access, and members who leave lose it.  You do not have to own a
+    group to share your data into it.
 
     Examples:
 
@@ -125,9 +147,16 @@ def create(
     fulcra share create --name "Full Access" --share-all --user-id <USER-UUID>
 
     \b
+    Share step counts with everyone in a group:
+    fulcra share create --name "Step Challenge" --data-type StepCount --group-id <GROUP-UUID>
+
+    \b
     Share all files in the /collaboration/context/ directory:
-    fulcra share create --name "Context files" --file /collaboration/context/
+    fulcra share create --name "Context files" --file /collaboration/context/ --user-id <USER-UUID>
     """
+    if not user_ids and not group_ids:
+        raise click.UsageError("Must specify at least one --user-id or --group-id")
+
     # Validate data types against catalog
     share_types = list(data_types)
     for file in files:
@@ -137,23 +166,10 @@ def create(
         share_types = valid_share_types(fulcra_api=fulcra_api, share_types=share_types)
 
     # Parse time arguments if provided
-    parsed_start_time = None
-    parsed_end_time = None
-    if start_time:
-        try:
-            parsed_start_time = datetime.fromisoformat(start_time)
-        except ValueError:
-            raise click.ClickException(
-                f"Invalid start time format: {start_time}. Use ISO8601 format."
-            )
-
-    if end_time:
-        try:
-            parsed_end_time = datetime.fromisoformat(end_time)
-        except ValueError:
-            raise click.ClickException(
-                f"Invalid end time format: {end_time}. Use ISO8601 format."
-            )
+    parsed_start_time = (
+        parse_iso_time(start_time, "start time") if start_time else None
+    )
+    parsed_end_time = parse_iso_time(end_time, "end time") if end_time else None
 
     if datashare_name is None:
         datashare_name = (
@@ -168,6 +184,7 @@ def create(
             datashare_name=datashare_name,
             fulcra_data_types=share_types,
             allowed_user_ids=sorted(user_ids),
+            allowed_group_ids=sorted(group_ids),
             share_all_data=share_all,
             time_start=parsed_start_time,
             time_end=parsed_end_time,
@@ -197,21 +214,34 @@ def delete(fulcra_api: FulcraAPI, share_id: str):
 
 
 @share.command("leave", short_help="Leave a share")
-@click.argument("share_id")
+@click.argument("grant_id")
 @pass_fulcra_api
 @requires_auth
-def leave(fulcra_api: FulcraAPI, share_id: str):
+def leave(fulcra_api: FulcraAPI, grant_id: str):
     """
-    Leave a share that was shared with you (revoke your access).
+    Give up your access to a share that was shared with you.
 
-    SHARE_ID: UUID of the share permission to revoke
+    This works for a grant addressed to you individually (grant_type "user").
+    A share that reaches you through a data group confers access on everyone
+    in that group, so only the person who created it can remove that grant;
+    use 'fulcra group leave' to give up your own access instead.
+
+    GRANT_ID: the grant_id of the grant, from 'fulcra share list-incoming'
     """
     try:
-        fulcra_api.delete_dataset_permission(share_id)
-        click.echo(f"Successfully left share {share_id}")
+        fulcra_api.delete_dataset_permission(grant_id)
+        click.echo(f"Successfully left share {grant_id}")
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
-        raise click.ClickException(f"Failed to leave share: {exc}\n{error_body}")
+        hint = ""
+        if exc.code == 404:
+            hint = (
+                "\nIf this share reaches you through a data group, leave the "
+                "group instead: fulcra group leave <GROUP-UUID>"
+            )
+        raise click.ClickException(
+            f"Failed to leave share: {exc}\n{error_body}{hint}"
+        )
 
 
 @share.command("update", short_help="Update an existing share")
@@ -270,6 +300,31 @@ def leave(fulcra_api: FulcraAPI, share_id: str):
     "set_user_ids",
     multiple=True,
     help="Replace all users with this list (can be specified multiple times)",
+)
+@click.option(
+    "--add-group-id",
+    "add_group_ids",
+    multiple=True,
+    help="Add a group to share with (can be specified multiple times)",
+)
+@click.option(
+    "--remove-group-id",
+    "remove_group_ids",
+    multiple=True,
+    help="Remove a group from the share (can be specified multiple times)",
+)
+@click.option(
+    "--set-group-id",
+    "set_group_ids",
+    multiple=True,
+    help="Replace all groups with this list (can be specified multiple times)",
+)
+@click.option(
+    "--no-group-id",
+    "no_group_ids",
+    is_flag=True,
+    default=False,
+    help="Stop sharing with every group",
 )
 @click.option(
     "--share-all-data",
@@ -342,6 +397,10 @@ def update(
     add_user_ids: list[str],
     remove_user_ids: list[str],
     set_user_ids: list[str],
+    add_group_ids: list[str],
+    remove_group_ids: list[str],
+    set_group_ids: list[str],
+    no_group_ids: bool,
     share_all_data: bool | None,
     start_time_value: str | None,
     no_start_time: bool,
@@ -380,6 +439,14 @@ def update(
     fulcra share update <SHARE-UUID> --add-user-id <USER-UUID> --remove-data-type StepCount
 
     \b
+    Share with everyone in a group:
+    fulcra share update <SHARE-UUID> --add-group-id <GROUP-UUID>
+
+    \b
+    Stop sharing with every group, leaving individual recipients alone:
+    fulcra share update <SHARE-UUID> --no-group-id
+
+    \b
     Disable share-all-data mode:
     fulcra share update <SHARE-UUID> --no-share-all-data
 
@@ -404,6 +471,10 @@ def update(
             add_user_ids,
             remove_user_ids,
             set_user_ids,
+            add_group_ids,
+            remove_group_ids,
+            set_group_ids,
+            no_group_ids,
             share_all_data is not None,
             start_time_value,
             no_start_time,
@@ -434,6 +505,16 @@ def update(
             "--set-user-id cannot be used with --add-user-id or --remove-user-id"
         )
 
+    # Validate mutual exclusivity for group IDs
+    if set_group_ids and (add_group_ids or remove_group_ids):
+        raise click.UsageError(
+            "--set-group-id cannot be used with --add-group-id or --remove-group-id"
+        )
+    if no_group_ids and (set_group_ids or add_group_ids or remove_group_ids):
+        raise click.UsageError(
+            "--no-group-id cannot be used with the other --*-group-id options"
+        )
+
     # Validate mutual exclusivity for start time
     if start_time_value and no_start_time:
         raise click.UsageError("--start-time cannot be used with --no-start-time")
@@ -442,86 +523,78 @@ def update(
     if end_time_value and no_end_time:
         raise click.UsageError("--end-time cannot be used with --no-end-time")
 
+    # The server changes only the fields the request carries, so send just the
+    # ones that were asked for.  The current share is fetched only when an
+    # option modifies an existing list rather than replacing it.
+    update_kwargs: Dict[str, Any] = {"datashare_id": share_id}
+    current_share: Dict[str, Any] | None = None
+
+    def load_current_share() -> Dict[str, Any]:
+        nonlocal current_share
+        if current_share is None:
+            try:
+                current_share = fulcra_api.get_datashare(share_id)
+            except HTTPError as exc:
+                if exc.code == 404:
+                    raise click.ClickException(f"Share {share_id} not found")
+                raise
+        return current_share
+
     try:
-        # Fetch current share
-        shares = fulcra_api.get_datashares()
-        current_share = next(
-            (s for s in shares if s.get("datashare_id") == share_id), None
-        )
-        if not current_share:
-            raise click.ClickException(f"Share {share_id} not found")
-
-        # Initialize update arguments with all current values
-        update_kwargs: Dict[str, Any] = {
-            "datashare_id": share_id,
-            "datashare_name": current_share.get("datashare_name"),
-            "fulcra_data_types": current_share.get("fulcra_data_types"),
-            "allowed_user_ids": [
-                p["allowed_fulcra_userid"] for p in current_share.get("permissions", [])
-            ],
-            "share_all_data": current_share.get("share_all_data"),
-            "time_start": datetime.fromisoformat(current_share["time_start"])
-            if current_share.get("time_start")
-            else None,
-            "time_end": datetime.fromisoformat(current_share["time_end"])
-            if current_share.get("time_end")
-            else None,
-        }
-
-        # Override with provided values
-
-        # Handle name
         if name:
             update_kwargs["datashare_name"] = name
 
-        updated_types = current_share.get("fulcra_data_types", [])
+        add_types = list(add_data_types) + [
+            file_share_type(prefix=f) for f in add_files
+        ]
+        remove_types = list(remove_data_types) + [
+            file_share_type(prefix=f) for f in remove_files
+        ]
 
-        # Handle clear
-        if clear:
-            updated_types = []
-            update_kwargs["share_all_data"] = False
-
-        # Handle data types
-        if set_data_types:
-            updated_types = set_data_types
-
-        if set_files:
-            updated_types = [t for t in updated_types if not t.startswith("file:")] + [
-                file_share_type(prefix=f) for f in set_files
-            ]
-
-        add_types = add_data_types or []
-        if add_files:
-            add_types += [file_share_type(prefix=f) for f in add_files]
-
-        remove_types = remove_data_types or []
-        if remove_files:
-            remove_types += [file_share_type(prefix=f) for f in remove_files]
-
-        for add_type in add_types:
-            if add_type in updated_types:
-                click.echo(f"Warning: {add_type} already in share, skipping", err=True)
+        if clear or set_data_types or set_files or add_types or remove_types:
+            if clear:
+                updated_types = []
+            elif set_data_types:
+                updated_types = list(set_data_types)
             else:
-                updated_types.append(add_type)
+                updated_types = list(load_current_share().get("fulcra_data_types", []))
 
-        for remove_type in remove_types:
-            if remove_type not in updated_types:
-                click.echo(f"Warning: {remove_type} not in share, skipping", err=True)
-            else:
-                updated_types = [t for t in updated_types if t != remove_type]
+            if set_files:
+                updated_types = [
+                    t for t in updated_types if not t.startswith("file:")
+                ] + [file_share_type(prefix=f) for f in set_files]
 
-        if not no_validate:
-            updated_types = valid_share_types(
-                fulcra_api=fulcra_api, share_types=updated_types
-            )
+            for add_type in add_types:
+                if add_type in updated_types:
+                    click.echo(
+                        f"Warning: {add_type} already in share, skipping", err=True
+                    )
+                else:
+                    updated_types.append(add_type)
 
-        update_kwargs["fulcra_data_types"] = updated_types
+            for remove_type in remove_types:
+                if remove_type not in updated_types:
+                    click.echo(
+                        f"Warning: {remove_type} not in share, skipping", err=True
+                    )
+                else:
+                    updated_types = [t for t in updated_types if t != remove_type]
+
+            if not no_validate:
+                updated_types = valid_share_types(
+                    fulcra_api=fulcra_api, share_types=updated_types
+                )
+
+            update_kwargs["fulcra_data_types"] = updated_types
 
         # Handle user IDs
         if set_user_ids:
             update_kwargs["allowed_user_ids"] = sorted(set_user_ids)
         elif add_user_ids or remove_user_ids:
-            current_user_ids = set(update_kwargs["allowed_user_ids"] or [])
+            current_user_ids = {
+                p["allowed_fulcra_userid"]
+                for p in load_current_share().get("permissions", [])
+            }
 
             for uid in add_user_ids:
                 if uid in current_user_ids:
@@ -537,29 +610,48 @@ def update(
 
             update_kwargs["allowed_user_ids"] = sorted(current_user_ids)
 
+        # Handle group IDs.  Groups and individual recipients are independent
+        # lists on the server, so leaving this out keeps a share's groups as
+        # they are.
+        if no_group_ids:
+            update_kwargs["allowed_group_ids"] = []
+        elif set_group_ids:
+            update_kwargs["allowed_group_ids"] = sorted(set_group_ids)
+        elif add_group_ids or remove_group_ids:
+            current_group_ids = {
+                p["allowed_group_id"]
+                for p in load_current_share().get("group_permissions", [])
+            }
+
+            for gid in add_group_ids:
+                if gid in current_group_ids:
+                    click.echo(f"Warning: {gid} already in share, skipping", err=True)
+                else:
+                    current_group_ids.add(gid)
+
+            for gid in remove_group_ids:
+                if gid not in current_group_ids:
+                    click.echo(f"Warning: {gid} not in share, skipping", err=True)
+                else:
+                    current_group_ids.remove(gid)
+
+            update_kwargs["allowed_group_ids"] = sorted(current_group_ids)
+
         # Handle share_all_data flag
+        if clear:
+            update_kwargs["share_all_data"] = False
         if share_all_data is not None:
             update_kwargs["share_all_data"] = share_all_data
 
         # Handle start time
         if start_time_value:
-            try:
-                update_kwargs["time_start"] = datetime.fromisoformat(start_time_value)
-            except ValueError:
-                raise click.ClickException(
-                    f"Invalid start time format: {start_time_value}. Use ISO8601 format."
-                )
+            update_kwargs["time_start"] = parse_iso_time(start_time_value, "start time")
         elif no_start_time:
             update_kwargs["time_start"] = None
 
         # Handle end time
         if end_time_value:
-            try:
-                update_kwargs["time_end"] = datetime.fromisoformat(end_time_value)
-            except ValueError:
-                raise click.ClickException(
-                    f"Invalid end time format: {end_time_value}. Use ISO8601 format."
-                )
+            update_kwargs["time_end"] = parse_iso_time(end_time_value, "end time")
         elif no_end_time:
             update_kwargs["time_end"] = None
 
@@ -570,3 +662,50 @@ def update(
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
         raise click.ClickException(f"Failed to update share: {exc}\n{error_body}")
+
+
+@share.command(
+    "shared-data-types",
+    short_help="Summarize what a user shares with you over a time range",
+)
+@click.argument("user_id")
+@time_range
+@pass_fulcra_api
+@requires_auth
+def shared_data_types(
+    fulcra_api: FulcraAPI, user_id: str, start_time: datetime, end_time: datetime
+):
+    """Summarize the data types USER_ID shares with you across TIME_RANGE.
+
+    Use this before querying someone else's data, instead of discovering the
+    limits of your access by being denied.
+
+    USER_ID: Fulcra user ID of the person sharing with you
+
+    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single
+    interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+
+    A share counts only if it fully covers the requested range, and the end of
+    the range is compared strictly -- so ask about a window strictly inside a
+    share, not its exact declared range.  Access granted through a data group
+    counts the same as a direct share.
+
+    When all_data_types is true everything is shared and fulcra_data_types is
+    empty, so check that flag before reading the list.  Having nothing shared
+    with you is a normal result, not an error.
+
+    Examples:
+
+    \b
+    What can this user share with me over the past week?
+    fulcra share shared-data-types <USER-UUID> "1 week"
+    """
+    try:
+        resp = fulcra_api.list_shared_data_types(user_id, start_time, end_time)
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(
+            f"Failed to retrieve shared data types: {exc}\n{error_body}"
+        )
+
+    click.echo(json.dumps(resp))

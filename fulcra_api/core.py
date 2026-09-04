@@ -37,8 +37,888 @@ FULCRA_OIDC_SCOPE = os.environ.get(
     "FULCRA_OIDC_SCOPE", "openid profile name email offline_access"
 )
 
+# Sentinel distinguishing "parameter not passed" from an explicit None, for
+# update calls where None means "clear this field on the server".
+UNSET: Any = object()
 
-class FulcraAPI:
+
+def _boundary_timestamp(value: Any, name: str) -> Any:
+    """
+    Normalize an access boundary to a timezone-aware datetime.
+
+    Accepts an ISO 8601 string or a `datetime`, as the rest of the API's time
+    parameters do.  UNSET (the parameter was not passed) and None (the bound
+    is being cleared) pass through untouched.
+
+    A share or group's start and end times decide who may read what, so a
+    naive timestamp is refused rather than guessed at: the server would
+    resolve it against a timezone neither side agreed on.  Ordinary data
+    queries take naive timestamps happily; only these boundaries do not.
+
+    Raises:
+        ValueError: if the value is not a valid ISO 8601 timestamp, or if it
+            carries no timezone offset.
+    """
+    if value is UNSET or value is None:
+        return value
+    if isinstance(value, str):
+        try:
+            value = datetime.datetime.fromisoformat(value)
+        except ValueError:
+            raise ValueError(
+                f"{name} must be a valid ISO 8601 timestamp, not {value!r}"
+            ) from None
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{name} must include a timezone offset")
+    return value
+
+
+class FulcraDataAccessMixin:
+    """
+    Shared implementations of the data-access operations (v0 endpoints and
+    v1alpha1 annotation readers).
+
+    These methods are available both on `FulcraAPI` (to access your own
+    data, or another user's shared data via the `fulcra_userid` parameter)
+    and on `FulcraGroupParticipant` (to access the data that a group
+    participant shares with you).  Subclasses choose the data source that
+    requests are made against by implementing `_v0_data_path` and
+    `fulcra_v1_api`.
+    """
+
+    def _v0_data_path(
+        self, operation: str, fulcra_userid: Optional[str] = None
+    ) -> str:
+        """
+        Build the request path for a v0 data operation.
+        """
+        raise NotImplementedError
+
+    def fulcra_api(
+        self,
+        url_path: str,
+        method: str = "GET",
+        query: Optional[dict] = None,
+        data: Optional[Union[dict, List[dict]]] = None,
+        return_http_response: bool = False,
+        content_type: str = "application/json",
+    ) -> Any:
+        """
+        Make an authenticated request to the Fulcra API.
+        """
+        raise NotImplementedError
+
+    def fulcra_v1_api(
+        self, data_class: str, data_type: str, params: Optional[dict] = None
+    ) -> bytes:
+        """
+        Make a call to the v1 API.
+        """
+        raise NotImplementedError
+
+    def apple_workouts(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieve the list of Apple workouts that occurred (at least partially) during
+        the specified time range.
+
+        Requires an authorized access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
+
+        Returns:
+            A list of dicts, each of which contains the data from a workout.
+
+        Examples:
+            To retrieve all workouts during a time period:
+
+            >>> workouts = fulcra.apple_workouts(
+            ...     start_time = "2023-09-21 07:00:00.000Z",
+            ...     end_time = "2023-09-22 07:00:00.000Z"
+            ... )
+
+            To inspect the details of a workout:
+
+            >>> workouts[0]
+            {'start_date': '2023-09-21T19:18:31.733000Z', 'end_date':
+            '2023-09-21T19:49:08.773000Z', 'has_undetermined_duration': False,
+            'apple_workout_id': '480b25fe-b229-41b9-bf13-7ccf5e2092ec', 'duration':
+            1837.0397539138794, 'extras': {'HKTimeZone': 'America/Los_Angeles',
+            'HKAverageMETs': '4.37848 kcal/hr·kg' ... }
+
+        """
+        params = {"start_time": start_time, "end_time": end_time}
+        resp = self.fulcra_api(
+            self._v0_data_path("apple_workouts", fulcra_userid), query=params
+        )
+        return json.loads(resp)
+
+    def metric_samples(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        metric: str,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieve the raw samples related to the given metric that occurred for the
+        user during the specified period of time.
+
+        In cases where samples cover ranges and not points in time, a sample will
+        be returned if any part of its range intersects with the requested range.
+
+        As an example, if you have `start_date` as 14:00 and `end_date` at 15:00,
+        and there is a sample that covers 13:30-14:30, it will be included.
+
+        Requires an authorized access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
+            metric: The name of the metric to retrieve samples for.
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
+
+        Examples:
+
+            >>> samples = fulcra.metric_samples(
+            ...     start_time="2023-08-09 07:00:00.000Z",
+            ...     end_time="2023-08-10 07:00:00.000Z",
+            ...     metric="StepCount"
+            ... )
+
+            To inspect the first sample:
+
+            >>> samples[0]
+            {'start_date': '2023-08-10T06:05:10.726+00:00', 'end_date':
+            '2023-08-10T06:05:13.285+00:00', 'extras': None,
+            'has_undetermined_duration': False, 'unit': 'count', 'count': 1,
+            'uuid': '74983a94-8816-4b95-bbbd-d4108149261a', 'value': 8,
+            'source_properties': {'name': 'b c’s iPhone', 'version': '16.6',
+            'productType': 'iPhone12,8', 'operatingSystemVersion': [16, 6, 0],
+            'sourceBundleIdentifier':
+            'com.apple.health.F8872676-6D45-4981-8E14-C009D0AE5F27'},
+            'device_properties': {'name': 'iPhone', 'model':
+            'iPhone', 'manufacturer': 'Apple Inc.',
+            'hardwareVersion': 'iPhone12,8',
+            'softwareVersion': '16.6'}}
+        """
+        params = {"start_time": start_time, "end_time": end_time, "metric": metric}
+        resp = self.fulcra_api(
+            self._v0_data_path("metric_samples", fulcra_userid), query=params
+        )
+        return json.loads(resp)
+
+    def gmaps_location_updates(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        fulcra_source_id: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Return Google Maps geo-location update samples for a user.
+
+        Retrieve the raw Google Maps location update samples for the specified
+        user during the specified period of time.
+
+        Requires an authorized access token.
+
+        Params:
+            start_time: The starting timestamp in ISO 8601 format (inclusive).
+            end_time: The ending timestamp in ISO 8601 format (exclusive).
+            fulcra_source_id: Optional. When present, specifies the Fulcra source ID to filter results.
+            fulcra_userid: Optional. When present, specifies the Fulcra user ID to request data for.
+
+        Returns:
+            A list of dicts, each of which contains the data from a Google Maps location update.
+        """
+        params = {"start_time": start_time, "end_time": end_time}
+        if fulcra_source_id is not None:
+            params["fulcra_source_id"] = fulcra_source_id
+
+        resp = self.fulcra_api(
+            self._v0_data_path("gmaps_location_updates", fulcra_userid), query=params
+        )
+        return json.loads(resp)
+
+    def apple_location_updates(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """Retrieve the raw Apple location update samples during the specified
+        period of time.
+
+        Requires an authorized access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
+
+        Returns:
+            A list of dicts, each of which contains the data from a location update.
+
+        Examples:
+            To retrieve all location updates within a specific hour:
+
+            >>> updates = fulcra.apple_location_updates(
+            ...     start_time="2023-09-24T20:00:00Z",
+            ...     end_time="2023-09-24T21:10:00Z"
+            ... )
+
+            To see the details of the first update:
+
+            >>> updates[0]
+            {'speed': -1, 'horizontal_accuracy_meters': 35, 'longitude_degrees':
+            -117.15661336566698, 'source_is_simulated_by_software': False,
+            'source_is_produced_by_accessory': False, 'latitude_degrees':
+            32.706505158026005, 'vertical_accuracy_meters': 3.0130748748779297,
+            'course_heading_accuracy_degrees': -1, 'course_heading_degrees': -1,
+            'ellipsoidal_altitude_meters': -6.280021667480469, 'floor': 0,
+            'speed_accuracy_meters': -1, 'altitude_meters': 29.17388153076172, 'uuid':
+            'e80feacc-54e9-414f-86cb-8d6ebd85ea41', 'timestamp':
+            '2023-09-24T20:39:28.056+00:00'}
+
+        """
+        params = {"start_time": start_time, "end_time": end_time}
+        resp = self.fulcra_api(
+            self._v0_data_path("apple_location_updates", fulcra_userid), query=params
+        )
+        return json.loads(resp)
+
+    def apple_location_visits(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieve the raw Apple location visit samples during the specified
+        period of time.
+
+        Requires an authorized access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
+
+        Returns:
+            A list of dicts, each of which contains the data from a location visit.
+
+        Examples:
+            To retrieve all location updates within a specific hour:
+
+            >>> visits = fulcra.apple_location_visits(
+            ...     start_time="2023-09-24T20:00:00Z",
+            ...     end_time="2023-09-24T21:10:00Z"
+            ... )
+
+            To see the details of the first update:
+
+            >>> visits[0]
+            {'longitude_degrees': -117.1224047932943, 'latitude_degrees':
+            32.75812770726706, 'arrival_date': '0001-01-01T00:00:00+00:00',
+            'departure_date': '2023-09-25T01:42:16.998+00:00',
+            'horizontal_accuracy_meters': 32.93262639589646, 'uuid':
+                '935971dd-0822-49ef-a74f-b09a24d68c3a'}
+
+
+        """
+        params = {"start_time": start_time, "end_time": end_time}
+        resp = self.fulcra_api(
+            self._v0_data_path("apple_location_visits", fulcra_userid), query=params
+        )
+        return json.loads(resp)
+
+    def metric_time_series(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        metric: str,
+        sample_rate: float = 60,
+        replace_nulls: Optional[bool] = False,
+        fulcra_userid: Optional[str] = None,
+        calculations: Optional[list[str]] = None,
+    ) -> pd.DataFrame:
+        """
+        Retrieve time-series data from a single Fulcra metric, covering the
+        time starting at `start_time` (inclusive) until `end_time`
+        (exclusive).
+
+        If specified, the `sample_rate` parameter defines the number of
+        seconds per sample.  This value can be smaller than 1.  The default
+        value is 60 (one sample per minute).
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            metric: The name of the time-series metric to retrieve
+            sample_rate: The length (in seconds) of each sample
+            replace_nulls: When true, replace all NA/null/None values with 0
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
+            calculations: When present, specifies additional calculations to perform for each time slice.  The current values are:
+                - `max`: The maximum value for each time window
+                - `min`: The minimum value for each time window
+                - `delta`: The delta between the maximum and minimum value for each time window
+                - `mean`: The mean value for each time window
+                - `uniques`: The list of unique values for each time window
+                - `allpoints`: The list of all values for each time window
+                - `rollingmean`: The rolling mean value for each time window.  This mean is calculated relative to the beginning of the requested sample
+
+        Returns:
+            a pandas DataFrame containing the data.  For time ranges where data is
+                missing, the values will be `<NA>`.
+
+        Examples:
+            To retrieve a dataframe containing the `StepCount` metric:
+
+            >>> df = fulcra.metric_time_series(
+            ...     start_time = "2024-01-24 00:00:00-08:00",
+            ...     end_time = "2024-01-25 00:00:00-08:00",
+            ...     sample_rate = 1,
+            ...     metric = "StepCount"
+            ... )
+
+        The index of the DataFrame will be the time:
+
+        >>> df.index
+        DatetimeIndex(['2024-01-24 08:00:00+00:00', '2024-01-24 08:00:01+00:00',
+                       '2024-01-24 08:00:02+00:00', '2024-01-24 08:00:03+00:00',
+                       '2024-01-24 08:00:04+00:00', '2024-01-24 08:00:05+00:00',
+                       '2024-01-24 08:00:06+00:00', '2024-01-24 08:00:07+00:00',
+                       '2024-01-24 08:00:08+00:00', '2024-01-24 08:00:09+00:00',
+                       ...
+                       '2024-01-25 07:59:50+00:00', '2024-01-25 07:59:51+00:00',
+                       '2024-01-25 07:59:52+00:00', '2024-01-25 07:59:53+00:00',
+                       '2024-01-25 07:59:54+00:00', '2024-01-25 07:59:55+00:00',
+                       '2024-01-25 07:59:56+00:00', '2024-01-25 07:59:57+00:00',
+                       '2024-01-25 07:59:58+00:00', '2024-01-25 07:59:59+00:00'],
+                      dtype='datetime64[us, UTC]', name='time', length=86400, freq=None)
+
+        The non-index column(s) in the dataframe will be related to the metric.
+
+        >>> df.columns
+        Index(['step_count'], dtype='object')
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "metric": metric,
+            "output": "arrow",
+            "samprate": sample_rate,
+            "replace_nulls": int(replace_nulls),
+        }
+        if calculations is not None:
+            params["calculations"] = calculations
+
+        resp = self.fulcra_api(
+            self._v0_data_path("metric_time_series", fulcra_userid), query=params
+        )
+        return pd.read_feather(io.BytesIO(resp)).set_index("time")
+
+    def location_time_series(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        change_meters: Optional[float] = None,
+        sample_rate: int = 900,
+        look_back: int = 14400,
+        reverse_geocode: bool = False,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieve a time series of locations that the user was at.  This uses
+        the most precise underlying data sources available at the given time.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            change_meters: when specified, subsequent samples that are fewer than this many meters away will not be included.
+            sample_rate: The length (in seconds) of each sample
+            look_back: The maximum number of seconds in the past to look back to find a value for a sample.
+            reverse_geocode: When true, Fulcra will attempt to reverse geocode the locations and include the details in the results.
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
+
+        Returns:
+            A list of samples; each sample represents a location sample.
+
+        Examples:
+                        >>> locations = fulcra.location_time_series(
+                        ...     start_time = "2024-06-06T19:00:00-07:00",
+                        ...     end_time = "2024-06-06T20:00:00-07:00",
+                        ...     reverse_geocode = True
+                        ... )
+                        >>> print(pd.DataFrame(locations))
+                                                          slice_time        lat        long                           time  distance_change_m                                            address                                   location_details
+                        0  2024-06-07T02:00:00+00:00  32.706814 -117.156455   2024-06-07T01:50:10.92+00:00                NaN  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
+                        1  2024-06-07T02:15:00+00:00  32.706722 -117.156576  2024-06-07T02:03:56.903+00:00          15.281598  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
+                        2  2024-06-07T02:30:00+00:00  32.706699 -117.156583  2024-06-07T02:22:07.571+00:00           2.588992  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
+                        3  2024-06-07T02:45:00+00:00  32.706699 -117.156583  2024-06-07T02:22:07.571+00:00           0.000000  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "sample_rate": sample_rate,
+            "look_back": look_back,
+            "reverse_geocode": reverse_geocode,
+        }
+        if change_meters is not None:
+            params["change_meters"] = change_meters
+        resp = self.fulcra_api(
+            self._v0_data_path("location_time_series", fulcra_userid), query=params
+        )
+        return json.loads(resp)
+
+    def location_at_time(
+        self,
+        time: Union[str, datetime.datetime],
+        window_size: int = 14400,
+        include_after: bool = False,
+        reverse_geocode: bool = False,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Gets the user's location at the specified time.  If no sample is
+        available for the exact time, searches for the closest sample up to
+        `window_size` seconds back.  If `include_after` is true, then also
+        searches `window_size` seconds forward.
+
+        Params:
+            time: The point in time to get the user's location for.
+            window_size: The size (in seconds) to look back (and optionally forward) for samples
+            include_after: When true, a sample that occurs after the requested time may be returned if it is the closest one.
+            reverse_geocode: When true, Fulcra will attempt to reverse geocode the location and include the details in the results.
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
+
+        Returns:
+            A list of dicts; the first dict is the best location sample.
+
+        Examples:
+
+        >>> location = fulcra.location_at_time(
+        ...     time = "2024-01-24 00:00:00-08:00",
+        ... )
+
+        >>> location
+        [{'speed': 0, 'horizontal_accuracy_meters': 4.848857421534995, 'longitude_degrees': -117.15709954484828, 'latitude_degrees': 32.707083bb994486, 'vertical_accuracy_meters': 3.2114044806616686, 'course_heading_accuracy_degrees': 180, 'course_heading_degrees': 87.05299950647989, 'ellipsoidal_altitude_meters': 32.700060645118356, 'floor': 0, 'speed_accuracy_meters': 0.9654413396512306, 'altitude_meters': 6.15396384336054, 'uuid': '59b2d63b-9b0b-436f-a66f-01129e1b33dd', 'timestamp': '2024-01-24T00:01:45.941+00:00', 'location_source': 'apple_location_update'}]
+        """
+        params = {
+            "time": time,
+            "window_size": window_size,
+            "include_after": include_after,
+            "reverse_geocode": reverse_geocode,
+        }
+        resp = self.fulcra_api(
+            self._v0_data_path("location_at_time", fulcra_userid), query=params
+        )
+        return json.loads(resp)
+
+    def sleep_cycles(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        cycle_gap: Optional[str] = None,
+        stages: Optional[List[int]] = None,
+        gap_stages: Optional[List[int]] = None,
+        clip_to_range: Optional[bool] = True,
+        fulcra_userid: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """
+        Return sleep cycles summarized from sleep stages.
+
+        Processes raw sleep data samples into sleep cycles by finding gaps in the
+        sleep sample data within a specified time interval.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The starting timestamp in ISO8601 format (inclusive).
+            end_time: The ending timestamp in ISO8601 format (exclusive).
+            cycle_gap: Optional. Minimum time interval separating distinct cycles (e.g., "PT2H" for 2 hours).
+                       Defaults to server-side default if not provided.
+            stages: Optional. Sleep stages to include. Defaults to all stages if not provided.
+            gap_stages: Optional. Sleep stages to consider as gaps in sleep cycles.
+                        Defaults to server-side default if not provided.
+            clip_to_range: Optional. Whether to clip the data to the requested date range.
+                           Defaults to True. This is always done when requesting data for
+                           a user other than the authenticated user.
+            fulcra_userid: Optional. When present, specifies the Fulcra user ID to request data for.
+
+        Returns:
+            A pandas DataFrame containing the sleep cycle data.
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "output": "arrow",
+        }
+        if cycle_gap is not None:
+            params["cycle_gap"] = cycle_gap
+        if stages is not None:
+            params["stages"] = stages
+        if gap_stages is not None:
+            params["gap_stages"] = gap_stages
+        if clip_to_range is not None:
+            params["clip_to_range"] = clip_to_range
+
+        resp = self.fulcra_api(
+            self._v0_data_path("sleep_cycles", fulcra_userid), query=params
+        )
+        return pd.read_feather(io.BytesIO(resp))
+
+    def sleep_stages(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        cycle_gap: Optional[str] = None,
+        stages: Optional[List[int]] = None,
+        gap_stages: Optional[List[int]] = None,
+        merge_overlapping: Optional[bool] = True,
+        merge_contiguous: Optional[bool] = True,
+        clip_to_range: Optional[bool] = True,
+        fulcra_userid: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """
+        Return sleep stages derived from raw fulcra metric samples.
+
+        Processes raw sleep data samples into non-conflicting sleep stages and
+        assigns a cycle index by finding gaps in the sleep sample data within a
+        specified time interval.
+
+        If more than one sleep data source is present, sleep stage is determined
+        based on the priority of the stage (in bed and unknown are deprioritized)
+        and the start time of the sample (latest takes precedence).
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The starting timestamp in ISO8601 format (inclusive).
+            end_time: The ending timestamp in ISO8601 format (exclusive).
+            cycle_gap: Optional. Minimum time interval separating distinct cycles (e.g., "PT2H" for 2 hours).
+                       Defaults to server-side default if not provided.
+            stages: Optional. Sleep stages to include. Defaults to all stages if not provided.
+            gap_stages: Optional. Sleep stages to consider as gaps in sleep cycles.
+                        Defaults to server-side default if not provided.
+            merge_overlapping: Optional. Whether to merge overlapping stages based on priority and start time.
+                               Defaults to True.
+            merge_contiguous: Optional. Whether to merge contiguous samples with the same sleep stage.
+                              Defaults to True.
+            clip_to_range: Optional. Whether to clip the data to the requested date range.
+                           Defaults to True. This is always done when requesting data for
+                           a user other than the authenticated user.
+            fulcra_userid: Optional. When present, specifies the Fulcra user ID to request data for.
+
+        Returns:
+            A pandas DataFrame containing the sleep stage data.
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "output": "arrow",
+        }
+        if cycle_gap is not None:
+            params["cycle_gap"] = cycle_gap
+        if stages is not None:
+            params["stages"] = stages
+        if gap_stages is not None:
+            params["gap_stages"] = gap_stages
+        if merge_overlapping is not None:
+            params["merge_overlapping"] = merge_overlapping
+        if merge_contiguous is not None:
+            params["merge_contiguous"] = merge_contiguous
+        if clip_to_range is not None:
+            params["clip_to_range"] = clip_to_range
+
+        resp = self.fulcra_api(
+            self._v0_data_path("sleep_stages", fulcra_userid), query=params
+        )
+        return pd.read_feather(io.BytesIO(resp))
+
+    def sleep_agg(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        cycle_gap: Optional[str] = None,
+        stages: Optional[List[int]] = None,
+        gap_stages: Optional[List[int]] = None,
+        clip_to_range: Optional[bool] = True,
+        mode: Optional[str] = "end",
+        period: Optional[str] = "1d",
+        agg_functions: Optional[List[str]] = None,
+        tz: Optional[str] = "UTC",
+        fulcra_userid: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """
+        Return sleep cycles aggregated by a specified period.
+
+        Processes raw sleep data samples into aggregated sleep stage durations per period.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The starting timestamp in ISO8601 format (inclusive).
+            end_time: The ending timestamp in ISO8601 format (exclusive).
+            cycle_gap: Optional. Minimum time interval separating distinct cycles (e.g., "PT2H" for 2 hours).
+                       Defaults to server-side default if not provided.
+            stages: Optional. Sleep stages to include. Defaults to all stages if not provided.
+            gap_stages: Optional. Sleep stages to consider as gaps in sleep cycles.
+                        Defaults to server-side default if not provided.
+            clip_to_range: Optional. Whether to clip the data to the requested date range.
+                           Defaults to True. This is always done when requesting data for
+                           a user other than the authenticated user.
+            mode: Optional. Whether to use the cycle start or cycle end to assign cycles to periods,
+                  or to split sleep stage intervals at period boundaries. Defaults to "end".
+            period: Optional. The period start and interval represented with the polars string language
+                    (see https://docs.pola.rs/api/python/dev/reference/expressions/api/polars.Expr.dt.truncate.html).
+                    Defaults to "1d".
+            agg_functions: Optional. Aggregations to return. Defaults to ["sum"] if not provided.
+            tz: Optional. IANA time zone to return results in. Defaults to "UTC".
+            fulcra_userid: Optional. When present, specifies the Fulcra user ID to request data for.
+
+        Returns:
+            A pandas DataFrame containing the aggregated sleep data.
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "output": "arrow",
+        }
+        if cycle_gap is not None:
+            params["cycle_gap"] = cycle_gap
+        if stages is not None:
+            params["stages"] = stages
+        if gap_stages is not None:
+            params["gap_stages"] = gap_stages
+        if clip_to_range is not None:
+            params["clip_to_range"] = clip_to_range
+        if mode is not None:
+            params["mode"] = mode
+        if period is not None:
+            params["period"] = period
+        if agg_functions is not None:
+            params["agg_functions"] = agg_functions
+        else:
+            params["agg_functions"] = ["sum"]  # Default as per OpenAPI if not provided
+        if tz is not None:
+            params["tz"] = tz
+
+        resp = self.fulcra_api(
+            self._v0_data_path("sleep_agg", fulcra_userid), query=params
+        )
+        return pd.read_feather(io.BytesIO(resp))
+
+
+    def moment_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Moment Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api("event", "MomentAnnotation", params)
+        return json.loads(resp)
+
+    def duration_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Duration Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api("event", "DurationAnnotation", params)
+        return json.loads(resp)
+
+    def boolean_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Boolean Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api("metric", "BooleanAnnotation", params)
+        return json.loads(resp)
+
+    def numeric_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Numeric Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api("metric", "NumericAnnotation", params)
+        return json.loads(resp)
+
+    def scale_annotations(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        source: Optional[str] = None,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict]:
+        """
+        Retrieves recorded Scale Annotations, along with any metadata, for the requested time ranges.
+
+        Requires a valid access token.
+
+        Params:
+            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
+            source: When specified, the full identifier of the source to query records from
+            fulcra_userid: When present, specifies the Fulcra user ID to request data for
+
+        Returns:
+            A list of recorded annotations; each annotation is represented by a dict.
+
+        """
+        params = {}
+
+        params["start_time"] = start_time
+        params["end_time"] = end_time
+
+        if fulcra_userid is not None:
+            params["fulcra_userid"] = fulcra_userid
+
+        if "filter" not in params:
+            params["filter"] = []
+
+        if source is not None:
+            params["filter"].append(f"source_id:{source}")
+
+        resp = self.fulcra_v1_api("metric", "ScaleAnnotation", params)
+        return json.loads(resp)
+
+
+class FulcraAPI(FulcraDataAccessMixin):
     """
     The main class for making Fulcra API functions.
 
@@ -136,7 +1016,7 @@ class FulcraAPI:
                 creds.access_token_expiration,
                 creds.refresh_token,
             )
-        except Exception as exc:
+        except Exception:
             return (None, None, None)
 
     def authorize(self):
@@ -330,6 +1210,7 @@ class FulcraAPI:
         data: dict | List[dict] | None = None,
         return_http_response: bool = False,
         content_type: str = "application/json",
+        authenticated: bool = True,
     ) -> bytes | http.client.HTTPResponse:
         """
         Make a call to the given url path (e.g. `/v0/data/metric_time_series?...`)
@@ -342,13 +1223,19 @@ class FulcraAPI:
             data: Dictionary or list of dictionaries to send as request body
             return_http_response: Return a HTTPResponse object instead of bytes (default: False)
             content_type: Content-Type header (default: "application/json")
+            authenticated: When False, make the request without credentials.
+                Only valid for public endpoints. (default: True)
 
         Returns:
             The raw response data (as bytes).  Raises an exception on failure.
         """
 
         # Attempt to refresh our access token if it's expired
-        if self.fulcra_credentials is not None and self.fulcra_credentials.is_expired():
+        if (
+            authenticated
+            and self.fulcra_credentials is not None
+            and self.fulcra_credentials.is_expired()
+        ):
             self.refresh_access_token()
 
         if self.fulcra_api_is_http:
@@ -367,9 +1254,14 @@ class FulcraAPI:
             url_query = ""
 
         url = urllib.parse.urlunparse((proto, host, url_path, "", url_query, ""))
-        headers = {"Authorization": f"Bearer {self.fulcra_credentials.access_token}"}
+        if authenticated:
+            headers = {
+                "Authorization": f"Bearer {self.fulcra_credentials.access_token}"
+            }
+        else:
+            headers = {}
 
-        if data:
+        if data is not None:
             headers["Content-Type"] = content_type
 
             # Serialize data based on content type
@@ -411,12 +1303,15 @@ class FulcraAPI:
                     path = parsed.path if parsed.path else location
                     # Follow the redirect with a GET request
                     return self.fulcra_api(
-                        path, method="GET", return_http_response=return_http_response
+                        path,
+                        method="GET",
+                        return_http_response=return_http_response,
+                        authenticated=authenticated,
                     )
             raise
 
     def fulcra_v1_api(
-        self, data_class: str, data_type: str, params: dict = {}
+        self, data_class: str, data_type: str, params: Optional[dict] = None
     ) -> bytes:
         """
         Make a call to the v1 API.
@@ -449,6 +1344,18 @@ class FulcraAPI:
             The raw response data (as bytes).  Raises an exception on failure.
         """
         return self.fulcra_api(f"/data/v1alpha1/{path}", query=params if params else {})
+
+    def _v0_data_path(
+        self, operation: str, fulcra_userid: Optional[str] = None
+    ) -> str:
+        """
+        Build the request path for a v0 data operation on a user's data.
+
+        Defaults to the authenticated user when `fulcra_userid` is None.
+        """
+        if fulcra_userid is None:
+            fulcra_userid = self.get_fulcra_userid()
+        return f"/data/v0/{fulcra_userid}/{operation}"
 
     @staticmethod
     def _decode_jwt_claims(token: str) -> dict:
@@ -647,429 +1554,6 @@ class FulcraAPI:
         )
         return json.loads(resp)
 
-    def apple_workouts(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieve the list of Apple workouts that occurred (at least partially) during
-        the specified time range.
-
-        Requires an authorized access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
-
-        Returns:
-            A list of dicts, each of which contains the data from a workout.
-
-        Examples:
-            To retrieve all workouts during a time period:
-
-            >>> workouts = fulcra.apple_workouts(
-            ...     start_time = "2023-09-21 07:00:00.000Z",
-            ...     end_time = "2023-09-22 07:00:00.000Z"
-            ... )
-
-            To inspect the details of a workout:
-
-            >>> workouts[0]
-            {'start_date': '2023-09-21T19:18:31.733000Z', 'end_date':
-            '2023-09-21T19:49:08.773000Z', 'has_undetermined_duration': False,
-            'apple_workout_id': '480b25fe-b229-41b9-bf13-7ccf5e2092ec', 'duration':
-            1837.0397539138794, 'extras': {'HKTimeZone': 'America/Los_Angeles',
-            'HKAverageMETs': '4.37848 kcal/hr·kg' ... }
-
-        """
-        params = {"start_time": start_time, "end_time": end_time}
-        if fulcra_userid is None:
-            fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/apple_workouts", query=params)
-        return json.loads(resp)
-
-    def metric_samples(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        metric: str,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieve the raw samples related to the given metric that occurred for the
-        user during the specified period of time.
-
-        In cases where samples cover ranges and not points in time, a sample will
-        be returned if any part of its range intersects with the requested range.
-
-        As an example, if you have `start_date` as 14:00 and `end_date` at 15:00,
-        and there is a sample that covers 13:30-14:30, it will be included.
-
-        Requires an authorized access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
-            metric: The name of the metric to retrieve samples for.
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
-
-        Examples:
-
-            >>> samples = fulcra.metric_samples(
-            ...     start_time="2023-08-09 07:00:00.000Z",
-            ...     end_time="2023-08-10 07:00:00.000Z",
-            ...     metric="StepCount"
-            ... )
-
-            To inspect the first sample:
-
-            >>> samples[0]
-            {'start_date': '2023-08-10T06:05:10.726+00:00', 'end_date':
-            '2023-08-10T06:05:13.285+00:00', 'extras': None,
-            'has_undetermined_duration': False, 'unit': 'count', 'count': 1,
-            'uuid': '74983a94-8816-4b95-bbbd-d4108149261a', 'value': 8,
-            'source_properties': {'name': 'b c’s iPhone', 'version': '16.6',
-            'productType': 'iPhone12,8', 'operatingSystemVersion': [16, 6, 0],
-            'sourceBundleIdentifier':
-            'com.apple.health.F8872676-6D45-4981-8E14-C009D0AE5F27'},
-            'device_properties': {'name': 'iPhone', 'model':
-            'iPhone', 'manufacturer': 'Apple Inc.',
-            'hardwareVersion': 'iPhone12,8',
-            'softwareVersion': '16.6'}}
-        """
-        params = {"start_time": start_time, "end_time": end_time, "metric": metric}
-        if fulcra_userid is None:
-            fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/metric_samples", query=params)
-        return json.loads(resp)
-
-    def gmaps_location_updates(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        fulcra_source_id: Optional[str] = None,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Return Google Maps geo-location update samples for a user.
-
-        Retrieve the raw Google Maps location update samples for the specified
-        user during the specified period of time.
-
-        Requires an authorized access token.
-
-        Params:
-            start_time: The starting timestamp in ISO 8601 format (inclusive).
-            end_time: The ending timestamp in ISO 8601 format (exclusive).
-            fulcra_source_id: Optional. When present, specifies the Fulcra source ID to filter results.
-            fulcra_userid: Optional. When present, specifies the Fulcra user ID to request data for.
-
-        Returns:
-            A list of dicts, each of which contains the data from a Google Maps location update.
-        """
-        params = {"start_time": start_time, "end_time": end_time}
-        if fulcra_source_id is not None:
-            params["fulcra_source_id"] = fulcra_source_id
-
-        if fulcra_userid is None:
-            fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(
-            f"/data/v0/{fulcra_userid}/gmaps_location_updates", query=params
-        )
-        return json.loads(resp)
-
-    def apple_location_updates(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """Retrieve the raw Apple location update samples during the specified
-        period of time.
-
-        Requires an authorized access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
-
-        Returns:
-            A list of dicts, each of which contains the data from a location update.
-
-        Examples:
-            To retrieve all location updates within a specific hour:
-
-            >>> updates = fulcra.apple_location_updates(
-            ...     start_time="2023-09-24T20:00:00Z",
-            ...     end_time="2023-09-24T21:10:00Z"
-            ... )
-
-            To see the details of the first update:
-
-            >>> updates[0]
-            {'speed': -1, 'horizontal_accuracy_meters': 35, 'longitude_degrees':
-            -117.15661336566698, 'source_is_simulated_by_software': False,
-            'source_is_produced_by_accessory': False, 'latitude_degrees':
-            32.706505158026005, 'vertical_accuracy_meters': 3.0130748748779297,
-            'course_heading_accuracy_degrees': -1, 'course_heading_degrees': -1,
-            'ellipsoidal_altitude_meters': -6.280021667480469, 'floor': 0,
-            'speed_accuracy_meters': -1, 'altitude_meters': 29.17388153076172, 'uuid':
-            'e80feacc-54e9-414f-86cb-8d6ebd85ea41', 'timestamp':
-            '2023-09-24T20:39:28.056+00:00'}
-
-        """
-        params = {"start_time": start_time, "end_time": end_time}
-        if fulcra_userid is None:
-            fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(
-            f"/data/v0/{fulcra_userid}/apple_location_updates", query=params
-        )
-        return json.loads(resp)
-
-    def apple_location_visits(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieve the raw Apple location visit samples during the specified
-        period of time.
-
-        Requires an authorized access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
-
-        Returns:
-            A list of dicts, each of which contains the data from a location visit.
-
-        Examples:
-            To retrieve all location updates within a specific hour:
-
-            >>> visits = fulcra.apple_location_visits(
-            ...     start_time="2023-09-24T20:00:00Z",
-            ...     end_time="2023-09-24T21:10:00Z"
-            ... )
-
-            To see the details of the first update:
-
-            >>> visits[0]
-            {'longitude_degrees': -117.1224047932943, 'latitude_degrees':
-            32.75812770726706, 'arrival_date': '0001-01-01T00:00:00+00:00',
-            'departure_date': '2023-09-25T01:42:16.998+00:00',
-            'horizontal_accuracy_meters': 32.93262639589646, 'uuid':
-                '935971dd-0822-49ef-a74f-b09a24d68c3a'}
-
-
-        """
-        params = {"start_time": start_time, "end_time": end_time}
-        if fulcra_userid is None:
-            fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(
-            f"/data/v0/{fulcra_userid}/apple_location_visits", query=params
-        )
-        return json.loads(resp)
-
-    def metric_time_series(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        metric: str,
-        sample_rate: float = 60,
-        replace_nulls: Optional[bool] = False,
-        fulcra_userid: Optional[str] = None,
-        calculations: Optional[list[str]] = None,
-    ) -> pd.DataFrame:
-        """
-        Retrieve time-series data from a single Fulcra metric, covering the
-        time starting at `start_time` (inclusive) until `end_time`
-        (exclusive).
-
-        If specified, the `sample_rate` parameter defines the number of
-        seconds per sample.  This value can be smaller than 1.  The default
-        value is 60 (one sample per minute).
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
-            metric: The name of the time-series metric to retrieve
-            sample_rate: The length (in seconds) of each sample
-            replace_nulls: When true, replace all NA/null/None values with 0
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
-            calculations: When present, specifies additional calculations to perform for each time slice.  The current values are:
-                - `max`: The maximum value for each time window
-                - `min`: The minimum value for each time window
-                - `delta`: The delta between the maximum and minimum value for each time window
-                - `mean`: The mean value for each time window
-                - `uniques`: The list of unique values for each time window
-                - `allpoints`: The list of all values for each time window
-                - `rollingmean`: The rolling mean value for each time window.  This mean is calculated relative to the beginning of the requested sample
-
-        Returns:
-            a pandas DataFrame containing the data.  For time ranges where data is
-                missing, the values will be `<NA>`.
-
-        Examples:
-            To retrieve a dataframe containing the `StepCount` metric:
-
-            >>> df = fulcra.metric_time_series(
-            ...     start_time = "2024-01-24 00:00:00-08:00",
-            ...     end_time = "2024-01-25 00:00:00-08:00",
-            ...     sample_rate = 1,
-            ...     metric = "StepCount"
-            ... )
-
-        The index of the DataFrame will be the time:
-
-        >>> df.index
-        DatetimeIndex(['2024-01-24 08:00:00+00:00', '2024-01-24 08:00:01+00:00',
-                       '2024-01-24 08:00:02+00:00', '2024-01-24 08:00:03+00:00',
-                       '2024-01-24 08:00:04+00:00', '2024-01-24 08:00:05+00:00',
-                       '2024-01-24 08:00:06+00:00', '2024-01-24 08:00:07+00:00',
-                       '2024-01-24 08:00:08+00:00', '2024-01-24 08:00:09+00:00',
-                       ...
-                       '2024-01-25 07:59:50+00:00', '2024-01-25 07:59:51+00:00',
-                       '2024-01-25 07:59:52+00:00', '2024-01-25 07:59:53+00:00',
-                       '2024-01-25 07:59:54+00:00', '2024-01-25 07:59:55+00:00',
-                       '2024-01-25 07:59:56+00:00', '2024-01-25 07:59:57+00:00',
-                       '2024-01-25 07:59:58+00:00', '2024-01-25 07:59:59+00:00'],
-                      dtype='datetime64[us, UTC]', name='time', length=86400, freq=None)
-
-        The non-index column(s) in the dataframe will be related to the metric.
-
-        >>> df.columns
-        Index(['step_count'], dtype='object')
-        """
-        params = {
-            "start_time": start_time,
-            "end_time": end_time,
-            "metric": metric,
-            "output": "arrow",
-            "samprate": sample_rate,
-            "replace_nulls": int(replace_nulls),
-        }
-        if calculations is not None:
-            params["calculations"] = calculations
-
-        if fulcra_userid is None:
-            fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(
-            f"/data/v0/{fulcra_userid}/metric_time_series", query=params
-        )
-        return pd.read_feather(io.BytesIO(resp)).set_index("time")
-
-    def location_time_series(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        change_meters: Optional[float] = None,
-        sample_rate: int = 900,
-        look_back: int = 14400,
-        reverse_geocode: bool = False,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieve a time series of locations that the user was at.  This uses
-        the most precise underlying data sources available at the given time.
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
-            change_meters: when specified, subsequent samples that are fewer than this many meters away will not be included.
-            sample_rate: The length (in seconds) of each sample
-            look_back: The maximum number of seconds in the past to look back to find a value for a sample.
-            reverse_geocode: When true, Fulcra will attempt to reverse geocode the locations and include the details in the results.
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
-
-        Returns:
-            A list of samples; each sample represents a location sample.
-
-        Examples:
-                        >>> locations = fulcra.location_time_series(
-                        ...     start_time = "2024-06-06T19:00:00-07:00",
-                        ...     end_time = "2024-06-06T20:00:00-07:00",
-                        ...     reverse_geocode = True
-                        ... )
-                        >>> print(pd.DataFrame(locations))
-                                                          slice_time        lat        long                           time  distance_change_m                                            address                                   location_details
-                        0  2024-06-07T02:00:00+00:00  32.706814 -117.156455   2024-06-07T01:50:10.92+00:00                NaN  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
-                        1  2024-06-07T02:15:00+00:00  32.706722 -117.156576  2024-06-07T02:03:56.903+00:00          15.281598  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
-                        2  2024-06-07T02:30:00+00:00  32.706699 -117.156583  2024-06-07T02:22:07.571+00:00           2.588992  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
-                        3  2024-06-07T02:45:00+00:00  32.706699 -117.156583  2024-06-07T02:22:07.571+00:00           0.000000  Petco Park, 100 Park Boulevard, San Diego, CA ...  {'annotations': {'DMS': {'lat': '32° 42' 25.87...
-        """
-        params = {
-            "start_time": start_time,
-            "end_time": end_time,
-            "sample_rate": sample_rate,
-            "look_back": look_back,
-            "reverse_geocode": reverse_geocode,
-        }
-        if change_meters is not None:
-            params["change_meters"] = change_meters
-        if fulcra_userid is None:
-            fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(
-            f"/data/v0/{fulcra_userid}/location_time_series", query=params
-        )
-        return json.loads(resp)
-
-    def location_at_time(
-        self,
-        time: Union[str, datetime.datetime],
-        window_size: int = 14400,
-        include_after: bool = False,
-        reverse_geocode: bool = False,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Gets the user's location at the specified time.  If no sample is
-        available for the exact time, searches for the closest sample up to
-        `window_size` seconds back.  If `include_after` is true, then also
-        searches `window_size` seconds forward.
-
-        Params:
-            time: The point in time to get the user's location for.
-            window_size: The size (in seconds) to look back (and optionally forward) for samples
-            include_after: When true, a sample that occurs after the requested time may be returned if it is the closest one.
-            reverse_geocode: When true, Fulcra will attempt to reverse geocode the location and include the details in the results.
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for.
-
-        Returns:
-            A list of dicts; the first dict is the best location sample.
-
-        Examples:
-
-        >>> location = fulcra.location_at_time(
-        ...     time = "2024-01-24 00:00:00-08:00",
-        ... )
-
-        >>> location
-        [{'speed': 0, 'horizontal_accuracy_meters': 4.848857421534995, 'longitude_degrees': -117.15709954484828, 'latitude_degrees': 32.707083bb994486, 'vertical_accuracy_meters': 3.2114044806616686, 'course_heading_accuracy_degrees': 180, 'course_heading_degrees': 87.05299950647989, 'ellipsoidal_altitude_meters': 32.700060645118356, 'floor': 0, 'speed_accuracy_meters': 0.9654413396512306, 'altitude_meters': 6.15396384336054, 'uuid': '59b2d63b-9b0b-436f-a66f-01129e1b33dd', 'timestamp': '2024-01-24T00:01:45.941+00:00', 'location_source': 'apple_location_update'}]
-        """
-        params = {
-            "time": time,
-            "window_size": window_size,
-            "include_after": include_after,
-            "reverse_geocode": reverse_geocode,
-        }
-        if fulcra_userid is None:
-            fulcra_userid = self.get_fulcra_userid()
-        resp = self.fulcra_api(
-            f"/data/v0/{fulcra_userid}/location_at_time", query=params
-        )
-        return json.loads(resp)
-
     def metrics_catalog(
         self,
     ) -> List[Dict]:
@@ -1251,21 +1735,33 @@ class FulcraAPI:
         self,
         datashare_name: str,
         fulcra_data_types: List[str],
-        allowed_user_ids: List[str],
+        allowed_user_ids: Optional[List[str]] = None,
         share_all_data: bool = False,
-        time_start: Optional[datetime.datetime] = None,
-        time_end: Optional[datetime.datetime] = None,
+        time_start: Optional[str | datetime.datetime] = None,
+        time_end: Optional[str | datetime.datetime] = None,
+        allowed_group_ids: Optional[List[str]] = None,
     ) -> dict:
         """
         Creates a new datashare to share your data with other users.
+
+        A datashare can name individual users (`allowed_user_ids`), whole data
+        groups (`allowed_group_ids`), or both.  Sharing with a group grants
+        access to everyone who is currently a participant in it: members who
+        join later gain access, and members who leave lose it.  You do not
+        have to own a group to share your data into it.
 
         Args:
             datashare_name: Name for this datashare
             fulcra_data_types: List of data type IDs to share
             allowed_user_ids: List of Fulcra user IDs to share with
             share_all_data: Whether to share all data types (default: False)
-            time_start: Optional start time for data range
-            time_end: Optional end time for data range
+            time_start: Optional start of the shared range, as an ISO 8601
+                string or `datetime`.  Must include a timezone offset.
+            time_end: Optional end of the shared range, as an ISO 8601 string
+                or `datetime`.  Must include a timezone offset.
+            allowed_group_ids: List of group UUIDs to share with.  Every group
+                must exist; if any does not, the server rejects the whole
+                request and no datashare is created.
 
         Returns:
             A dict containing the created datashare information.
@@ -1276,16 +1772,27 @@ class FulcraAPI:
                 ...     fulcra_data_types=["HeartRate", "StepCount"],
                 ...     allowed_user_ids=["a24a9667-c2c6-4bbf-9a0f-4Bej0afcb521"]
                 ... )
+
+            To share with everyone in a group instead:
+
+                >>> datashare = fulcra_client.create_datashare(
+                ...     datashare_name="Step Challenge Share",
+                ...     fulcra_data_types=["StepCount"],
+                ...     allowed_group_ids=["cf362f80-ef41-4c08-b5e3-b18bd3d1524b"],
+                ... )
         """
+        time_start = _boundary_timestamp(time_start, "time_start")
+        time_end = _boundary_timestamp(time_end, "time_end")
+
         permissions = [
-            {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
+            {"allowed_fulcra_userid": user_id} for user_id in (allowed_user_ids or [])
         ]
 
         # Temporary until we can get the user name from the identity token,
         # or until we don't require it in the datashare body
         fulcra_user_name = self.get_fulcra_userid()
 
-        datashare_body = {
+        datashare_body: dict = {
             "datashare_name": datashare_name,
             "fulcra_user_name": fulcra_user_name,
             "time_start": time_start.isoformat() if time_start else None,
@@ -1294,71 +1801,109 @@ class FulcraAPI:
             "share_all_data": share_all_data,
             "permissions": permissions,
         }
+        if allowed_group_ids is not None:
+            datashare_body["group_permissions"] = [
+                {"allowed_group_id": group_id} for group_id in allowed_group_ids
+            ]
 
         resp = self.fulcra_api(
-            "/user/v1alpha1/datashares", data=datashare_body, method="POST"
+            "/user/v1/datashare", data=datashare_body, method="POST"
         )
         return json.loads(resp)
 
     def update_datashare(
         self,
         datashare_id: str,
-        datashare_name: str,
-        fulcra_data_types: List[str],
-        allowed_user_ids: List[str],
-        share_all_data: bool,
-        time_start: Optional[datetime.datetime],
-        time_end: Optional[datetime.datetime],
+        datashare_name: Optional[str] = UNSET,
+        fulcra_data_types: Optional[List[str]] = UNSET,
+        allowed_user_ids: Optional[List[str]] = UNSET,
+        share_all_data: Optional[bool] = UNSET,
+        time_start: Optional[str | datetime.datetime] = UNSET,
+        time_end: Optional[str | datetime.datetime] = UNSET,
+        allowed_group_ids: Optional[List[str]] = UNSET,
     ) -> dict:
         """
-        Updates an existing datashare with a complete replacement of all fields.
+        Updates the editable fields of a datashare that you created.
 
-        Note: This method requires all fields to be provided. The CLI handles fetching
-        current values and building the complete update. Direct API users should fetch
-        the current share via get_datashares() first if they only want to modify
-        specific fields.
+        Only the fields you pass are changed; everything else is left alone.
+        In particular, the individual recipients (`allowed_user_ids`) and the
+        groups (`allowed_group_ids`) are independent lists: changing one never
+        disturbs the other, and passing an empty list for either removes all of
+        that kind of grant.
+
+        `time_start` and `time_end` accept an explicit None, which makes that
+        end of the share's range open.  Passing None for any other parameter is
+        ignored by the server, since there is nothing sensible to clear it to.
 
         Args:
             datashare_id: UUID of the datashare to update
-            datashare_name: Name for the datashare
-            fulcra_data_types: List of data type IDs to share
-            allowed_user_ids: List of Fulcra user IDs to share with
+            datashare_name: New name for the datashare
+            fulcra_data_types: Replacement list of data type IDs to share
+            allowed_user_ids: Replacement list of Fulcra user IDs to share
+                with; an empty list removes every individual recipient
             share_all_data: Whether to share all data types
-            time_start: Start time for data range, or None for open-ended
-            time_end: End time for data range, or None for open-ended
+            time_start: New start of the shared range, as an ISO 8601 string
+                or `datetime`, or None to make it open-ended at the start.
+                Must include a timezone offset.
+            time_end: New end of the shared range, as an ISO 8601 string or
+                `datetime`, or None to make it open-ended at the end.  Must
+                include a timezone offset.
+            allowed_group_ids: Replacement list of group UUIDs to share with;
+                an empty list stops sharing with every group.  Every group must
+                exist; if any does not, the server rejects the whole request
+                and nothing about the share changes.
 
         Returns:
-            A dict containing the updated datashare information.
+            A dict containing the updated datashare.
 
         Examples:
-                >>> # Fetch current share first
-                >>> shares = fulcra_client.get_datashares()
-                >>> current = next(s for s in shares if s["datashare_id"] == share_id)
-                >>>
-                >>> # Update with modified values
-                >>> updated = fulcra_client.update_datashare(
-                ...     datashare_id=share_id,
-                ...     datashare_name="Updated Research Share",
-                ...     fulcra_data_types=["HeartRate", "StepCount"],
-                ...     allowed_user_ids=current["permissions"],
-                ...     share_all_data=current["share_all_data"],
-                ...     time_start=None,
-                ...     time_end=None
-                ... )
+            Rename a share, touching nothing else:
+
+            >>> updated = fulcra_client.update_datashare(
+            ...     datashare_id=share_id,
+            ...     datashare_name="Updated Research Share",
+            ... )
+
+            Add a group without disturbing the individual recipients:
+
+            >>> updated = fulcra_client.update_datashare(
+            ...     datashare_id=share_id,
+            ...     allowed_group_ids=["cf362f80-ef41-4c08-b5e3-b18bd3d1524b"],
+            ... )
+
+            Make the share open-ended at both ends:
+
+            >>> updated = fulcra_client.update_datashare(
+            ...     datashare_id=share_id, time_start=None, time_end=None
+            ... )
         """
-        datashare_body = {
-            "datashare_name": datashare_name,
-            "fulcra_data_types": fulcra_data_types,
-            "share_all_data": share_all_data,
-            "time_start": time_start.isoformat() if time_start else None,
-            "time_end": time_end.isoformat() if time_end else None,
-            "permissions": [
-                {"allowed_fulcra_userid": user_id} for user_id in allowed_user_ids
-            ],
-        }
+        time_start = _boundary_timestamp(time_start, "time_start")
+        time_end = _boundary_timestamp(time_end, "time_end")
+
+        datashare_body: dict = {}
+        for key, value in (
+            ("datashare_name", datashare_name),
+            ("fulcra_data_types", fulcra_data_types),
+            ("share_all_data", share_all_data),
+        ):
+            if value is not UNSET:
+                datashare_body[key] = value
+        for key, value in (("time_start", time_start), ("time_end", time_end)):
+            if value is not UNSET:
+                datashare_body[key] = value.isoformat() if value else None
+        if allowed_user_ids is not UNSET:
+            datashare_body["permissions"] = [
+                {"allowed_fulcra_userid": user_id}
+                for user_id in (allowed_user_ids or [])
+            ]
+        if allowed_group_ids is not UNSET:
+            datashare_body["group_permissions"] = [
+                {"allowed_group_id": group_id}
+                for group_id in (allowed_group_ids or [])
+            ]
 
         resp = self.fulcra_api(
-            f"/user/v1alpha1/datashare/{datashare_id}",
+            f"/user/v1/datashare/{datashare_id}",
             data=datashare_body,
             method="PUT",
         )
@@ -1369,7 +1914,9 @@ class FulcraAPI:
         Retrieves all datashares created by the authenticated user.
 
         Returns a list of datashares that you have created to share your data
-        with others.
+        with others.  Each one lists its individual recipients under
+        `permissions` and the groups it is shared with under
+        `group_permissions`.
 
         Returns:
             A list of datashare dicts.
@@ -1379,12 +1926,32 @@ class FulcraAPI:
                 >>> datashares[0]
                 {'datashare_id': '...', 'datashare_name': 'My Share', ...}
         """
-        resp = self.fulcra_api("/user/v1alpha1/datashares")
+        resp = self.fulcra_api("/user/v1/datashare")
+        return json.loads(resp)
+
+    def get_datashare(self, datashare_id: str) -> dict:
+        """
+        Retrieves a single datashare that you created.
+
+        Args:
+            datashare_id: UUID of the datashare
+
+        Returns:
+            The datashare, represented by a dict.
+
+        Examples:
+                >>> share = fulcra_client.get_datashare(
+                ...     "cf362f80-ef41-4c08-b5e3-b18bd3d1524b"
+                ... )
+                >>> share["group_permissions"]
+                [{'allowed_group_id': '...'}]
+        """
+        resp = self.fulcra_api(f"/user/v1/datashare/{datashare_id}")
         return json.loads(resp)
 
     def delete_datashare(self, datashare_id: str):
         """
-        Deletes a datashare that you created.
+        Deletes a datashare that you created, revoking every grant it confers.
 
         Args:
             datashare_id: UUID of the datashare to delete
@@ -1392,7 +1959,7 @@ class FulcraAPI:
         Examples:
                 >>> fulcra_client.delete_datashare("cf362f80-ef41-4c08-b5e3-b18bd3d1524b")
         """
-        self.fulcra_api(f"/user/v1alpha1/datashare/{datashare_id}", method="DELETE")
+        self.fulcra_api(f"/user/v1/datashare/{datashare_id}", method="DELETE")
 
     def data_updates(
         self,
@@ -1442,30 +2009,116 @@ class FulcraAPI:
 
     def get_shared_datasets(self) -> List[Dict]:
         """
-        Retrieves datasets that have been shared with the currently authenticated user
+        Retrieves the datasets that the authenticated user can read.
+
+        There is one entry per grant, and `grant_type` says where each one
+        comes from:
+
+        - `self`: your own data.  Always the first entry, and the only one
+          with a null `grant_id` and `datashare_id`.
+        - `user`: a datashare somebody granted to you directly.
+        - `group`: a datashare granted to a data group you participate in;
+          `group_id` names the group.
+
+        Because the two kinds of grant are independent, someone who holds both
+        a direct grant and a group grant on the same datashare gets two
+        entries: they carry the same `datashare_id` and differ in
+        `grant_type`.  The sharer is identified by `sharing_fulcra_userid`.
+
+        Pass an entry's `grant_id` to `delete_dataset_permission` to give up
+        that access; see that method for which grants you are allowed to
+        remove.
 
         Examples:
 
                 >>> datasets = fulcra_client.get_shared_datasets()
-                >>> datasets[0]
-                {'permission_id': 'cf362f80-ef41-4c08-b5e3-b18bd3d1524b', 'created_at': '2024-08-21T17:52:10.658596Z', 'time_start': None, 'time_end': None, 'fulcra_userid': 'a24a9667-c2c6-4bbf-9a0f-4Bej0afcb521', 'fulcra_user_name': 'John Doe', 'fulcra_user_picture': 'https://lh3.googleusercontent.com/a/ACg8ocL-ggGYjOFq23Dfbf5GohDXbk01AoGmL0gCSbooVBXDgWeTLJk=s47-d', 'datashare_name': 'Provisioned for data analysis'}
+                >>> [d["grant_type"] for d in datasets]
+                ['self', 'user', 'group']
+                >>> datasets[2]["group_id"]
+                'cf362f80-ef41-4c08-b5e3-b18bd3d1524b'
         """
-        resp = self.fulcra_api("/user/v1alpha1/datasets")
+        resp = self.fulcra_api("/user/v1/dataset")
         return json.loads(resp)
 
-    def delete_dataset_permission(self, permission_id: str):
+    def delete_dataset_permission(self, grant_id: str):
         """
-        Revokes your permission to access a dataset that was shared with you.
+        Gives up your access to a dataset that was shared with you.
+
+        Which grants you may remove depends on the grant's `grant_type`, as
+        reported by `get_shared_datasets`:
+
+        - A `user` grant may be removed by the person it was granted to.
+        - A `group` grant may only be removed by the person who created the
+          datashare, since it confers access on everyone in the group.  If you
+          reach a dataset through a group and want out, use `leave_group`
+          instead.
 
         Args:
-            permission_id: UUID of the dataset permission to revoke
+            grant_id: The `grant_id` of the dataset grant to remove
 
         Examples:
                 >>> fulcra_client.delete_dataset_permission("cf362f80-ef41-4c08-b5e3-b18bd3d1524b")
         """
-        self.fulcra_api(
-            f"/user/v1alpha1/dataset/permission/{permission_id}", method="DELETE"
+        self.fulcra_api(f"/user/v1/dataset/{grant_id}", method="DELETE")
+
+    def list_shared_data_types(
+        self,
+        fulcra_userid: str,
+        start_time: str | datetime.datetime,
+        end_time: str | datetime.datetime,
+    ) -> dict:
+        """
+        Summarizes what another user has shared with you over a time range.
+
+        Use this before querying someone else's data, rather than discovering
+        the boundaries of your access by being denied.
+
+        A share counts toward the answer only if it *fully covers* the
+        requested window, and the end of the window is compared strictly
+        (`end_time < time_end`) -- so asking for exactly a share's declared
+        range reports nothing, and you should ask about a window strictly
+        inside it.  Access granted through a data group counts the same as a
+        direct grant, so the answer changes as you join and leave groups.
+
+        Having nothing shared with you is a normal answer, not an error: you
+        get `all_data_types` False and an empty list.  Asking about yourself
+        always reports `all_data_types` True.
+
+        Shared file paths are not reported here, and the legacy `input:custom`
+        type is omitted.
+
+        Args:
+            fulcra_userid: The Fulcra UserID of the person sharing with you
+            start_time: The start of the range (inclusive), as an ISO 8601
+                string or `datetime` object
+            end_time: The end of the range (exclusive), as an ISO 8601 string
+                or `datetime` object
+
+        Returns:
+            A dict with two keys:
+
+            - `all_data_types`: True if everything is shared with you, in
+              which case `fulcra_data_types` is empty -- check this flag
+              before reading the list
+            - `fulcra_data_types`: the sorted data types you may read
+
+        Examples:
+            >>> allowed = fulcra_client.list_shared_data_types(
+            ...     "a24a9667-c2c6-4bbf-9a0f-4bef0afcb521",
+            ...     start_time="2026-08-01T00:00:00Z",
+            ...     end_time="2026-08-08T00:00:00Z",
+            ... )
+            >>> allowed
+            {'all_data_types': False, 'fulcra_data_types': ['HeartRate', 'StepCount']}
+        """
+        params = {
+            "start_time": start_time,
+            "end_time": end_time,
+        }
+        resp = self.fulcra_api(
+            f"/user/v1/shared/{fulcra_userid}/data_types", query=params
         )
+        return json.loads(resp)
 
     def get_user_info(self) -> Dict:
         """
@@ -1489,203 +2142,6 @@ class FulcraAPI:
     def update_user_preferences(self, prefs: Dict):
         resp = self.fulcra_api("user/v1alpha1/preferences", method="POST", data=prefs)
         return json.loads(resp)
-
-    def sleep_cycles(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        cycle_gap: Optional[str] = None,
-        stages: Optional[List[int]] = None,
-        gap_stages: Optional[List[int]] = None,
-        clip_to_range: Optional[bool] = True,
-        fulcra_userid: Optional[str] = None,
-    ) -> pd.DataFrame:
-        """
-        Return sleep cycles summarized from sleep stages.
-
-        Processes raw sleep data samples into sleep cycles by finding gaps in the
-        sleep sample data within a specified time interval.
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The starting timestamp in ISO8601 format (inclusive).
-            end_time: The ending timestamp in ISO8601 format (exclusive).
-            cycle_gap: Optional. Minimum time interval separating distinct cycles (e.g., "PT2H" for 2 hours).
-                       Defaults to server-side default if not provided.
-            stages: Optional. Sleep stages to include. Defaults to all stages if not provided.
-            gap_stages: Optional. Sleep stages to consider as gaps in sleep cycles.
-                        Defaults to server-side default if not provided.
-            clip_to_range: Optional. Whether to clip the data to the requested date range.
-                           Defaults to True. This is always done when requesting data for
-                           a user other than the authenticated user.
-            fulcra_userid: Optional. When present, specifies the Fulcra user ID to request data for.
-
-        Returns:
-            A pandas DataFrame containing the sleep cycle data.
-        """
-        params = {
-            "start_time": start_time,
-            "end_time": end_time,
-            "output": "arrow",
-        }
-        if cycle_gap is not None:
-            params["cycle_gap"] = cycle_gap
-        if stages is not None:
-            params["stages"] = stages
-        if gap_stages is not None:
-            params["gap_stages"] = gap_stages
-        if clip_to_range is not None:
-            params["clip_to_range"] = clip_to_range
-
-        if fulcra_userid is None:
-            fulcra_userid = self.get_fulcra_userid()
-
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/sleep_cycles", query=params)
-        return pd.read_feather(io.BytesIO(resp))
-
-    def sleep_stages(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        cycle_gap: Optional[str] = None,
-        stages: Optional[List[int]] = None,
-        gap_stages: Optional[List[int]] = None,
-        merge_overlapping: Optional[bool] = True,
-        merge_contiguous: Optional[bool] = True,
-        clip_to_range: Optional[bool] = True,
-        fulcra_userid: Optional[str] = None,
-    ) -> pd.DataFrame:
-        """
-        Return sleep stages derived from raw fulcra metric samples.
-
-        Processes raw sleep data samples into non-conflicting sleep stages and
-        assigns a cycle index by finding gaps in the sleep sample data within a
-        specified time interval.
-
-        If more than one sleep data source is present, sleep stage is determined
-        based on the priority of the stage (in bed and unknown are deprioritized)
-        and the start time of the sample (latest takes precedence).
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The starting timestamp in ISO8601 format (inclusive).
-            end_time: The ending timestamp in ISO8601 format (exclusive).
-            cycle_gap: Optional. Minimum time interval separating distinct cycles (e.g., "PT2H" for 2 hours).
-                       Defaults to server-side default if not provided.
-            stages: Optional. Sleep stages to include. Defaults to all stages if not provided.
-            gap_stages: Optional. Sleep stages to consider as gaps in sleep cycles.
-                        Defaults to server-side default if not provided.
-            merge_overlapping: Optional. Whether to merge overlapping stages based on priority and start time.
-                               Defaults to True.
-            merge_contiguous: Optional. Whether to merge contiguous samples with the same sleep stage.
-                              Defaults to True.
-            clip_to_range: Optional. Whether to clip the data to the requested date range.
-                           Defaults to True. This is always done when requesting data for
-                           a user other than the authenticated user.
-            fulcra_userid: Optional. When present, specifies the Fulcra user ID to request data for.
-
-        Returns:
-            A pandas DataFrame containing the sleep stage data.
-        """
-        params = {
-            "start_time": start_time,
-            "end_time": end_time,
-            "output": "arrow",
-        }
-        if cycle_gap is not None:
-            params["cycle_gap"] = cycle_gap
-        if stages is not None:
-            params["stages"] = stages
-        if gap_stages is not None:
-            params["gap_stages"] = gap_stages
-        if merge_overlapping is not None:
-            params["merge_overlapping"] = merge_overlapping
-        if merge_contiguous is not None:
-            params["merge_contiguous"] = merge_contiguous
-        if clip_to_range is not None:
-            params["clip_to_range"] = clip_to_range
-
-        if fulcra_userid is None:
-            fulcra_userid = self.get_fulcra_userid()
-
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/sleep_stages", query=params)
-        return pd.read_feather(io.BytesIO(resp))
-
-    def sleep_agg(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        cycle_gap: Optional[str] = None,
-        stages: Optional[List[int]] = None,
-        gap_stages: Optional[List[int]] = None,
-        clip_to_range: Optional[bool] = True,
-        mode: Optional[str] = "end",
-        period: Optional[str] = "1d",
-        agg_functions: Optional[List[str]] = None,
-        tz: Optional[str] = "UTC",
-        fulcra_userid: Optional[str] = None,
-    ) -> pd.DataFrame:
-        """
-        Return sleep cycles aggregated by a specified period.
-
-        Processes raw sleep data samples into aggregated sleep stage durations per period.
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The starting timestamp in ISO8601 format (inclusive).
-            end_time: The ending timestamp in ISO8601 format (exclusive).
-            cycle_gap: Optional. Minimum time interval separating distinct cycles (e.g., "PT2H" for 2 hours).
-                       Defaults to server-side default if not provided.
-            stages: Optional. Sleep stages to include. Defaults to all stages if not provided.
-            gap_stages: Optional. Sleep stages to consider as gaps in sleep cycles.
-                        Defaults to server-side default if not provided.
-            clip_to_range: Optional. Whether to clip the data to the requested date range.
-                           Defaults to True. This is always done when requesting data for
-                           a user other than the authenticated user.
-            mode: Optional. Whether to use the cycle start or cycle end to assign cycles to periods,
-                  or to split sleep stage intervals at period boundaries. Defaults to "end".
-            period: Optional. The period start and interval represented with the polars string language
-                    (see https://docs.pola.rs/api/python/dev/reference/expressions/api/polars.Expr.dt.truncate.html).
-                    Defaults to "1d".
-            agg_functions: Optional. Aggregations to return. Defaults to ["sum"] if not provided.
-            tz: Optional. IANA time zone to return results in. Defaults to "UTC".
-            fulcra_userid: Optional. When present, specifies the Fulcra user ID to request data for.
-
-        Returns:
-            A pandas DataFrame containing the aggregated sleep data.
-        """
-        params = {
-            "start_time": start_time,
-            "end_time": end_time,
-            "output": "arrow",
-        }
-        if cycle_gap is not None:
-            params["cycle_gap"] = cycle_gap
-        if stages is not None:
-            params["stages"] = stages
-        if gap_stages is not None:
-            params["gap_stages"] = gap_stages
-        if clip_to_range is not None:
-            params["clip_to_range"] = clip_to_range
-        if mode is not None:
-            params["mode"] = mode
-        if period is not None:
-            params["period"] = period
-        if agg_functions is not None:
-            params["agg_functions"] = agg_functions
-        else:
-            params["agg_functions"] = ["sum"]  # Default as per OpenAPI if not provided
-        if tz is not None:
-            params["tz"] = tz
-
-        if fulcra_userid is None:
-            fulcra_userid = self.get_fulcra_userid()
-
-        resp = self.fulcra_api(f"/data/v0/{fulcra_userid}/sleep_agg", query=params)
-        return pd.read_feather(io.BytesIO(resp))
 
     def annotations_catalog(
         self,
@@ -1714,202 +2170,7 @@ class FulcraAPI:
         if fulcra_userid is not None:
             params["fulcra_userid"] = fulcra_userid
 
-        resp = self.fulcra_api("/user/v1alpha1/annotation")
-        return json.loads(resp)
-
-    def moment_annotations(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        source: Optional[str] = None,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieves recorded Moment Annotations, along with any metadata, for the requested time ranges.
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
-            source: When specified, the full identifier of the source to query records from
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for
-
-        Returns:
-            A list of recorded annotations; each annotation is represented by a dict.
-
-        """
-        params = {}
-
-        params["start_time"] = start_time
-        params["end_time"] = end_time
-
-        if fulcra_userid is not None:
-            params["fulcra_userid"] = fulcra_userid
-
-        if "filter" not in params:
-            params["filter"] = []
-
-        if source is not None:
-            params["filter"].append(f"source_id:{source}")
-
-        resp = self.fulcra_v1_api("event", "MomentAnnotation", params)
-        return json.loads(resp)
-
-    def duration_annotations(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        source: Optional[str] = None,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieves recorded Duration Annotations, along with any metadata, for the requested time ranges.
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
-            source: When specified, the full identifier of the source to query records from
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for
-
-        Returns:
-            A list of recorded annotations; each annotation is represented by a dict.
-
-        """
-        params = {}
-
-        params["start_time"] = start_time
-        params["end_time"] = end_time
-
-        if fulcra_userid is not None:
-            params["fulcra_userid"] = fulcra_userid
-
-        if "filter" not in params:
-            params["filter"] = []
-
-        if source is not None:
-            params["filter"].append(f"source_id:{source}")
-
-        resp = self.fulcra_v1_api("event", "DurationAnnotation", params)
-        return json.loads(resp)
-
-    def boolean_annotations(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        source: Optional[str] = None,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieves recorded Boolean Annotations, along with any metadata, for the requested time ranges.
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
-            source: When specified, the full identifier of the source to query records from
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for
-
-        Returns:
-            A list of recorded annotations; each annotation is represented by a dict.
-
-        """
-        params = {}
-
-        params["start_time"] = start_time
-        params["end_time"] = end_time
-
-        if fulcra_userid is not None:
-            params["fulcra_userid"] = fulcra_userid
-
-        if "filter" not in params:
-            params["filter"] = []
-
-        if source is not None:
-            params["filter"].append(f"source_id:{source}")
-
-        resp = self.fulcra_v1_api("metric", "BooleanAnnotation", params)
-        return json.loads(resp)
-
-    def numeric_annotations(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        source: Optional[str] = None,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieves recorded Numeric Annotations, along with any metadata, for the requested time ranges.
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
-            source: When specified, the full identifier of the source to query records from
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for
-
-        Returns:
-            A list of recorded annotations; each annotation is represented by a dict.
-
-        """
-        params = {}
-
-        params["start_time"] = start_time
-        params["end_time"] = end_time
-
-        if fulcra_userid is not None:
-            params["fulcra_userid"] = fulcra_userid
-
-        if "filter" not in params:
-            params["filter"] = []
-
-        if source is not None:
-            params["filter"].append(f"source_id:{source}")
-
-        resp = self.fulcra_v1_api("metric", "NumericAnnotation", params)
-        return json.loads(resp)
-
-    def scale_annotations(
-        self,
-        start_time: Union[str, datetime.datetime],
-        end_time: Union[str, datetime.datetime],
-        source: Optional[str] = None,
-        fulcra_userid: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Retrieves recorded Scale Annotations, along with any metadata, for the requested time ranges.
-
-        Requires a valid access token.
-
-        Params:
-            start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object
-            end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object
-            source: When specified, the full identifier of the source to query records from
-            fulcra_userid: When present, specifies the Fulcra user ID to request data for
-
-        Returns:
-            A list of recorded annotations; each annotation is represented by a dict.
-
-        """
-        params = {}
-
-        params["start_time"] = start_time
-        params["end_time"] = end_time
-
-        if fulcra_userid is not None:
-            params["fulcra_userid"] = fulcra_userid
-
-        if "filter" not in params:
-            params["filter"] = []
-
-        if source is not None:
-            params["filter"].append(f"source_id:{source}")
-
-        resp = self.fulcra_v1_api("metric", "ScaleAnnotation", params)
+        resp = self.fulcra_api("/user/v1alpha1/annotation", query=params)
         return json.loads(resp)
 
     def tags(self) -> list[dict[str, str]]:
@@ -2316,4 +2577,507 @@ class FulcraAPI:
     def restore_file(self, file_id: str):
         return json.loads(
             self.fulcra_api(f"/input/v1/file_upload/{file_id}/restore", method="POST")
+        )
+
+    def get_groups(self, subscribed_only: bool = False) -> List[dict]:
+        """
+        Retrieves a list of data groups.
+
+        By default, returns all public groups.  When `subscribed_only` is True,
+        returns only the groups that you have joined; each of these also
+        includes your `participant_id` and `joined_at` values.
+
+        Args:
+            subscribed_only: When True, return only groups you have joined
+                (default: False)
+
+        Returns:
+            A list of groups; each is represented by a dict.
+
+        Examples:
+                >>> groups = fulcra_client.get_groups(subscribed_only=True)
+                >>> groups[0]["title"]
+                'My Research Study'
+        """
+        query = {}
+        if subscribed_only:
+            query["subscribed_only"] = "true"
+        resp = self.fulcra_api("/user/v1/group", query=query)
+        return json.loads(resp)
+
+    def get_group(self, group_id: str) -> dict:
+        """
+        Retrieves the description of a single data group.
+
+        Args:
+            group_id: UUID of the group
+
+        Returns:
+            The group, represented by a dict.
+        """
+        resp = self.fulcra_api(f"/user/v1/group/{group_id}")
+        return json.loads(resp)
+
+    def create_group(
+        self,
+        title: str,
+        responsible_entity: str,
+        description: str,
+        *,
+        fulcra_data_types: Optional[List[str]] = None,
+        group_url: Optional[str] = None,
+        time_start: Optional[str | datetime.datetime] = None,
+        time_end: Optional[str | datetime.datetime] = None,
+        detail_markdown: Optional[str] = None,
+        agreement_markdown: Optional[str] = None,
+        withdraw_markdown: Optional[str] = None,
+        header_image_url: Optional[str] = None,
+        preview_image_url: Optional[str] = None,
+        friendly_id: Optional[str] = None,
+    ) -> dict:
+        """
+        Creates a new data group that other Fulcra users can join.
+
+        When a participant joins the group, they share read-only access to
+        their data (limited to `fulcra_data_types` and the given time range)
+        with you until they leave the group.
+
+        Most group parameters are immutable after creation; for example, the group
+        owner can't later change the conditions of the data you agreed to share when
+        you join.
+
+        A group does not have to collect anything.  Omit `fulcra_data_types`
+        and joining shares no data at all, which makes the group a pure
+        audience: other users can share their own data with everyone in it by
+        naming it in `allowed_group_ids` on `create_datashare`.  Since the
+        group's data types are immutable too, such a group can never start
+        collecting data later.
+
+        Args:
+            title: Title of the group
+            responsible_entity: The person or organization responsible for
+                the group
+            description: Description of the group
+            fulcra_data_types: Optional list of Fulcra data types that
+                participants will share.  When omitted, participants share
+                nothing.
+            group_url: Optional URL of the webapp associated with this group
+            time_start: Optional start of the shared data time range, as an
+                ISO 8601 string or `datetime`.  Must include a timezone offset.
+            time_end: Optional end of the shared data time range, as an ISO
+                8601 string or `datetime`.  Must include a timezone offset.
+            detail_markdown: Optional markdown shown on the group's detail view
+            agreement_markdown: Optional markdown shown when a user joins
+            withdraw_markdown: Optional markdown shown when a user leaves
+            header_image_url: Optional URL of the group's header image
+            preview_image_url: Optional URL of the group's preview image
+            friendly_id: Optional human-friendly identifier for the group
+
+        Returns:
+            The created group, represented by a dict.
+
+        Examples:
+                >>> group = fulcra_client.create_group(
+                ...     title="Step Challenge",
+                ...     responsible_entity="Fulcra Dynamics",
+                ...     description="A month-long step challenge.",
+                ...     fulcra_data_types=["StepCount"],
+                ...     group_url="https://example.com/challenge",
+                ... )
+
+            A group that collects nothing, to share data into later:
+
+                >>> group = fulcra_client.create_group(
+                ...     title="Research Cohort",
+                ...     responsible_entity="Fulcra Dynamics",
+                ...     description="Members receive data shared with them.",
+                ... )
+                >>> group["fulcra_data_types"]
+                []
+        """
+        time_start = _boundary_timestamp(time_start, "time_start")
+        time_end = _boundary_timestamp(time_end, "time_end")
+
+        group_body = {
+            "title": title,
+            "is_public": False,
+            "responsible_entity": responsible_entity,
+            "description": description,
+            "time_start": time_start.isoformat() if time_start else None,
+            "time_end": time_end.isoformat() if time_end else None,
+            # The server requires the key to be present; an empty list is what
+            # makes a group that collects nothing.
+            "fulcra_data_types": fulcra_data_types or [],
+            "group_url": group_url,
+            "detail_markdown": detail_markdown,
+            "agreement_markdown": agreement_markdown,
+            "withdraw_markdown": withdraw_markdown,
+            "header_image_url": header_image_url,
+            "preview_image_url": preview_image_url,
+            "friendly_id": friendly_id,
+        }
+        resp = self.fulcra_api("/user/v1/group", data=group_body, method="POST")
+        return json.loads(resp)["group"]
+
+    def update_group(
+        self,
+        group_id: str,
+        description: Optional[str] = UNSET,
+        header_image_url: Optional[str] = UNSET,
+        preview_image_url: Optional[str] = UNSET,
+        view_description: Optional[dict] = UNSET,
+    ) -> dict:
+        """
+        Updates the editable fields of a group that you own.
+
+        Only the fields listed here can be changed after creation; all other
+        group parameters are immutable.  Fields that are not passed are not
+        modified.  Passing None explicitly clears the field
+        (`header_image_url`, `preview_image_url`, and `view_description`
+        only; the server does not allow clearing `description`).
+
+        Args:
+            group_id: UUID of the group to update
+            description: New description for the group
+            header_image_url: New URL of the group's header image, or None
+                to clear it
+            preview_image_url: New URL of the group's preview image, or None
+                to clear it
+            view_description: New dict describing the group's view, or None
+                to clear it
+
+        Returns:
+            The updated group, represented by a dict.
+
+        Examples:
+            To change a group's description (other fields are untouched):
+
+            >>> group = fulcra_client.update_group(
+            ...     group_id="cf362f80-ef41-4c08-b5e3-b18bd3d1524b",
+            ...     description="A month-long step challenge, now with prizes.",
+            ... )
+
+            To set a header image and clear the preview image in one call:
+
+            >>> group = fulcra_client.update_group(
+            ...     group_id="cf362f80-ef41-4c08-b5e3-b18bd3d1524b",
+            ...     header_image_url="https://example.com/header.png",
+            ...     preview_image_url=None,
+            ... )
+            >>> group["preview_image_url"] is None
+            True
+        """
+        group_body = {
+            k: v
+            for k, v in {
+                "description": description,
+                "header_image_url": header_image_url,
+                "preview_image_url": preview_image_url,
+                "view_description": view_description,
+            }.items()
+            if v is not UNSET
+        }
+        resp = self.fulcra_api(
+            f"/user/v1/group/{group_id}", data=group_body, method="PUT"
+        )
+        return json.loads(resp)
+
+    def delete_group(self, group_id: str):
+        """
+        Deletes a group that you own.
+
+        Args:
+            group_id: UUID of the group to delete
+        """
+        self.fulcra_api(f"/user/v1/group/{group_id}", method="DELETE")
+
+    def join_group(self, group_id: str) -> dict:
+        """
+        Joins a data group as a participant.
+
+        Joining shares read-only access to your data (limited to the group's
+        data types and time range) with the group's owner until you leave.
+        The owner sees you only as the returned anonymized `participant_id`,
+        never your Fulcra UserID.
+
+        Args:
+            group_id: UUID of the group to join
+
+        Returns:
+            A dict containing the `group_id`, your `participant_id`, and your
+            `joined_at` time.
+        """
+        resp = self.fulcra_api(f"/user/v1/group/{group_id}/membership", method="POST")
+        return json.loads(resp)
+
+    def leave_group(self, group_id: str):
+        """
+        Leaves a data group, revoking the owner's access to your data.
+
+        Args:
+            group_id: UUID of the group to leave
+        """
+        self.fulcra_api(f"/user/v1/group/{group_id}/membership", method="DELETE")
+
+    def get_group_participants(self, group_id: str) -> List[str]:
+        """
+        Retrieves the participant IDs of a group that you own.
+
+        Participant IDs are anonymized UUIDs that are only meaningful within
+        this group; they do not reveal participants' Fulcra UserIDs.
+
+        Args:
+            group_id: UUID of the group
+
+        Returns:
+            A list of participant ID strings.
+        """
+        resp = self.fulcra_api(f"/user/v1/group/{group_id}/participants")
+        return json.loads(resp)
+
+    def get_group_participant_metadata(
+        self, group_id: str, participant_id: str
+    ) -> dict:
+        """
+        Retrieves the metadata object for a participant in a group you own.
+
+        Args:
+            group_id: UUID of the group
+            participant_id: Participant ID within the group
+
+        Returns:
+            The participant's metadata, represented by a dict.
+        """
+        resp = self.fulcra_api(
+            f"/user/v1/group/{group_id}/participants/{participant_id}/metadata"
+        )
+        return json.loads(resp)
+
+    def set_group_participant_metadata(
+        self, group_id: str, participant_id: str, metadata: dict
+    ):
+        """
+        Replaces the metadata object for a participant in a group you own.
+
+        This overwrites the participant's entire metadata object; to modify
+        individual values, use `update_group_participant_metadata` instead.
+
+        Args:
+            group_id: UUID of the group
+            participant_id: Participant ID within the group
+            metadata: The new metadata object
+        """
+        self.fulcra_api(
+            f"/user/v1/group/{group_id}/participants/{participant_id}/metadata",
+            data=metadata,
+            method="PUT",
+        )
+
+    def update_group_participant_metadata(
+        self, group_id: str, participant_id: str, values: dict
+    ):
+        """
+        Updates some values on a participant's metadata in a group you own.
+
+        The given values are merged into the participant's existing metadata
+        object; other values are left unchanged.  To replace the entire
+        object, use `set_group_participant_metadata` instead.
+
+        Args:
+            group_id: UUID of the group
+            participant_id: Participant ID within the group
+            values: The metadata values to set
+        """
+        self.fulcra_api(
+            f"/user/v1/group/{group_id}/participants/{participant_id}/metadata",
+            data=values,
+            method="PATCH",
+        )
+
+    def get_group_jwks(self) -> dict:
+        """
+        Retrieves the group public keys as a JWKS.
+
+        Group webapps can use these keys to validate the participant JWTs
+        that Context sends when authenticating requests.
+
+        Requires a valid access token.  (The underlying route defines no
+        authentication requirement, but the API gateway currently rejects
+        unauthenticated requests.)
+
+        Returns:
+            The JWKS, represented by a dict.
+        """
+        resp = self.fulcra_api("/user/v1/group/.well-known/jwks.json")
+        return json.loads(resp)
+
+    def group_participant(
+        self, group_id: str, participant_id: str
+    ) -> "FulcraGroupParticipant":
+        """
+        Returns an accessor for the data that a group participant shares
+        with you.
+
+        The returned object has the same data-access methods as this client
+        (`metric_time_series`, `metric_samples`, `sleep_agg`, ...), scoped to
+        the participant's shared data, along with the participant metadata
+        operations.
+
+        Args:
+            group_id: UUID of a group that you own
+            participant_id: Participant ID within the group
+
+        Returns:
+            A `FulcraGroupParticipant` accessor.
+
+        Examples:
+                >>> for pid in fulcra_client.get_group_participants(group_id):
+                ...     participant = fulcra_client.group_participant(group_id, pid)
+                ...     df = participant.metric_time_series(
+                ...         start_time="2026-07-01T00:00:00Z",
+                ...         end_time="2026-07-02T00:00:00Z",
+                ...         metric="StepCount",
+                ...     )
+        """
+        return FulcraGroupParticipant(self, group_id, participant_id)
+
+
+class FulcraGroupParticipant(FulcraDataAccessMixin):
+    """
+    Accessor for the data that a group participant shares with the group
+    owner.
+
+    Obtain an instance via `FulcraAPI.group_participant`.  The data-access
+    methods (`metric_time_series`, `metric_samples`, `moment_annotations`,
+    `sleep_agg`, ...) have the same parameters and return types as their
+    `FulcraAPI` counterparts, but are scoped to the participant's shared
+    data; requests outside the group's data types or time range are
+    rejected by the server.  The `fulcra_userid` parameter of these methods
+    cannot be used here.
+
+    Requests are authenticated by the `FulcraAPI` client that created this
+    accessor; only the group's owner can access participant data.
+    """
+
+    def __init__(self, client: FulcraAPI, group_id: str, participant_id: str):
+        self.client = client
+        self.group_id = group_id
+        self.participant_id = participant_id
+
+    def fulcra_api(
+        self,
+        url_path: str,
+        method: str = "GET",
+        query: Optional[dict] = None,
+        data: Optional[Union[dict, List[dict]]] = None,
+        return_http_response: bool = False,
+        content_type: str = "application/json",
+    ) -> Any:
+        """
+        Make an authenticated request to the Fulcra API, using the parent
+        client's credentials.
+        """
+        return self.client.fulcra_api(
+            url_path,
+            method=method,
+            query=query,
+            data=data,
+            return_http_response=return_http_response,
+            content_type=content_type,
+        )
+
+    def _v0_data_path(
+        self, operation: str, fulcra_userid: Optional[str] = None
+    ) -> str:
+        """
+        Build the request path for a v0 data operation on the participant's
+        shared data.
+
+        The data API still spells a group "pool" in its route; that is a
+        wire-level name only, and does not appear anywhere in this library's
+        interface.
+        """
+        if fulcra_userid is not None:
+            raise ValueError(
+                "fulcra_userid cannot be specified when accessing group "
+                "participant data"
+            )
+        return (
+            f"/data/v0/pool/{self.group_id}/participant"
+            f"/{self.participant_id}/{operation}"
+        )
+
+    def _v1_group_params(self, params: Optional[dict]) -> dict:
+        """
+        Return v1 API query params scoped to the participant's shared data.
+
+        As in `_v0_data_path`, the data API's query parameter for the group is
+        still named `pool_id` on the wire.
+        """
+        params = dict(params) if params else {}
+        if params.get("fulcra_userid") is not None:
+            raise ValueError(
+                "fulcra_userid cannot be specified when accessing group "
+                "participant data"
+            )
+        params["pool_id"] = self.group_id
+        params["participant_id"] = self.participant_id
+        return params
+
+    def fulcra_v1_api(
+        self, data_class: str, data_type: str, params: Optional[dict] = None
+    ) -> bytes:
+        """
+        Make a call to the v1 API, scoped to the participant's shared data.
+        """
+        return self.client.fulcra_v1_api(
+            data_class, data_type, self._v1_group_params(params)
+        )
+
+    def fulcra_v1_api_path(
+        self, path: str, params: Optional[dict[str, str]] = None
+    ) -> bytes:
+        """
+        Make a call to the v1 API using a full path, scoped to the
+        participant's shared data.
+        """
+        return self.client.fulcra_v1_api_path(path, self._v1_group_params(params))
+
+    def get_metadata(self) -> dict:
+        """
+        Retrieves this participant's metadata object.
+
+        Returns:
+            The participant's metadata, represented by a dict.
+        """
+        return self.client.get_group_participant_metadata(
+            self.group_id, self.participant_id
+        )
+
+    def set_metadata(self, metadata: dict):
+        """
+        Replaces this participant's entire metadata object.
+
+        To modify individual values instead, use `update_metadata`.
+
+        Args:
+            metadata: The new metadata object
+        """
+        self.client.set_group_participant_metadata(
+            self.group_id, self.participant_id, metadata
+        )
+
+    def update_metadata(self, values: dict):
+        """
+        Updates some values on this participant's metadata.
+
+        The given values are merged into the existing metadata object; other
+        values are left unchanged.  To replace the entire object, use
+        `set_metadata`.
+
+        Args:
+            values: The metadata values to set
+        """
+        self.client.update_group_participant_metadata(
+            self.group_id, self.participant_id, values
         )

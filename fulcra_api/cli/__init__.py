@@ -25,6 +25,7 @@ from .commands import (
 )
 from .data_types import data_type
 from .files import file
+from .groups import group
 from .record import delete_records, record
 from .share import share
 from .tags import tag
@@ -53,6 +54,7 @@ cli.add_command(tag)
 cli.add_command(data_type)
 cli.add_command(file)
 cli.add_command(share)
+cli.add_command(group)
 cli.add_command(record)
 cli.add_command(delete_records)
 

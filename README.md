@@ -19,6 +19,7 @@ Usage: fulcra [OPTIONS] COMMAND [ARGS]...
   like `jq` for parsing and filtering.
 
 Options:
+  --beta  Enable beta features
   --help  Show this message and exit.
 
 Commands:
@@ -30,15 +31,24 @@ Commands:
   calendars                Return Apple calendars
   catalog                  Return a list of queryable Fulcra data types and
                            metadata
+  data-type                Data type management sub-commands
+  data-updates             Return data/file updates that occurred during a
+                           period
+  delete                   Delete records for a data type
+  file                     File management sub-commands
   get-records              Return raw sample records for a data type
   google-location-updates  Return Google Maps location update records
+  group                    Data group management sub-commands
   location-at-time         Return location at specified time
   location-time-series     Return a calculated time series of location data
   metric-time-series       Return a calculated time series for a metric
+  record                   Record data for a data type
+  share                    Data sharing management sub-commands
   sleep-cycles             Return sleep cycles summarized from sleep stages
   sleep-cycles-aggregated  Return sleep cycles aggregated by a specific period
   sleep-stages             Return sleep stages derived from sleep-related
                            metric records
+  tag                      Tag management sub-commands
   user-info                Return information about the authenticated user
 ```
 
