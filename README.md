@@ -9,7 +9,7 @@ For a guide to installation, getting started, and an API reference, view the [do
 This library also includes a CLI tool for authenticating & interacting with the Fulcra Life API which may be useful to developers and AI agents. It can be run via `fulcra` or `fulcra-api`:
 
 ```shell
-❯ fulcra --help
+> fulcra --help
 Usage: fulcra [OPTIONS] COMMAND [ARGS]...
 
   Command line interface for authenticating and interacting with the Fulcra
@@ -43,7 +43,7 @@ Commands:
   location-time-series     Return a calculated time series of location data
   metric-time-series       Return a calculated time series for a metric
   record                   Record data for a data type
-  share                    Data sharing management sub-commands
+  share                    Data sharing sub-commands
   sleep-cycles             Return sleep cycles summarized from sleep stages
   sleep-cycles-aggregated  Return sleep cycles aggregated by a specific period
   sleep-stages             Return sleep stages derived from sleep-related
