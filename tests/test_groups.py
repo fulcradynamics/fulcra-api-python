@@ -626,10 +626,12 @@ def test_group_with_no_data_types(fulcra_client):
 
 
 def test_get_groups_public(fulcra_client):
+    """The default listing is every public group plus the caller's own groups."""
+    me = fulcra_client.get_fulcra_userid()
     groups = fulcra_client.get_groups()
     assert isinstance(groups, List)
     for group in groups:
-        assert group["is_public"] is True
+        assert group["is_public"] is True or group["owner_fulcra_userid"] == me
 
 
 def test_group_jwks(fulcra_client):
