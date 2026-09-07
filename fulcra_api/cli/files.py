@@ -151,7 +151,7 @@ def file_download(
     except Exception as exc:
         raise click.ClickException(exc)
 
-    remote_name = pathlib.PurePath(f[0].get("name")).name
+    remote_name = pathlib.PurePosixPath(f[0].get("name")).name
 
     if local_file == "-":  # "-" → stdout
         dest = None

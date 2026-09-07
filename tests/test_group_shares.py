@@ -14,6 +14,7 @@ from click.testing import CliRunner
 
 from fulcra_api.core import FulcraAPI
 
+from .conftest import capture_request
 from .conftest import offline_client as _base_offline_client
 
 GROUP_ID = "cf362f80-ef41-4c08-b5e3-b18bd3d1524b"
@@ -29,20 +30,6 @@ def offline_client() -> FulcraAPI:
     # has no claims to read it from.
     client.get_fulcra_userid = lambda: USER_ID
     return client
-
-
-def capture_request(client: FulcraAPI) -> dict:
-    """Point the client's transport at a dict instead of the network."""
-    captured: dict = {}
-
-    def fake_fulcra_api(url_path, method="GET", data=None, **kwargs):
-        captured["path"] = url_path
-        captured["method"] = method
-        captured["data"] = data
-        return b"{}"
-
-    client.fulcra_api = fake_fulcra_api
-    return captured
 
 
 #
@@ -108,6 +95,16 @@ def test_update_datashare_leaves_groups_alone_by_default():
     an update that doesn't mention groups must not send an empty list.
     """
     assert "group_permissions" not in update_datashare_body()
+
+
+def test_update_datashare_leaves_users_alone_by_default():
+    """
+    Same for named users: renaming a share must not touch `permissions`.  An
+    earlier release always sent the full list, so a caller who omitted it
+    silently revoked every grant.
+    """
+    body = update_datashare_body(datashare_name="Renamed")
+    assert body == {"datashare_name": "Renamed"}
 
 
 def test_update_datashare_replaces_groups():

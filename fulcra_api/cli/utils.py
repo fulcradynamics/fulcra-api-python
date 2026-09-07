@@ -233,8 +233,32 @@ def human_size(n: int) -> tuple[int, str]:
 
 
 def make_filepath(path: str, filename: str = "") -> str:
-    filepath = pathlib.PurePath("/", path, filename)
+    """Build a remote Fulcra file-store path.
+
+    Remote paths are API paths, not local filesystem paths, so they are always
+    POSIX-style regardless of the platform the CLI runs on.
+    """
+    filepath = pathlib.PurePosixPath("/", path, filename)
     return str(filepath)
+
+
+def tolerate_unencodable_output(*streams) -> None:
+    """Make text streams replace characters they can't encode instead of raising.
+
+    The CLI decorates some messages with emoji.  On a Windows console whose
+    output is redirected, stdout defaults to a legacy code page such as cp1252,
+    and writing an emoji raises UnicodeEncodeError -- after the command's real
+    work has already succeeded.  Swapping the error handler to "replace" turns
+    those characters into "?" on such streams and is a no-op on UTF-8 ones.
+    """
+    for stream in streams:
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(errors="replace")
+        except (ValueError, OSError):
+            pass
 
 
 def parse_time(ctx: click.Context, param: click.Parameter, value: str) -> datetime:

@@ -30,3 +30,22 @@ def offline_client() -> FulcraAPI:
             + datetime.timedelta(hours=1),
         )
     )
+
+
+def capture_request(client: FulcraAPI, response: bytes = b"{}") -> dict:
+    """Point the client's transport at a dict instead of the network.
+
+    `response` is the raw body the fake transport hands back, for callers
+    that parse it.
+    """
+    captured: dict = {}
+
+    def fake_fulcra_api(url_path, method="GET", data=None, **kwargs):
+        captured["path"] = url_path
+        captured["method"] = method
+        captured["data"] = data
+        captured["query"] = kwargs.get("query")
+        return response
+
+    client.fulcra_api = fake_fulcra_api
+    return captured

@@ -8,7 +8,7 @@ import os.path
 import urllib.parse
 import urllib.request
 import webbrowser
-from pathlib import PurePath
+from pathlib import PurePosixPath
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from urllib.error import HTTPError
 
@@ -1965,7 +1965,7 @@ class FulcraAPI(FulcraDataAccessMixin):
         self,
         start_time: str | datetime.datetime,
         end_time: str | datetime.datetime,
-        fulcra_userid: str | None,
+        fulcra_userid: str | None = None,
     ) -> dict:
         """
         Retrieve a summary of the data that was updated during the specified
@@ -2480,7 +2480,7 @@ class FulcraAPI(FulcraDataAccessMixin):
         include_deleted: bool = False,
     ) -> list[dict]:
         """Take a fully qualified file path and resolve it to the resource definition"""
-        p = PurePath(filepath)
+        p = PurePosixPath(filepath)
 
         path = p.parent
         name = p.name
@@ -2523,7 +2523,7 @@ class FulcraAPI(FulcraDataAccessMixin):
     def upload_file(
         self, data: io.BufferedReader, file_type: str, file_size: int, filepath: str
     ) -> dict:
-        path = PurePath(filepath)
+        path = PurePosixPath(filepath)
 
         file_info = {
             "content_length": file_size,
@@ -2583,9 +2583,10 @@ class FulcraAPI(FulcraDataAccessMixin):
         """
         Retrieves a list of data groups.
 
-        By default, returns all public groups.  When `subscribed_only` is True,
-        returns only the groups that you have joined; each of these also
-        includes your `participant_id` and `joined_at` values.
+        By default, returns all public groups plus every group you own,
+        public or not.  When `subscribed_only` is True, returns only the
+        groups that you have joined; each of these also includes your
+        `participant_id` and `joined_at` values.
 
         Args:
             subscribed_only: When True, return only groups you have joined

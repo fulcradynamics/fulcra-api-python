@@ -1,3 +1,4 @@
+import sys
 from typing import Any, Dict
 
 import click
@@ -29,7 +30,13 @@ from .groups import group
 from .record import delete_records, record
 from .share import share
 from .tags import tag
-from .utils import ensure_config_directory, load_creds, save_creds, pass_fulcra_api
+from .utils import (
+    ensure_config_directory,
+    load_creds,
+    pass_fulcra_api,
+    save_creds,
+    tolerate_unencodable_output,
+)
 
 
 @click.group()
@@ -40,6 +47,7 @@ def cli(ctx, beta):
 
     Sub-commands return JSON data by default for convienent piping into tools like `jq` for parsing and filtering.
     """
+    tolerate_unencodable_output(sys.stdout, sys.stderr)
     ensure_config_directory()
     creds: FulcraCredentials | None = load_creds()
     kwargs: Dict[str, Any] = {"refresh_callback": save_creds}
