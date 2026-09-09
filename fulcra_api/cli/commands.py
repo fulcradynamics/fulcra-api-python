@@ -9,6 +9,7 @@ import click
 from fulcra_api.core import FulcraAPI
 
 from .utils import (
+    build_v1_promql,
     group_participant_options,
     parse_time,
     pass_fulcra_api,
@@ -735,6 +736,15 @@ def get_records(
             ):
                 params["fulcra_userid"] = dt["fulcra_userid"]
             kwargs = {"path": path, "params": params}
+        elif dt["api_version"] == "v1" and record_type in ("metric", "event"):
+            if source is not fulcra_api:
+                raise click.ClickException(
+                    "Group participant queries are not supported for v1 data types."
+                )
+            query_func = source.fulcra_v1_records
+            kwargs = {"query": build_v1_promql(base_type, start_time, end_time)}
+            if authenticated_user_id != dt["fulcra_userid"]:
+                kwargs["fulcra_userid"] = dt["fulcra_userid"]
         else:
             raise click.ClickException(
                 f"Could not derive API endpoint for data type '{dt['id']}'"
@@ -742,10 +752,15 @@ def get_records(
 
         resp = query_func(**kwargs)
 
-        if isinstance(resp, bytes):
-            resp = json.loads(resp)
+        if dt["api_version"] == "v1":
+            # The v1 records endpoint streams JSONL (one record per line).
+            records = [json.loads(line) for line in resp.splitlines() if line.strip()]
+        else:
+            if isinstance(resp, bytes):
+                resp = json.loads(resp)
+            records = resp
 
-        results = results + resp
+        results = results + records
 
     for x in results:
         click.echo(json.dumps(x))
