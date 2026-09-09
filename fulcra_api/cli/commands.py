@@ -724,7 +724,7 @@ def get_records(
             ):
                 kwargs["fulcra_userid"] = dt["fulcra_userid"]
         elif dt["api_version"] == "v1alpha1" and record_type in ("metric", "event"):
-            query_func = source.fulcra_v1_api_path
+            query_func = source.fulcra_v1alpha1_api_path
             path = f"{record_type}/{base_type}"
             if user_annotation_id:
                 path = f"{path}/{user_annotation_id}"
