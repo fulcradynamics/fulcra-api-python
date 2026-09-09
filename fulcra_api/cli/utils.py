@@ -339,6 +339,20 @@ def time_range(func):
     return wrapper
 
 
+def build_v1_promql(
+    data_type_id: str, start_time: datetime, end_time: datetime
+) -> str:
+    """
+    Build a PromQL query selecting a data type's records over [start, end).
+
+    Encodes the window as a range vector anchored at the end time
+    (`Type[<duration>s] @ <end_unix_ts>`), which the v1 records endpoint
+    evaluates as records overlapping [start_time, end_time).
+    """
+    duration = max(1, int((end_time - start_time).total_seconds()))
+    return f"{data_type_id}[{duration}s] @ {int(end_time.timestamp())}"
+
+
 def file_share_type(prefix: str, history: bool = False) -> str:
     """
     Return the share type string for a file or file history path or  prefix.
