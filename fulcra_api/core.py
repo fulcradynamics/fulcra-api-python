@@ -1345,6 +1345,29 @@ class FulcraAPI(FulcraDataAccessMixin):
         """
         return self.fulcra_api(f"/data/v1alpha1/{path}", query=params if params else {})
 
+    def fulcra_v1_records(
+        self, query: str, fulcra_userid: Optional[str] = None
+    ) -> bytes:
+        """
+        Query v1 data-type records using a PromQL query.
+
+        The data type, time window, and any filters are all expressed inside the
+        PromQL `query` string (e.g. "HeartRate[1h] @ 1717200000").
+
+        Params:
+            query: The PromQL query.
+            fulcra_userid: Query another user's data (requires an active
+                datashare from that user).
+
+        Returns:
+            The raw response data (as bytes), in JSONL form (one JSON record per
+            line).  Raises an exception on failure.
+        """
+        params = {"q": query}
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
+        return self.fulcra_api("/data/v1/records", query=params)
+
     def _v0_data_path(
         self, operation: str, fulcra_userid: Optional[str] = None
     ) -> str:
