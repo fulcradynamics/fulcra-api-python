@@ -2,14 +2,14 @@ import json
 from datetime import datetime
 from typing import List, Optional, Tuple
 from urllib.error import HTTPError
-from uuid import UUID
 
 import click
 
 from fulcra_api.core import FulcraAPI
 
+from fulcra_api.records import records_for_data_type
+
 from .utils import (
-    build_v1_promql,
     group_participant_options,
     parse_time,
     pass_fulcra_api,
@@ -693,74 +693,13 @@ def get_records(
     if user_id and group_id:
         raise click.UsageError("--user-id cannot be used with --group-id")
     source = resolve_data_source(fulcra_api, group_id, participant_id)
-    authenticated_user_id = fulcra_api.get_fulcra_userid()
 
     results = []
     for dt in data_type:
-        # Deal with user-configured annotation shorthand (AnnotationType/UUID)
-        user_annotation_id = None
-        parts = dt["id"].split("/", maxsplit=2)
-        if len(parts) > 1:
-            base_type = parts[0]
-            try:
-                user_annotation_id = UUID(parts[1])
-            except ValueError:
-                raise click.ClickException(
-                    "User configured annotation shorthand must be <Annotation Type>/<UUID>"
-                )
-        else:
-            base_type = parts[0]
-
-        record_type = dt.get("record_spec", {}).get("type")
-        if dt["api_version"] == "v0" and record_type == "metric":
-            query_func = source.metric_samples
-            kwargs = {
-                "start_time": start_time,
-                "end_time": end_time,
-                "metric": dt["id"],
-            }
-            if (
-                source is fulcra_api
-                and authenticated_user_id != dt["fulcra_userid"]
-            ):
-                kwargs["fulcra_userid"] = dt["fulcra_userid"]
-        elif dt["api_version"] == "v1alpha1" and record_type in ("metric", "event"):
-            query_func = source.fulcra_v1alpha1_api_path
-            path = f"{record_type}/{base_type}"
-            if user_annotation_id:
-                path = f"{path}/{user_annotation_id}"
-            params = {"start_time": start_time, "end_time": end_time}
-            if (
-                source is fulcra_api
-                and authenticated_user_id != dt["fulcra_userid"]
-            ):
-                params["fulcra_userid"] = dt["fulcra_userid"]
-            kwargs = {"path": path, "params": params}
-        elif dt["api_version"] == "v1" and record_type in ("metric", "event"):
-            if source is not fulcra_api:
-                raise click.ClickException(
-                    "Group participant queries are not supported for v1 data types."
-                )
-            query_func = source.fulcra_v1_records
-            kwargs = {"query": build_v1_promql(base_type, start_time, end_time)}
-            if authenticated_user_id != dt["fulcra_userid"]:
-                kwargs["fulcra_userid"] = dt["fulcra_userid"]
-        else:
-            raise click.ClickException(
-                f"Could not derive API endpoint for data type '{dt['id']}'"
-            )
-
-        resp = query_func(**kwargs)
-
-        if dt["api_version"] == "v1":
-            # The v1 records endpoint streams JSONL (one record per line).
-            records = [json.loads(line) for line in resp.splitlines() if line.strip()]
-        else:
-            if isinstance(resp, bytes):
-                resp = json.loads(resp)
-            records = resp
-
-        results = results + records
+        try:
+            results += records_for_data_type(source, dt, start_time, end_time)
+        except ValueError as exc:
+            raise click.ClickException(str(exc))
 
     for x in results:
         click.echo(json.dumps(x))
