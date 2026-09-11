@@ -2,7 +2,7 @@ import json
 import os
 import pathlib
 from datetime import datetime, timezone
-from functools import wraps
+from functools import partial, wraps
 from urllib.error import HTTPError
 
 import click
@@ -294,19 +294,32 @@ def related_cli_commands(dt: dict) -> list[str]:
     return cmd
 
 
-def time_range(func):
+def time_range(func=None, *, allow_latest: bool = False):
     """
     Decorator to add flexible time domain arguments for a command.
 
     Accepts either:
         - A single RANGE argument that selects a range relative to the current time
         - START_TIME and END_TIME arguments that select a specific time range
+        - The literal "latest" (only when allow_latest=True), selecting the single
+          most recent record. The command then receives start_time=end_time=None
+          and latest=True.
+
+    Usable bare (``@time_range``) or parameterized (``@time_range(allow_latest=True)``).
+    When allow_latest is set, the wrapped command is passed a `latest` keyword.
     """
+    if func is None:
+        return partial(time_range, allow_latest=allow_latest)
 
     @click.argument("time_range", nargs=-1, required=True)
     @wraps(func)
     def wrapper(time_range, *args, **kwargs):
-        if len(time_range) == 1:
+        latest = False
+        start_time = None
+        end_time = None
+        if allow_latest and len(time_range) == 1 and time_range[0].lower() == "latest":
+            latest = True
+        elif len(time_range) == 1:
             interval = dateparser.parse(
                 time_range[0],
                 settings={"TIMEZONE": "UTC", "RETURN_AS_TIMEZONE_AWARE": True},
@@ -334,6 +347,8 @@ def time_range(func):
         else:
             raise click.UsageError("Expected either 1 or 2 values for TIME_RANGE")
 
+        if allow_latest:
+            kwargs["latest"] = latest
         return func(*args, start_time=start_time, end_time=end_time, **kwargs)
 
     return wrapper

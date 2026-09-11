@@ -62,6 +62,20 @@ def test_v1_passes_fulcra_userid_for_other_users_data():
     assert captured["fulcra_userid"] == "someone-else"
 
 
+def test_v1_latest_builds_bare_instant_vector():
+    client = _v1_client([_entry()])
+    captured = {}
+    client.fulcra_v1_records = lambda query, fulcra_userid=None: (
+        captured.update(query=query) or b'{"a": 1}\n'
+    )
+
+    result = CliRunner().invoke(get_records, ["HeartRate", "latest"], obj=client)
+
+    assert result.exit_code == 0, result.output
+    assert captured["query"] == "HeartRate"
+    assert result.output.splitlines() == ['{"a": 1}']
+
+
 def test_v1_rejects_group_participant_source():
     client = _v1_client([_entry()])
     client.fulcra_v1_records = lambda *a, **k: b""

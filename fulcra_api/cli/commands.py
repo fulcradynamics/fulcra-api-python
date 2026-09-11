@@ -656,15 +656,16 @@ def sleep_cycles_aggregated(
     "data_type",
     callback=resolve_data_type(allow_multiple=True, user_id_param="user_id"),
 )
-@time_range
+@time_range(allow_latest=True)
 @group_participant_options
 @pass_fulcra_api
 @requires_auth
 def get_records(
     fulcra_api: FulcraAPI,
     data_type: list[dict],
-    start_time: datetime,
-    end_time: datetime,
+    start_time: datetime | None,
+    end_time: datetime | None,
+    latest: bool,
     user_id: str | None,
     group_id,
     participant_id,
@@ -673,7 +674,7 @@ def get_records(
 
     DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog --queryable` for a list of Fulcra Data Types you can query.
 
-    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+    TIME_RANGE: Two start & end date arguments in ISO8601 format, a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.), or the literal "latest" to return only the most recent record.
 
     Returned records may have multiple sources and require additional filtering and prioritization to calculate correct results.
 
@@ -686,6 +687,10 @@ def get_records(
     \b
     Return the last day of StepCount records:
     fulcra get-records StepCount "1 day"
+
+    \b
+    Return the most recent HeartRate record:
+    fulcra get-records HeartRate latest
     """
 
     # data_type is a list of resolved catalog entries (see resolve_data_type)
@@ -696,7 +701,9 @@ def get_records(
     results = []
     for dt in data_type:
         try:
-            results += records.get_records(source, dt, start_time, end_time)
+            results += records.get_records(
+                source, dt, start_time, end_time, latest=latest
+            )
         except ValueError as exc:
             raise click.ClickException(str(exc))
 
