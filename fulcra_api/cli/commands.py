@@ -5,9 +5,8 @@ from urllib.error import HTTPError
 
 import click
 
-from fulcra_api.core import FulcraAPI
-
 from fulcra_api import records
+from fulcra_api.core import FulcraAPI
 
 from .utils import (
     group_participant_options,
@@ -710,13 +709,26 @@ def get_records(
 )
 @click.option("-d", "--data-type", type=str, help="Data Type to look up by ID.")
 @click.option("-n", "--name", type=str, help="Filter results by partial name.")
-@click.option("--base-types-only", "--base-types", help="Only return base types that can be used with data-type create", is_flag=True, default=False)
+@click.option(
+    "--base-types-only",
+    "--base-types",
+    help="Only return base types that can be used with data-type create",
+    is_flag=True,
+    default=False,
+)
 @click.option(
     "--recordable-only",
     "--recordable",
     is_flag=True,
     default=False,
     help="Only show recordable data types.",
+)
+@click.option(
+    "--queryable-only",
+    "--queryable",
+    is_flag=True,
+    default=False,
+    help="Only show queryable data types.",
 )
 @click.option("-c", "--category", type=str, help="Filter by category.")
 @click.option(
@@ -736,6 +748,7 @@ def catalog(
     fulcra_api: FulcraAPI,
     base_types_only: bool,
     recordable_only: bool,
+    queryable_only: bool,
     data_type: str | None = None,
     name: str | None = None,
     category: str | None = None,
@@ -791,6 +804,9 @@ def catalog(
             for c in response
             if c.get("recordable", False) and c.get("api_version") != "v0"
         ]
+
+    if queryable_only:
+        response = [c for c in response if c.get("queryable", True)]
 
     for c in response:
         c["related_cli_commands"] = related_cli_commands(c)
