@@ -125,33 +125,9 @@ def test_latest_v1_uses_bare_instant_vector():
     assert result == [{"x": 9}]
 
 
-def test_latest_v1alpha1_event_hits_latest_route():
-    client = _owned_client()
-    captured = capture_request(client, response=b"[]")
-
-    get_records(
-        client,
-        _entry(api_version="v1alpha1", record_type="event"),
-        None,
-        None,
-        latest=True,
-    )
-
-    assert captured["path"] == "/data/v1alpha1/event/HeartRate/latest"
-    assert captured["query"]["total"] == 1
-
-
-def test_latest_v1alpha1_metric_raises_value_error():
+@pytest.mark.parametrize("api_version", ["v0", "v1alpha1"])
+def test_latest_rejects_non_v1_types(api_version):
     client = _owned_client()
 
-    with pytest.raises(ValueError, match="not supported"):
-        get_records(
-            client, _entry(api_version="v1alpha1"), None, None, latest=True
-        )
-
-
-def test_latest_v0_metric_raises_value_error():
-    client = _owned_client()
-
-    with pytest.raises(ValueError, match="not supported"):
-        get_records(client, _entry(api_version="v0"), None, None, latest=True)
+    with pytest.raises(ValueError, match="only supported for v1"):
+        get_records(client, _entry(api_version=api_version), None, None, latest=True)
