@@ -671,7 +671,7 @@ def get_records(
 ):
     """Return raw sample records of DATA_TYPE across TIME_RANGE.
 
-    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types.
+    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog --queryable` for a list of Fulcra Data Types you can query.
 
     TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
 
