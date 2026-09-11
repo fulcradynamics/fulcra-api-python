@@ -7,7 +7,7 @@ import click
 
 from fulcra_api.core import FulcraAPI
 
-from fulcra_api.records import records_for_data_type
+from fulcra_api import records
 
 from .utils import (
     group_participant_options,
@@ -697,7 +697,7 @@ def get_records(
     results = []
     for dt in data_type:
         try:
-            results += records_for_data_type(source, dt, start_time, end_time)
+            results += records.get_records(source, dt, start_time, end_time)
         except ValueError as exc:
             raise click.ClickException(str(exc))
 

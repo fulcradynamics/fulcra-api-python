@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from fulcra_api.records import build_v1_promql, records_for_data_type
+from fulcra_api.records import build_v1_promql, get_records
 
 from .conftest import capture_request, offline_client
 
@@ -46,14 +46,14 @@ def test_promql_zero_length_window_clamps_to_one_second():
     )
 
 
-# --- records_for_data_type dispatch ------------------------------------------
+# --- get_records dispatch ----------------------------------------------------
 
 
 def test_v1alpha1_dispatch_hits_path_endpoint():
     client = _owned_client()
     captured = capture_request(client, response=b'[{"x": 1}]')
 
-    result = records_for_data_type(
+    result = get_records(
         client, _entry(api_version="v1alpha1"), DAY_START, DAY_END
     )
 
@@ -66,7 +66,7 @@ def test_v1alpha1_dispatch_scopes_other_users_data():
     client = _owned_client()
     captured = capture_request(client, response=b"[]")
 
-    records_for_data_type(
+    get_records(
         client,
         _entry(api_version="v1alpha1", fulcra_userid="someone-else"),
         DAY_START,
@@ -80,7 +80,7 @@ def test_v1_dispatch_builds_promql_and_parses_jsonl():
     client = _owned_client()
     captured = capture_request(client, response=b'{"x": 1}\n{"x": 2}\n')
 
-    result = records_for_data_type(
+    result = get_records(
         client, _entry(api_version="v1"), DAY_START, DAY_END
     )
 
@@ -93,7 +93,7 @@ def test_unsupported_combination_raises_value_error():
     client = _owned_client()
 
     with pytest.raises(ValueError, match="Could not derive API endpoint"):
-        records_for_data_type(
+        get_records(
             client, _entry(api_version="v0", record_type="event"), DAY_START, DAY_END
         )
 
@@ -102,4 +102,4 @@ def test_v1_rejects_group_participant_source():
     source = offline_client().group_participant("group", "participant")
 
     with pytest.raises(ValueError, match="Group participant"):
-        records_for_data_type(source, _entry(api_version="v1"), DAY_START, DAY_END)
+        get_records(source, _entry(api_version="v1"), DAY_START, DAY_END)

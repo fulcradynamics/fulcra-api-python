@@ -44,7 +44,7 @@ def _owner_scope(source, data_type: dict):
     return None
 
 
-def records_for_data_type(
+def get_records(
     source, data_type: dict, start_time: datetime, end_time: datetime
 ) -> list[dict]:
     """
