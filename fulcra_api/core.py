@@ -83,7 +83,7 @@ class FulcraDataAccessMixin:
     and on `FulcraGroupParticipant` (to access the data that a group
     participant shares with you).  Subclasses choose the data source that
     requests are made against by implementing `_v0_data_path` and
-    `fulcra_v1_api`.
+    `fulcra_v1alpha1_api`.
     """
 
     def _v0_data_path(
@@ -108,11 +108,11 @@ class FulcraDataAccessMixin:
         """
         raise NotImplementedError
 
-    def fulcra_v1_api(
+    def fulcra_v1alpha1_api(
         self, data_class: str, data_type: str, params: Optional[dict] = None
     ) -> bytes:
         """
-        Make a call to the v1 API.
+        Make a call to the v1alpha1 API.
         """
         raise NotImplementedError
 
@@ -758,7 +758,7 @@ class FulcraDataAccessMixin:
         if source is not None:
             params["filter"].append(f"source_id:{source}")
 
-        resp = self.fulcra_v1_api("event", "MomentAnnotation", params)
+        resp = self.fulcra_v1alpha1_api("event", "MomentAnnotation", params)
         return json.loads(resp)
 
     def duration_annotations(
@@ -797,7 +797,7 @@ class FulcraDataAccessMixin:
         if source is not None:
             params["filter"].append(f"source_id:{source}")
 
-        resp = self.fulcra_v1_api("event", "DurationAnnotation", params)
+        resp = self.fulcra_v1alpha1_api("event", "DurationAnnotation", params)
         return json.loads(resp)
 
     def boolean_annotations(
@@ -836,7 +836,7 @@ class FulcraDataAccessMixin:
         if source is not None:
             params["filter"].append(f"source_id:{source}")
 
-        resp = self.fulcra_v1_api("metric", "BooleanAnnotation", params)
+        resp = self.fulcra_v1alpha1_api("metric", "BooleanAnnotation", params)
         return json.loads(resp)
 
     def numeric_annotations(
@@ -875,7 +875,7 @@ class FulcraDataAccessMixin:
         if source is not None:
             params["filter"].append(f"source_id:{source}")
 
-        resp = self.fulcra_v1_api("metric", "NumericAnnotation", params)
+        resp = self.fulcra_v1alpha1_api("metric", "NumericAnnotation", params)
         return json.loads(resp)
 
     def scale_annotations(
@@ -914,7 +914,7 @@ class FulcraDataAccessMixin:
         if source is not None:
             params["filter"].append(f"source_id:{source}")
 
-        resp = self.fulcra_v1_api("metric", "ScaleAnnotation", params)
+        resp = self.fulcra_v1alpha1_api("metric", "ScaleAnnotation", params)
         return json.loads(resp)
 
 
@@ -1310,11 +1310,11 @@ class FulcraAPI(FulcraDataAccessMixin):
                     )
             raise
 
-    def fulcra_v1_api(
+    def fulcra_v1alpha1_api(
         self, data_class: str, data_type: str, params: Optional[dict] = None
     ) -> bytes:
         """
-        Make a call to the v1 API.
+        Make a call to the v1alpha1 API.
 
         Params:
             access_token: The access token to authenticate the request with
@@ -1328,11 +1328,11 @@ class FulcraAPI(FulcraDataAccessMixin):
         # query_params = urllib.parse.urlencode(params, doseq=True)
         return self.fulcra_api(f"/data/v1alpha1/{data_class}/{data_type}", query=params)
 
-    def fulcra_v1_api_path(
+    def fulcra_v1alpha1_api_path(
         self, path: str, params: Optional[dict[str, str]] = None
     ) -> bytes:
         """
-        Make a call to the v1 API using a full path.
+        Make a call to the v1alpha1 API using a full path.
 
         Supports annotation shorthands with UUIDs (e.g., "metric/MomentAnnotation/<uuid>").
 
@@ -1344,6 +1344,29 @@ class FulcraAPI(FulcraDataAccessMixin):
             The raw response data (as bytes).  Raises an exception on failure.
         """
         return self.fulcra_api(f"/data/v1alpha1/{path}", query=params if params else {})
+
+    def fulcra_v1_records(
+        self, query: str, fulcra_userid: Optional[str] = None
+    ) -> bytes:
+        """
+        Query v1 data-type records using a PromQL query.
+
+        The data type, time window, and any filters are all expressed inside the
+        PromQL `query` string (e.g. "HeartRate[1h] @ 1717200000").
+
+        Params:
+            query: The PromQL query.
+            fulcra_userid: Query another user's data (requires an active
+                datashare from that user).
+
+        Returns:
+            The raw response data (as bytes), in JSONL form (one JSON record per
+            line).  Raises an exception on failure.
+        """
+        params = {"q": query}
+        if fulcra_userid:
+            params["fulcra_userid"] = fulcra_userid
+        return self.fulcra_api("/data/v1/records", query=params)
 
     def _v0_data_path(
         self, operation: str, fulcra_userid: Optional[str] = None
@@ -3025,24 +3048,24 @@ class FulcraGroupParticipant(FulcraDataAccessMixin):
         params["participant_id"] = self.participant_id
         return params
 
-    def fulcra_v1_api(
+    def fulcra_v1alpha1_api(
         self, data_class: str, data_type: str, params: Optional[dict] = None
     ) -> bytes:
         """
-        Make a call to the v1 API, scoped to the participant's shared data.
+        Make a call to the v1alpha1 API, scoped to the participant's shared data.
         """
-        return self.client.fulcra_v1_api(
+        return self.client.fulcra_v1alpha1_api(
             data_class, data_type, self._v1_group_params(params)
         )
 
-    def fulcra_v1_api_path(
+    def fulcra_v1alpha1_api_path(
         self, path: str, params: Optional[dict[str, str]] = None
     ) -> bytes:
         """
-        Make a call to the v1 API using a full path, scoped to the
+        Make a call to the v1alpha1 API using a full path, scoped to the
         participant's shared data.
         """
-        return self.client.fulcra_v1_api_path(path, self._v1_group_params(params))
+        return self.client.fulcra_v1alpha1_api_path(path, self._v1_group_params(params))
 
     def get_metadata(self) -> dict:
         """

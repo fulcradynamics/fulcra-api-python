@@ -2,10 +2,10 @@ import json
 from datetime import datetime
 from typing import List, Optional, Tuple
 from urllib.error import HTTPError
-from uuid import UUID
 
 import click
 
+from fulcra_api import records
 from fulcra_api.core import FulcraAPI
 
 from .utils import (
@@ -656,24 +656,25 @@ def sleep_cycles_aggregated(
     "data_type",
     callback=resolve_data_type(allow_multiple=True, user_id_param="user_id"),
 )
-@time_range
+@time_range(allow_latest=True)
 @group_participant_options
 @pass_fulcra_api
 @requires_auth
 def get_records(
     fulcra_api: FulcraAPI,
     data_type: list[dict],
-    start_time: datetime,
-    end_time: datetime,
+    start_time: datetime | None,
+    end_time: datetime | None,
+    latest: bool,
     user_id: str | None,
     group_id,
     participant_id,
 ):
     """Return raw sample records of DATA_TYPE across TIME_RANGE.
 
-    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types.
+    DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog --queryable` for a list of Fulcra Data Types you can query.
 
-    TIME_RANGE: Two start & end date arguments in ISO8601 format or a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.)
+    TIME_RANGE: Two start & end date arguments in ISO8601 format, a single interval argument relative to the current time ("1 week", "2 days", "3h", etc.), or the literal "latest" to return only the most recent record.
 
     Returned records may have multiple sources and require additional filtering and prioritization to calculate correct results.
 
@@ -686,66 +687,25 @@ def get_records(
     \b
     Return the last day of StepCount records:
     fulcra get-records StepCount "1 day"
+
+    \b
+    Return the most recent HeartRate record:
+    fulcra get-records HeartRate latest
     """
 
     # data_type is a list of resolved catalog entries (see resolve_data_type)
     if user_id and group_id:
         raise click.UsageError("--user-id cannot be used with --group-id")
     source = resolve_data_source(fulcra_api, group_id, participant_id)
-    authenticated_user_id = fulcra_api.get_fulcra_userid()
 
     results = []
     for dt in data_type:
-        # Deal with user-configured annotation shorthand (AnnotationType/UUID)
-        user_annotation_id = None
-        parts = dt["id"].split("/", maxsplit=2)
-        if len(parts) > 1:
-            base_type = parts[0]
-            try:
-                user_annotation_id = UUID(parts[1])
-            except ValueError:
-                raise click.ClickException(
-                    "User configured annotation shorthand must be <Annotation Type>/<UUID>"
-                )
-        else:
-            base_type = parts[0]
-
-        record_type = dt.get("record_spec", {}).get("type")
-        if dt["api_version"] == "v0" and record_type == "metric":
-            query_func = source.metric_samples
-            kwargs = {
-                "start_time": start_time,
-                "end_time": end_time,
-                "metric": dt["id"],
-            }
-            if (
-                source is fulcra_api
-                and authenticated_user_id != dt["fulcra_userid"]
-            ):
-                kwargs["fulcra_userid"] = dt["fulcra_userid"]
-        elif dt["api_version"] == "v1alpha1" and record_type in ("metric", "event"):
-            query_func = source.fulcra_v1_api_path
-            path = f"{record_type}/{base_type}"
-            if user_annotation_id:
-                path = f"{path}/{user_annotation_id}"
-            params = {"start_time": start_time, "end_time": end_time}
-            if (
-                source is fulcra_api
-                and authenticated_user_id != dt["fulcra_userid"]
-            ):
-                params["fulcra_userid"] = dt["fulcra_userid"]
-            kwargs = {"path": path, "params": params}
-        else:
-            raise click.ClickException(
-                f"Could not derive API endpoint for data type '{dt['id']}'"
+        try:
+            results += records.get_records(
+                source, dt, start_time, end_time, latest=latest
             )
-
-        resp = query_func(**kwargs)
-
-        if isinstance(resp, bytes):
-            resp = json.loads(resp)
-
-        results = results + resp
+        except ValueError as exc:
+            raise click.ClickException(str(exc))
 
     for x in results:
         click.echo(json.dumps(x))
@@ -756,13 +716,26 @@ def get_records(
 )
 @click.option("-d", "--data-type", type=str, help="Data Type to look up by ID.")
 @click.option("-n", "--name", type=str, help="Filter results by partial name.")
-@click.option("--base-types-only", "--base-types", help="Only return base types that can be used with data-type create", is_flag=True, default=False)
+@click.option(
+    "--base-types-only",
+    "--base-types",
+    help="Only return base types that can be used with data-type create",
+    is_flag=True,
+    default=False,
+)
 @click.option(
     "--recordable-only",
     "--recordable",
     is_flag=True,
     default=False,
     help="Only show recordable data types.",
+)
+@click.option(
+    "--queryable-only",
+    "--queryable",
+    is_flag=True,
+    default=False,
+    help="Only show queryable data types.",
 )
 @click.option("-c", "--category", type=str, help="Filter by category.")
 @click.option(
@@ -782,6 +755,7 @@ def catalog(
     fulcra_api: FulcraAPI,
     base_types_only: bool,
     recordable_only: bool,
+    queryable_only: bool,
     data_type: str | None = None,
     name: str | None = None,
     category: str | None = None,
@@ -837,6 +811,9 @@ def catalog(
             for c in response
             if c.get("recordable", False) and c.get("api_version") != "v0"
         ]
+
+    if queryable_only:
+        response = [c for c in response if c.get("queryable", True)]
 
     for c in response:
         c["related_cli_commands"] = related_cli_commands(c)

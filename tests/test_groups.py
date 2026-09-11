@@ -84,7 +84,7 @@ def test_group_participant_v1_params():
     assert captured["query"]["pool_id"] == "gid-123"
     assert captured["query"]["participant_id"] == "pid-456"
 
-    participant.fulcra_v1_api_path(
+    participant.fulcra_v1alpha1_api_path(
         "metric/NumericAnnotation", {"start_time": "a", "end_time": "b"}
     )
     assert captured["path"] == "/data/v1alpha1/metric/NumericAnnotation"
