@@ -18,15 +18,24 @@ from fulcra_api.core import FulcraGroupParticipant
 
 
 def build_v1_promql(
-    data_type_id: str, start_time: datetime, end_time: datetime
+    data_type_id: str,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
+    *,
+    latest: bool = False,
 ) -> str:
     """
-    Build a PromQL query selecting a data type's records over [start, end).
+    Build a PromQL query selecting a data type's records.
 
-    Encodes the window as a range vector anchored at the end time
+    With ``latest=True``, emits a bare instant vector (just the type id), which
+    the v1 records endpoint evaluates as the single most recent record.
+
+    Otherwise encodes the window as a range vector anchored at the end time
     (``Type[<duration>s] @ <end_unix_ts>``), which the v1 records endpoint
     evaluates as records overlapping [start_time, end_time).
     """
+    if latest:
+        return data_type_id
     duration = max(1, int((end_time - start_time).total_seconds()))
     return f"{data_type_id}[{duration}s] @ {int(end_time.timestamp())}"
 
@@ -45,24 +54,32 @@ def _owner_scope(source, data_type: dict):
 
 
 def get_records(
-    source, data_type: dict, start_time: datetime, end_time: datetime
+    source,
+    data_type: dict,
+    start_time: datetime | None,
+    end_time: datetime | None,
+    *,
+    latest: bool = False,
 ) -> list[dict]:
     """
-    Fetch records for one resolved catalog entry over [start_time, end_time).
+    Fetch records for one resolved catalog entry.
 
     Dispatches to the right endpoint based on the entry's api_version and record
-    type, and returns a list of record dicts.
+    type, and returns a list of record dicts. With ``latest=True``, returns only
+    the single most recent record (and start_time/end_time are ignored).
 
     Params:
         source: A FulcraAPI or FulcraGroupParticipant to query through.
         data_type: A resolved catalog entry (see FulcraAPI.resolve_data_type).
-        start_time: Start of the time window.
-        end_time: End of the time window.
+        start_time: Start of the time window (ignored when latest=True).
+        end_time: End of the time window (ignored when latest=True).
+        latest: Return only the most recent record instead of a window.
 
     Raises:
         ValueError: If the entry can't be mapped to an endpoint (unsupported
-            api_version/record type, a malformed annotation shorthand, or a v1
-            type queried through a group participant).
+            api_version/record type, a malformed annotation shorthand, a v1
+            type queried through a group participant, or latest requested for a
+            type whose API has no latest-record endpoint).
     """
     api_version = data_type["api_version"]
     record_type = data_type.get("record_spec", {}).get("type")
@@ -81,6 +98,11 @@ def get_records(
             )
 
     owner = _owner_scope(source, data_type)
+
+    if latest:
+        return _latest_records(
+            source, data_type, api_version, record_type, base_type, annotation_id, owner
+        )
 
     if api_version == "v0" and record_type == "metric":
         kwargs = {
@@ -112,6 +134,42 @@ def get_records(
 
     raise ValueError(
         f"Could not derive API endpoint for data type '{data_type['id']}'"
+    )
+
+
+def _latest_records(
+    source, data_type, api_version, record_type, base_type, annotation_id, owner
+) -> list[dict]:
+    """Fetch the single most recent record for a resolved catalog entry.
+
+    Only some backends can return a latest record: v1 (via a bare instant
+    vector) and v1alpha1 events (via the /latest route). v0 metrics and
+    v1alpha1 metrics have no such endpoint and raise.
+    """
+    if api_version == "v1" and record_type in ("metric", "event"):
+        if isinstance(source, FulcraGroupParticipant):
+            raise ValueError(
+                "Group participant queries are not supported for v1 data types."
+            )
+        query = build_v1_promql(base_type, latest=True)
+        resp = source.fulcra_v1_records(query, fulcra_userid=owner)
+        return _as_records(resp, jsonl=True)
+
+    # The v1alpha1 /latest route is gated to event types server-side; metrics
+    # (v1alpha1 or v0) have no latest endpoint.
+    if api_version == "v1alpha1" and record_type == "event":
+        path = f"event/{base_type}"
+        if annotation_id:
+            path = f"{path}/{annotation_id}"
+        path = f"{path}/latest"
+        params: dict = {"total": 1}
+        if owner is not None:
+            params["fulcra_userid"] = owner
+        return _as_records(source.fulcra_v1alpha1_api_path(path, params))
+
+    raise ValueError(
+        "Fetching the latest record is not supported for data type "
+        f"'{data_type['id']}'; provide a time range instead."
     )
 
 

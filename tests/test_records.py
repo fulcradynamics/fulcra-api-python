@@ -46,6 +46,10 @@ def test_promql_zero_length_window_clamps_to_one_second():
     )
 
 
+def test_promql_latest_is_a_bare_instant_vector():
+    assert build_v1_promql("HeartRate", latest=True) == "HeartRate"
+
+
 # --- get_records dispatch ----------------------------------------------------
 
 
@@ -103,3 +107,51 @@ def test_v1_rejects_group_participant_source():
 
     with pytest.raises(ValueError, match="Group participant"):
         get_records(source, _entry(api_version="v1"), DAY_START, DAY_END)
+
+
+# --- get_records latest ------------------------------------------------------
+
+
+def test_latest_v1_uses_bare_instant_vector():
+    client = _owned_client()
+    captured = capture_request(client, response=b'{"x": 9}\n')
+
+    result = get_records(
+        client, _entry(api_version="v1"), None, None, latest=True
+    )
+
+    assert captured["path"] == "/data/v1/records"
+    assert captured["query"]["q"] == "HeartRate"
+    assert result == [{"x": 9}]
+
+
+def test_latest_v1alpha1_event_hits_latest_route():
+    client = _owned_client()
+    captured = capture_request(client, response=b"[]")
+
+    get_records(
+        client,
+        _entry(api_version="v1alpha1", record_type="event"),
+        None,
+        None,
+        latest=True,
+    )
+
+    assert captured["path"] == "/data/v1alpha1/event/HeartRate/latest"
+    assert captured["query"]["total"] == 1
+
+
+def test_latest_v1alpha1_metric_raises_value_error():
+    client = _owned_client()
+
+    with pytest.raises(ValueError, match="not supported"):
+        get_records(
+            client, _entry(api_version="v1alpha1"), None, None, latest=True
+        )
+
+
+def test_latest_v0_metric_raises_value_error():
+    client = _owned_client()
+
+    with pytest.raises(ValueError, match="not supported"):
+        get_records(client, _entry(api_version="v0"), None, None, latest=True)
