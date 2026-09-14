@@ -689,8 +689,8 @@ def get_records(
     fulcra get-records StepCount "1 day"
 
     \b
-    Return the most recent HeartRate record:
-    fulcra get-records HeartRate latest
+    Return the most recent Agent Cursor record:
+    fulcra get-records AgentCursor latest
     """
 
     # data_type is a list of resolved catalog entries (see resolve_data_type)
