@@ -191,38 +191,55 @@ def data_type_create(
             unit=unit,
             scale_labels=scale_labels,
         )
-
-        if add_to_timeline:
-            try:
-                info = fulcra_api.get_user_info()
-                current_prefs = info.get("preferences", {})
-                existing_metrics_map = current_prefs.get("selected_metrics_map", {})
-
-                current_selection = existing_metrics_map.get(info["userid"], [])
-                ann_id = ann["id"]
-
-                # TODO: this is a legacy naming convention for timeline data tracks
-                updated_selection = [
-                    f"fulcra_custom_event.{ann_id}"
-                ] + current_selection
-
-                prefs_payload = {
-                    "selected_metrics_map": {
-                        **existing_metrics_map,
-                        info["userid"]: updated_selection,
-                    }
-                }
-
-                fulcra_api.update_user_preferences(prefs_payload)
-            except HTTPError as exc:
-                click.echo(f"Failed to add annotation to timeline: {exc}", err=True)
-
-        click.echo(json.dumps(ann))
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
         raise click.ClickException(
             f"Failed to create event data type: {exc}\n{error_body}"
         )
+
+    # The data type is already created at this point, so echo it before
+    # attempting the timeline step below. If that step fails, the id has
+    # already reached the user and a retry won't create a duplicate type.
+    click.echo(json.dumps(ann))
+
+    if add_to_timeline:
+        try:
+            info = fulcra_api.get_user_info()
+            # A fresh account has no saved preferences yet, so the server
+            # returns "preferences" (and "selected_metrics_map" within it)
+            # as an explicit null rather than omitting the key entirely.
+            # dict.get(key, {}) only supplies the default when the key is
+            # missing, not when its value is None, so it still yields None
+            # here; normalize with `or {}` instead.
+            current_prefs = info.get("preferences") or {}
+            existing_metrics_map = current_prefs.get("selected_metrics_map") or {}
+
+            current_selection = existing_metrics_map.get(info["userid"], [])
+            ann_id = ann["id"]
+
+            # TODO: this is a legacy naming convention for timeline data tracks
+            updated_selection = [
+                f"fulcra_custom_event.{ann_id}"
+            ] + current_selection
+
+            prefs_payload = {
+                "selected_metrics_map": {
+                    **existing_metrics_map,
+                    info["userid"]: updated_selection,
+                }
+            }
+
+            fulcra_api.update_user_preferences(prefs_payload)
+        except Exception as exc:
+            # The type exists whether or not this step works, and its id was
+            # echoed above. Exit non-zero with the reason, and warn that
+            # re-running create would make a duplicate type.
+            raise click.ClickException(
+                f"Data type '{ann['id']}' was created, but adding it to the "
+                f"timeline failed: {exc}\n"
+                "Do not re-run `data-type create`; that would create a "
+                "duplicate type."
+            )
 
 
 @data_type.command("archive", short_help="Archive a user-defined data type")
