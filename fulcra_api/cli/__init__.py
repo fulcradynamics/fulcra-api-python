@@ -3,6 +3,7 @@ from typing import Any, Dict
 
 import click
 
+from .. import __version__
 from ..core import FulcraAPI
 from ..credentials import FulcraCredentials
 from .auth import auth
@@ -40,6 +41,7 @@ from .utils import (
 
 
 @click.group()
+@click.version_option(version=__version__, prog_name="fulcra-api")
 @click.option("--beta", is_flag=True, default=False, help="Enable beta features")
 @click.pass_context
 def cli(ctx, beta):
