@@ -6,6 +6,7 @@ from uuid import UUID
 import click
 from click_option_group import optgroup
 
+from fulcra_api import data_type_management
 from fulcra_api.core import FulcraAPI
 
 from .utils import pass_fulcra_api, requires_auth, resolve_data_type
@@ -73,6 +74,14 @@ def data_type():
 @click.option(
     "--add-to-timeline", is_flag=True, help="Add created data type to timeline"
 )
+@click.option(
+    "--fields",
+    "fields_schema",
+    type=str,
+    default=None,
+    help="JSON Schema of additional fields to merge onto the base type "
+    "(v1 data types only)",
+)
 @pass_fulcra_api
 @requires_auth
 def data_type_create(
@@ -86,6 +95,7 @@ def data_type_create(
     unit: Optional[str],
     scale_labels: List[str],
     add_to_timeline: bool,
+    fields_schema: Optional[str],
 ):
     """Create a new data type from a base data type.
 
@@ -104,18 +114,39 @@ def data_type_create(
         raise click.ClickException(f"Failed to validate BASE_DATA_TYPE: {exc}")
 
     filtered_base_data_types = [
-        c
-        for c in catalog_resp
-        if "base_type" in c.get("categories", [])
-        and c.get("api_version", "") == "v1alpha1"
+        c for c in catalog_resp if "base_type" in c.get("categories", [])
     ]
 
     if len(filtered_base_data_types) != 1:
         raise click.ClickException(
-            f"Multiple base data types found for identifier: {base_data_type}"
+            f"Could not resolve a single base data type for identifier: {base_data_type}"
         )
 
     fulcra_data_type = filtered_base_data_types[0]
+
+    if fulcra_data_type.get("api_version") == "v1":
+        _create_v1_data_type(
+            fulcra_api,
+            fulcra_data_type,
+            base_data_type=base_data_type,
+            name=name,
+            description=description,
+            unit=unit,
+            fields_schema=fields_schema,
+            tags=tags,
+            metric_agg=metric_agg,
+            raw_value=raw_value,
+            scale_labels=scale_labels,
+            add_to_timeline=add_to_timeline,
+        )
+        return
+
+    # v1alpha1 annotation path. --fields is a v1-only concept.
+    if fields_schema is not None:
+        raise click.BadOptionUsage(
+            "fields_schema", "--fields is only valid for v1 data types"
+        )
+
     if fulcra_data_type.get("record_spec", {}).get("type") != "metric":
         if (
             metric_agg is not None
@@ -225,6 +256,61 @@ def data_type_create(
         )
 
 
+def _create_v1_data_type(
+    fulcra_api: FulcraAPI,
+    fulcra_data_type: dict,
+    *,
+    base_data_type: str,
+    name: str,
+    description: Optional[str],
+    unit: Optional[str],
+    fields_schema: Optional[str],
+    tags: List[str],
+    metric_agg: Optional[str],
+    raw_value: Optional[str],
+    scale_labels: List[str],
+    add_to_timeline: bool,
+):
+    """Create a v1 custom data type (Event or Metric).
+
+    The annotation-only options have no v1 equivalent, so they're rejected here
+    rather than silently ignored.
+    """
+    rejected = []
+    if tags:
+        rejected.append("-t / --tag")
+    if metric_agg is not None:
+        rejected.append("-k / --kind")
+    if raw_value is not None:
+        rejected.append("-v / --value")
+    if scale_labels:
+        rejected.append("-s / --scale-label")
+    if add_to_timeline:
+        rejected.append("--add-to-timeline")
+    if rejected:
+        raise click.BadOptionUsage(
+            "",
+            f"{', '.join(rejected)} cannot be used with v1 data type {base_data_type}",
+        )
+
+    try:
+        spec = data_type_management.create_data_type(
+            fulcra_api,
+            fulcra_data_type["id"],
+            name,
+            description=description,
+            unit=unit,
+            fields_schema=fields_schema,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc))
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8")
+        raise click.ClickException(f"Failed to create data type: {exc}\n{error_body}")
+
+    click.echo(json.dumps(spec))
+
+
 @data_type.command("archive", short_help="Archive a user-defined data type")
 @click.argument(
     "data_type",
@@ -241,6 +327,21 @@ def data_type_archive(fulcra_api: FulcraAPI, data_type: dict):
 
     # data_type is the resolved catalog entry (see resolve_data_type)
     type_id = data_type["id"]
+
+    if data_type.get("api_version") == "v1":
+        try:
+            base_type, type_uuid = data_type_management.parse_v1_shorthand(type_id)
+        except ValueError as exc:
+            raise click.ClickException(str(exc))
+        try:
+            data_type_management.archive_data_type(fulcra_api, base_type, type_uuid)
+            click.echo(f"Archived data type: {type_id}")
+        except HTTPError as exc:
+            raise click.ClickException(
+                f"Failed to archive data type {type_id}: {exc}"
+            )
+        return
+
     try:
         parts = type_id.split("/", maxsplit=2)
         ann_id = str(UUID(parts[1]))
@@ -277,11 +378,29 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
     except HTTPError as exc:
         raise click.ClickException(str(exc))
 
-    ann_id = None
+    parts = data_type.split("/", maxsplit=2)
+    base_type = parts[0]
+
+    # An archived type is absent from the catalog list, so its API version can't
+    # be resolved there; infer it from the "<BaseType>/<UUID>" prefix instead.
+    if data_type_management.is_v1_base_type(base_type):
+        try:
+            base_type, type_uuid = data_type_management.parse_v1_shorthand(data_type)
+        except ValueError as exc:
+            raise click.ClickException(str(exc))
+        try:
+            spec = data_type_management.restore_data_type(
+                fulcra_api, base_type, type_uuid
+            )
+            click.echo(json.dumps(spec))
+        except HTTPError as exc:
+            raise click.ClickException(
+                f"Failed to restore data type {data_type}: {exc}"
+            )
+        return
+
     try:
-        parts = data_type.split("/", maxsplit=2)
-        ann_id = parts[1]
-        ann_id = str(UUID(ann_id))
+        ann_id = str(UUID(parts[1]))
     except (ValueError, IndexError):
         raise click.ClickException("DATA_TYPE must be <Annotation Type>/<UUID>")
 
