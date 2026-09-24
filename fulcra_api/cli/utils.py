@@ -11,6 +11,30 @@ import dateparser
 from fulcra_api.core import FulcraAPI
 from fulcra_api.credentials import FulcraCredentials
 
+
+def http_error_detail(exc: HTTPError) -> str:
+    """
+    The reason an API request failed: the response's `detail` when it's the
+    usual FastAPI JSON error body, otherwise the raw body, otherwise the HTTP
+    status line.
+    """
+    try:
+        body = exc.read().decode("utf-8", errors="replace").strip()
+    except Exception:
+        body = ""
+    try:
+        detail = json.loads(body)["detail"]
+    except (ValueError, KeyError, TypeError):
+        return body or str(exc)
+    if isinstance(detail, list):
+        # request validation errors: one message per invalid field
+        return "; ".join(
+            item.get("msg", str(item)) if isinstance(item, dict) else str(item)
+            for item in detail
+        )
+    return str(detail)
+
+
 # Create a pass decorator for FulcraAPI to enable type hints in subcommands
 pass_fulcra_api = click.make_pass_decorator(FulcraAPI)
 

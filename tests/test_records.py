@@ -50,6 +50,21 @@ def test_promql_latest_is_a_bare_instant_vector():
     assert build_v1_promql("HeartRate", latest=True) == "HeartRate"
 
 
+# A user-defined type's id can't be a PromQL metric name, which can't hold "/".
+USER_TYPE = "Event/3982a39a-ed7b-444b-b54d-90134ac46309"
+USER_TYPE_SELECTOR = f'{{__name__="{USER_TYPE}"}}'
+
+
+def test_promql_user_defined_type_uses_a_name_matcher():
+    assert build_v1_promql(USER_TYPE, DAY_START, DAY_END) == (
+        f"{USER_TYPE_SELECTOR}[86400s] @ 1717286400"
+    )
+
+
+def test_promql_latest_user_defined_type_is_a_bare_name_matcher():
+    assert build_v1_promql(USER_TYPE, latest=True) == USER_TYPE_SELECTOR
+
+
 # --- get_records dispatch ----------------------------------------------------
 
 
@@ -91,6 +106,45 @@ def test_v1_dispatch_builds_promql_and_parses_jsonl():
     assert captured["path"] == "/data/v1/records"
     assert captured["query"]["q"] == EXPECTED_PROMQL
     assert result == [{"x": 1}, {"x": 2}]
+
+
+def test_v1_dispatch_queries_a_user_defined_type_not_its_base_type():
+    client = _owned_client()
+    captured = capture_request(client, response=b'{"x": 1}\n')
+
+    entry = _entry(api_version="v1", record_type="event", id=USER_TYPE)
+
+    result = get_records(client, entry, DAY_START, DAY_END)
+
+    # not "Event[...]", which would return every Event record the user has
+    assert captured["query"]["q"] == f"{USER_TYPE_SELECTOR}[86400s] @ 1717286400"
+    assert "fulcra_userid" not in captured["query"]
+    assert result == [{"x": 1}]
+
+
+def test_v1_dispatch_scopes_another_users_user_defined_type():
+    client = _owned_client()
+    captured = capture_request(client, response=b"")
+
+    entry = _entry(
+        api_version="v1", record_type="event", id=USER_TYPE, fulcra_userid="sharer"
+    )
+
+    get_records(client, entry, None, None, latest=True)
+
+    assert captured["query"] == {"q": USER_TYPE_SELECTOR, "fulcra_userid": "sharer"}
+
+
+def test_malformed_custom_type_id_raises_value_error():
+    client = _owned_client()
+
+    with pytest.raises(ValueError, match="<Base Type>/<UUID>"):
+        get_records(
+            client,
+            _entry(api_version="v1", record_type="event", id="Event/not-a-uuid"),
+            DAY_START,
+            DAY_END,
+        )
 
 
 def test_unsupported_combination_raises_value_error():

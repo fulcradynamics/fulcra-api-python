@@ -4,9 +4,12 @@ import uuid
 
 from click.testing import CliRunner
 
+import json
+
 from fulcra_api.cli.data_types import (
     data_type_archive,
     data_type_create,
+    get_schema,
     restore_data_type,
 )
 
@@ -167,3 +170,55 @@ def test_restore_v1alpha1_restores_annotation():
 
     assert result.exit_code == 0, result.output
     assert captured["id"] == ann_uuid
+
+
+# --- schema ------------------------------------------------------------------
+
+USER_TYPE = "Event/3982a39a-ed7b-444b-b54d-90134ac46309"
+
+
+def _user_type(schema=None, fulcra_userid="me"):
+    record_spec = {"type": "event"}
+    if schema is not None:
+        record_spec["schema"] = schema
+    return {
+        "id": USER_TYPE,
+        "api_version": "v1",
+        "record_spec": record_spec,
+        "fulcra_userid": fulcra_userid,
+    }
+
+
+def test_schema_of_a_user_defined_type_from_its_catalog_entry():
+    schema = {"properties": {"foo": {"type": "string"}}}
+    client = _client()
+    client.resolve_data_type = lambda *a, **k: [_user_type(schema)]
+
+    result = CliRunner().invoke(get_schema, [USER_TYPE], obj=client)
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == schema
+
+
+def test_schema_of_a_user_defined_type_is_fetched_by_its_full_id():
+    client = _client()
+    client.resolve_data_type = lambda *a, **k: [_user_type(fulcra_userid="sharer")]
+    captured = {}
+
+    def fake_schema(data_type, api_version, fulcra_userid=None):
+        captured.update(
+            data_type=data_type, api_version=api_version, fulcra_userid=fulcra_userid
+        )
+        return {"properties": {}}
+
+    client.v1_catalog_schema = fake_schema
+
+    result = CliRunner().invoke(get_schema, [USER_TYPE], obj=client)
+
+    assert result.exit_code == 0, result.output
+    assert captured == {
+        "data_type": USER_TYPE,
+        "api_version": "v1",
+        "fulcra_userid": "sharer",
+    }
+

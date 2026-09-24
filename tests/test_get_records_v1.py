@@ -1,8 +1,12 @@
 """Offline tests for `get-records` v1 data-type support."""
 
+import io
+from urllib.error import HTTPError
+
 from click.testing import CliRunner
 
 from fulcra_api.cli.commands import get_records
+from fulcra_api.cli.utils import http_error_detail
 
 from .conftest import offline_client
 
@@ -88,3 +92,74 @@ def test_v1_rejects_group_participant_source():
 
     assert result.exit_code != 0
     assert "Group participant queries are not supported" in result.output
+
+
+USER_TYPE = "Event/3982a39a-ed7b-444b-b54d-90134ac46309"
+
+
+def test_v1_user_defined_type_is_queried_by_name_matcher():
+    client = _v1_client([_entry(id=USER_TYPE, record_type="event")])
+    captured = {}
+    client.fulcra_v1_records = lambda query, fulcra_userid=None: (
+        captured.update(query=query) or b'{"foo": "bar"}\n'
+    )
+
+    result = CliRunner().invoke(get_records, [USER_TYPE, *DAY_RANGE], obj=client)
+
+    assert result.exit_code == 0, result.output
+    assert captured["query"] == f'{{__name__="{USER_TYPE}"}}[86400s] @ 1717286400'
+    assert result.output.splitlines() == ['{"foo": "bar"}']
+
+
+def test_v1_keeps_field_types_in_output():
+    """numbers, booleans and nested values are echoed as JSON, not strings"""
+    client = _v1_client([_entry(id=USER_TYPE, record_type="event")])
+    client.fulcra_v1_records = lambda query, fulcra_userid=None: (
+        b'{"score": 7, "ratio": 0.5, "done": true, "tags": ["a"], "meta": {"k": 1}}\n'
+    )
+
+    result = CliRunner().invoke(get_records, [USER_TYPE, "latest"], obj=client)
+
+    assert result.exit_code == 0, result.output
+    assert result.output.splitlines() == [
+        '{"score": 7, "ratio": 0.5, "done": true, "tags": ["a"], "meta": {"k": 1}}'
+    ]
+
+
+def _http_error(code, body: bytes):
+    return HTTPError("https://api/data/v1/records", code, "error", {}, io.BytesIO(body))
+
+
+def test_v1_query_error_shows_the_servers_reason():
+    client = _v1_client([_entry()])
+
+    def refuse(query, fulcra_userid=None):
+        raise _http_error(422, b'{"detail": "function \'rate\' is not supported"}')
+
+    client.fulcra_v1_records = refuse
+
+    result = CliRunner().invoke(get_records, ["HeartRate", "1 day"], obj=client)
+
+    assert result.exit_code == 1
+    assert "Traceback" not in result.output
+    assert (
+        "Failed to fetch HeartRate records (422): function 'rate' is not supported"
+        in result.output
+    )
+
+
+def test_http_error_detail_formats():
+    # FastAPI's usual error body
+    assert http_error_detail(_http_error(401, b'{"detail": "access denied"}')) == (
+        "access denied"
+    )
+    # request validation errors: one message per field
+    body = b'{"detail": [{"msg": "Field required"}, {"msg": "Input should be a UUID"}]}'
+    assert http_error_detail(_http_error(422, body)) == (
+        "Field required; Input should be a UUID"
+    )
+    # not JSON: the body itself
+    assert http_error_detail(_http_error(502, b"Bad Gateway")) == "Bad Gateway"
+    # no body: the status line
+    assert "500" in http_error_detail(_http_error(500, b""))
+

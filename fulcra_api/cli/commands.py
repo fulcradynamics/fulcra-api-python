@@ -10,6 +10,7 @@ from fulcra_api.core import FulcraAPI
 
 from .utils import (
     group_participant_options,
+    http_error_detail,
     parse_time,
     pass_fulcra_api,
     related_cli_commands,
@@ -691,6 +692,10 @@ def get_records(
     \b
     Return the most recent Agent Cursor record:
     fulcra get-records AgentCursor latest
+
+    \b
+    Return the last day of records of a user-defined data type:
+    fulcra get-records Event/3982a39a-ed7b-444b-b54d-90134ac46309 "1 day"
     """
 
     # data_type is a list of resolved catalog entries (see resolve_data_type)
@@ -706,6 +711,11 @@ def get_records(
             )
         except ValueError as exc:
             raise click.ClickException(str(exc))
+        except HTTPError as exc:
+            raise click.ClickException(
+                f"Failed to fetch {dt['id']} records ({exc.code}): "
+                f"{http_error_detail(exc)}"
+            )
 
     for x in results:
         click.echo(json.dumps(x))
