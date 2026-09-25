@@ -48,6 +48,9 @@ def create_data_type(
     *,
     description: str | None = None,
     unit: str | None = None,
+    aggregation: str | None = None,
+    scale: dict | None = None,
+    value_map: dict | None = None,
     fields_schema: dict | str | None = None,
 ) -> dict:
     """Create a v1 custom data type (Event or Metric).
@@ -56,8 +59,13 @@ def create_data_type(
         source: A FulcraAPI to create through.
         base_type: ``"Event"`` or ``"Metric"``.
         name: Human-readable name for the new type.
-        description: Optional description.
+        description: Description of the type (currently required by the server).
         unit: Unit of measurement (Metric only).
+        aggregation: Metric aggregation, ``"cumulative"`` or ``"discrete"``
+            (Metric only).
+        scale: Metric scale as ``{"min": int, "max": int, "step": int}``
+            (Metric only).
+        value_map: Mapping of integer metric values to labels (Metric only).
         fields_schema: A JSON Schema (dict or JSON string) of additional fields
             to merge onto the base type's schema.
 
@@ -65,19 +73,43 @@ def create_data_type(
         The created data type's spec (including its ``"<BaseType>/<UUID>"`` id).
 
     Raises:
-        ValueError: For an unknown base type, a unit on a non-metric type, or an
-            unparseable fields_schema.
+        ValueError: For an unknown base type, a missing description, a Metric-only
+            option on a non-Metric type, or an unparseable fields_schema.
     """
     if not is_v1_base_type(base_type):
         raise ValueError(
             f"'{base_type}' is not a v1 base type; expected Event or Metric."
         )
-    if unit is not None and base_type != "Metric":
-        raise ValueError("A unit may only be set for the Metric base type.")
+
+    # The server currently requires a description on v1 data types; surface a
+    # clear error instead of the raw 422 the missing field would otherwise cause.
+    if description is None:
+        raise ValueError("A description is required (use -d/--description).")
+
+    # unit/aggregation/scale/value_map are part of the Metric record spec and are
+    # rejected by the server (422) for any other base type; surface that up front.
+    metric_only = {
+        "unit": unit,
+        "aggregation": aggregation,
+        "scale": scale,
+        "value_map": value_map,
+    }
+    if base_type != "Metric":
+        used = [opt for opt, val in metric_only.items() if val is not None]
+        if used:
+            raise ValueError(
+                f"{', '.join(used)} may only be set for the Metric base type."
+            )
 
     record_spec: dict = {}
     if unit is not None:
         record_spec["unit"] = unit
+    if aggregation is not None:
+        record_spec["aggregation"] = aggregation
+    if scale is not None:
+        record_spec["scale"] = scale
+    if value_map is not None:
+        record_spec["value_map"] = value_map
     if fields_schema is not None:
         record_spec["schema"] = _schema_json(fields_schema)
 
