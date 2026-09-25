@@ -182,204 +182,23 @@ def data_type_create(
 
     fulcra_data_type = filtered_base_data_types[0]
 
-    if fulcra_data_type.get("api_version") == "v1":
-        _create_v1_data_type(
-            fulcra_api,
-            fulcra_data_type,
-            base_data_type=base_data_type,
-            name=name,
-            description=description,
-            unit=unit,
-            metric_agg=metric_agg,
-            scale_min=scale_min,
-            scale_max=scale_max,
-            scale_step=scale_step,
-            value_map=value_map,
-            fields_schema=fields_schema,
-            tags=tags,
-            raw_value=raw_value,
-            scale_labels=scale_labels,
-            add_to_timeline=add_to_timeline,
-        )
-        return
-
-    # v1alpha1 annotation path. --fields and the v1 Metric options are v1-only.
-    if fields_schema is not None:
+    # --add-to-timeline only makes sense for v1alpha1 annotations; reject it up
+    # front (before any work) for anything else, matching the previous behavior.
+    if add_to_timeline and fulcra_data_type.get("api_version") != "v1alpha1":
         raise click.BadOptionUsage(
-            "fields_schema", "--fields is only valid for v1 data types"
+            "add_to_timeline",
+            f"--add-to-timeline cannot be used with base data type {base_data_type}",
         )
 
-    if scale_min is not None or scale_max is not None or scale_step is not None:
-        raise click.BadOptionUsage(
-            "scale_min",
-            "--scale-min/--scale-max/--scale-step are only valid for v1 Metric "
-            "data types",
-        )
-
-    if value_map:
-        raise click.BadOptionUsage(
-            "value_map", "--value-map is only valid for v1 Metric data types"
-        )
-
-    if fulcra_data_type.get("record_spec", {}).get("type") != "metric":
-        if (
-            metric_agg is not None
-        ):  # TODO: DurationAnnotation actually does support metric_agg
-            raise click.BadOptionUsage(
-                "metric_agg",
-                f"-k / --kind cannot be used with base data type {base_data_type}",
-            )
-
-        if raw_value is not None:
-            raise click.BadOptionUsage(
-                "raw_value",
-                f"-v / --value cannot be used with base data type {base_data_type}",
-            )
-
-        if unit is not None:
-            raise click.BadOptionUsage(
-                "unit",
-                f"-u / --unit cannot be used with base data type {base_data_type}",
-            )
-
-    # TODO: Possibly update type metadata to be able to determine that this is a scale
-    if fulcra_data_type["id"] != "ScaleAnnotation" and len(scale_labels) > 0:
-        raise click.BadOptionUsage(
-            "scale_labels",
-            f"-s / --scale-label cannot be used with base data type {base_data_type}",
-        )
-
-    value = None
-    match fulcra_data_type["id"]:
-        case "MomentAnnotation":
-            annotation_type = "moment"
-        case "DurationAnnotation":
-            annotation_type = "duration"
-        case "BooleanAnnotation":
-            annotation_type = "boolean"
-            # user-service does not accept a unit for boolean annotations
-            if unit is not None:
-                raise click.BadOptionUsage(
-                    "unit",
-                    f"-u / --unit cannot be used with base data type {base_data_type}",
-                )
-            if raw_value is not None:
-                value = click.types.BoolParamType().convert(raw_value, None, None)
-        case "NumericAnnotation":
-            annotation_type = "numeric"
-            if raw_value is not None:
-                value = click.types.FloatParamType().convert(raw_value, None, None)
-        case "ScaleAnnotation":
-            annotation_type = "scale"
-            if len(scale_labels) != 5:
-                raise click.BadOptionUsage(
-                    "scale_labels",
-                    f"-s / --scale-label must be used with exactly 5 values with base data type {base_data_type}",
-                )
-            # user-service does not accept a unit for scale annotations
-            if unit is not None:
-                raise click.BadOptionUsage(
-                    "unit",
-                    f"-u / --unit cannot be used with base data type {base_data_type}",
-                )
-        case _:
-            raise click.ClickException(f"Unsupported base type: {base_data_type}")
-
-    try:
-        ann = fulcra_api.create_annotation(
-            annotation_type=annotation_type,
-            name=name,
-            description=description,
-            tags=tags,
-            metric_kind=metric_agg,
-            value=value,
-            unit=unit,
-            scale_labels=scale_labels,
-        )
-
-        if add_to_timeline:
-            try:
-                info = fulcra_api.get_user_info()
-                current_prefs = info.get("preferences", {})
-                existing_metrics_map = current_prefs.get("selected_metrics_map", {})
-
-                current_selection = existing_metrics_map.get(info["userid"], [])
-                ann_id = ann["id"]
-
-                # TODO: this is a legacy naming convention for timeline data tracks
-                updated_selection = [
-                    f"fulcra_custom_event.{ann_id}"
-                ] + current_selection
-
-                prefs_payload = {
-                    "selected_metrics_map": {
-                        **existing_metrics_map,
-                        info["userid"]: updated_selection,
-                    }
-                }
-
-                fulcra_api.update_user_preferences(prefs_payload)
-            except HTTPError as exc:
-                click.echo(
-                    f"Failed to add annotation to timeline: {error_message(exc)}",
-                    err=True,
-                )
-
-        click.echo(json.dumps(ann))
-    except HTTPError as exc:
-        error_body = exc.read().decode("utf-8")
-        raise click.ClickException(
-            f"Failed to create event data type: {exc}\n{error_body}"
-        )
-
-
-def _create_v1_data_type(
-    fulcra_api: FulcraAPI,
-    fulcra_data_type: dict,
-    *,
-    base_data_type: str,
-    name: str,
-    description: Optional[str],
-    unit: Optional[str],
-    metric_agg: Optional[str],
-    scale_min: Optional[int],
-    scale_max: Optional[int],
-    scale_step: Optional[int],
-    value_map: Tuple[str, ...],
-    fields_schema: Optional[str],
-    tags: List[str],
-    raw_value: Optional[str],
-    scale_labels: List[str],
-    add_to_timeline: bool,
-):
-    """Create a v1 custom data type (Event or Metric).
-
-    The annotation-only options have no v1 equivalent, so they're rejected here
-    rather than silently ignored. Metric-only options (unit/aggregation/scale/
-    value_map) are passed through and validated against the base type downstream.
-    """
-    rejected = []
-    if tags:
-        rejected.append("-t / --tag")
-    if raw_value is not None:
-        rejected.append("-v / --value")
-    if scale_labels:
-        rejected.append("-s / --scale-label")
-    if add_to_timeline:
-        rejected.append("--add-to-timeline")
-    if rejected:
-        raise click.BadOptionUsage(
-            "",
-            f"{', '.join(rejected)} cannot be used with v1 data type {base_data_type}",
-        )
-
+    # The module takes structured scale/value_map dicts; parsing raw CLI strings
+    # stays here so the module remains front-end-agnostic.
     scale = _build_scale(scale_min, scale_max, scale_step)
     parsed_value_map = _parse_value_map(value_map)
 
     try:
-        spec = data_type_management.create_data_type(
+        created = data_type_management.create_data_type(
             fulcra_api,
-            fulcra_data_type["id"],
+            fulcra_data_type,
             name,
             description=description,
             unit=unit,
@@ -387,6 +206,9 @@ def _create_v1_data_type(
             scale=scale,
             value_map=parsed_value_map,
             fields_schema=fields_schema,
+            tags=tags,
+            raw_value=raw_value,
+            scale_labels=scale_labels,
         )
     except ValueError as exc:
         raise click.ClickException(str(exc))
@@ -394,7 +216,41 @@ def _create_v1_data_type(
         error_body = exc.read().decode("utf-8")
         raise click.ClickException(f"Failed to create data type: {exc}\n{error_body}")
 
-    click.echo(json.dumps(spec))
+    if add_to_timeline:
+        _add_annotation_to_timeline(fulcra_api, created["id"])
+
+    click.echo(json.dumps(created))
+
+
+def _add_annotation_to_timeline(fulcra_api: FulcraAPI, annotation_id: str):
+    """Best-effort: add a newly created annotation to the user's timeline.
+
+    Kept in the CLI (rather than the reusable module) because it mutates user
+    preferences through a legacy timeline naming convention that is expected to
+    change; a failure here only warns and does not fail the create.
+    """
+    try:
+        info = fulcra_api.get_user_info()
+        current_prefs = info.get("preferences", {})
+        existing_metrics_map = current_prefs.get("selected_metrics_map", {})
+
+        current_selection = existing_metrics_map.get(info["userid"], [])
+
+        # TODO: this is a legacy naming convention for timeline data tracks
+        updated_selection = [f"fulcra_custom_event.{annotation_id}"] + current_selection
+
+        prefs_payload = {
+            "selected_metrics_map": {
+                **existing_metrics_map,
+                info["userid"]: updated_selection,
+            }
+        }
+
+        fulcra_api.update_user_preferences(prefs_payload)
+    except HTTPError as exc:
+        click.echo(
+            f"Failed to add annotation to timeline: {error_message(exc)}", err=True
+        )
 
 
 def _build_scale(
