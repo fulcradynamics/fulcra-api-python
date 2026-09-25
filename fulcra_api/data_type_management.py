@@ -13,10 +13,6 @@ and raise plain ``ValueError`` -- no front-end-specific error types.
 import json
 from uuid import UUID
 
-# The v1 custom base types. Their names don't overlap the v1alpha1 annotation
-# base types, so the prefix of a "<base>/<uuid>" id unambiguously identifies the
-# API version -- which matters for restore, where an archived type is absent from
-# the catalog list and can't be resolved to its version there.
 V1_BASE_TYPES = ("Event", "Metric")
 
 
@@ -166,7 +162,7 @@ def _create_v1_data_type(
         raise ValueError("A description is required (use -d/--description).")
 
     # unit/aggregation/scale/value_map are part of the Metric record spec and are
-    # rejected by the server (422) for any other base type; surface that up front.
+    # rejected by the server (422) for any other base type
     metric_only = {
         "unit": unit,
         "aggregation": aggregation,
