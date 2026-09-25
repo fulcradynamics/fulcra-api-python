@@ -45,12 +45,29 @@ def test_create_v1_metric_dispatches_to_module():
     )
 
     result = CliRunner().invoke(
-        data_type_create, ["Metric", "Resting HR", "--unit", "bpm"], obj=client
+        data_type_create,
+        ["Metric", "Resting HR", "-d", "hr", "--unit", "bpm"],
+        obj=client,
     )
 
     assert result.exit_code == 0, result.output
     assert captured["base_type"] == "Metric"
-    assert captured["body"] == {"name": "Resting HR", "record_spec": {"unit": "bpm"}}
+    assert captured["body"] == {
+        "name": "Resting HR",
+        "description": "hr",
+        "record_spec": {"unit": "bpm"},
+    }
+
+
+def test_create_v1_requires_description():
+    client = _client()
+    client.v1_catalog = lambda **k: [_base_type("Metric", "v1", "metric")]
+    client.create_data_type = lambda *a, **k: {"id": "x"}
+
+    result = CliRunner().invoke(data_type_create, ["Metric", "Steps"], obj=client)
+
+    assert result.exit_code != 0
+    assert "description is required" in result.output
 
 
 def test_create_v1_passes_fields_schema():
@@ -63,7 +80,14 @@ def test_create_v1_passes_fields_schema():
 
     result = CliRunner().invoke(
         data_type_create,
-        ["Event", "Nap", "--fields", '{"properties": {"quality": {"type": "string"}}}'],
+        [
+            "Event",
+            "Nap",
+            "-d",
+            "nap",
+            "--fields",
+            '{"properties": {"quality": {"type": "string"}}}',
+        ],
         obj=client,
     )
 
@@ -82,6 +106,115 @@ def test_create_v1_rejects_annotation_only_flag():
 
     assert result.exit_code != 0
     assert "cannot be used with v1 data type" in result.output
+
+
+def test_create_v1_metric_aggregation_aliases_set_aggregation():
+    for flag in ("--aggregation", "--agg", "--kind", "-k"):
+        client = _client()
+        client.v1_catalog = lambda **k: [_base_type("Metric", "v1", "metric")]
+        captured = {}
+        client.create_data_type = lambda base_type, body: (
+            captured.update(body=body) or {"id": "Metric/uuid"}
+        )
+
+        result = CliRunner().invoke(
+            data_type_create,
+            ["Metric", "Steps", "-d", "d", flag, "cumulative"],
+            obj=client,
+        )
+
+        assert result.exit_code == 0, f"{flag}: {result.output}"
+        assert captured["body"]["record_spec"]["aggregation"] == "cumulative", flag
+
+
+def test_create_v1_metric_builds_scale():
+    client = _client()
+    client.v1_catalog = lambda **k: [_base_type("Metric", "v1", "metric")]
+    captured = {}
+    client.create_data_type = lambda base_type, body: (
+        captured.update(body=body) or {"id": "Metric/uuid"}
+    )
+
+    result = CliRunner().invoke(
+        data_type_create,
+        ["Metric", "Mood", "-d", "d", "--scale-min", "0", "--scale-max", "10"],
+        obj=client,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["body"]["record_spec"]["scale"] == {"min": 0, "max": 10, "step": 1}
+
+
+def test_create_v1_metric_scale_requires_min_and_max():
+    client = _client()
+    client.v1_catalog = lambda **k: [_base_type("Metric", "v1", "metric")]
+    client.create_data_type = lambda *a, **k: {"id": "x"}
+
+    result = CliRunner().invoke(
+        data_type_create, ["Metric", "Mood", "--scale-min", "0"], obj=client
+    )
+
+    assert result.exit_code != 0
+    assert "must be provided together" in result.output
+
+
+def test_create_v1_metric_builds_value_map():
+    client = _client()
+    client.v1_catalog = lambda **k: [_base_type("Metric", "v1", "metric")]
+    captured = {}
+    client.create_data_type = lambda base_type, body: (
+        captured.update(body=body) or {"id": "Metric/uuid"}
+    )
+
+    result = CliRunner().invoke(
+        data_type_create,
+        ["Metric", "Switch", "-d", "d", "--value-map", "0=off", "--value-map", "1=on"],
+        obj=client,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["body"]["record_spec"]["value_map"] == {0: "off", 1: "on"}
+
+
+def test_create_v1_metric_rejects_malformed_value_map():
+    client = _client()
+    client.v1_catalog = lambda **k: [_base_type("Metric", "v1", "metric")]
+    client.create_data_type = lambda *a, **k: {"id": "x"}
+
+    result = CliRunner().invoke(
+        data_type_create, ["Metric", "Switch", "--value-map", "nope"], obj=client
+    )
+
+    assert result.exit_code != 0
+    assert "INT=LABEL" in result.output
+
+
+def test_create_v1_event_rejects_aggregation():
+    client = _client()
+    client.v1_catalog = lambda **k: [_base_type("Event", "v1", "event")]
+    client.create_data_type = lambda *a, **k: {"id": "x"}
+
+    result = CliRunner().invoke(
+        data_type_create, ["Event", "Nap", "-d", "d", "--agg", "discrete"], obj=client
+    )
+
+    assert result.exit_code != 0
+    assert "may only be set for the Metric" in result.output
+
+
+def test_create_v1alpha1_rejects_scale_and_value_map():
+    for args in (["--scale-min", "0"], ["--value-map", "0=off"]):
+        client = _client()
+        client.v1_catalog = lambda **k: [
+            _base_type("NumericAnnotation", "v1alpha1", "metric")
+        ]
+
+        result = CliRunner().invoke(
+            data_type_create, ["NumericAnnotation", "X", *args], obj=client
+        )
+
+        assert result.exit_code != 0, args
+        assert "only valid for v1 Metric" in result.output, args
 
 
 def test_create_v1alpha1_rejects_fields_option():

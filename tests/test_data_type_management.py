@@ -35,24 +35,31 @@ def test_create_event_omits_empty_record_spec():
     client = offline_client()
     captured = capture_request(client, response=b"{}")
 
-    dtm.create_data_type(client, "Event", "Nap")
+    dtm.create_data_type(client, "Event", "Nap", description="a nap")
 
     assert captured["path"] == "/input/v1/data_type/Event"
-    assert captured["data"] == {"name": "Nap"}
+    assert captured["data"] == {"name": "Nap", "description": "a nap"}
+
+
+def test_create_requires_description():
+    client = offline_client()
+
+    with pytest.raises(ValueError, match="description is required"):
+        dtm.create_data_type(client, "Metric", "Steps")
 
 
 def test_create_event_rejects_unit():
     client = offline_client()
 
     with pytest.raises(ValueError, match="unit may only be set"):
-        dtm.create_data_type(client, "Event", "Nap", unit="bpm")
+        dtm.create_data_type(client, "Event", "Nap", description="d", unit="bpm")
 
 
 def test_create_rejects_unknown_base_type():
     client = offline_client()
 
     with pytest.raises(ValueError, match="not a v1 base type"):
-        dtm.create_data_type(client, "MomentAnnotation", "X")
+        dtm.create_data_type(client, "MomentAnnotation", "X", description="d")
 
 
 def test_create_serializes_dict_fields_schema():
@@ -60,7 +67,7 @@ def test_create_serializes_dict_fields_schema():
     captured = capture_request(client, response=b"{}")
     schema = {"properties": {"quality": {"type": "string"}}}
 
-    dtm.create_data_type(client, "Event", "Nap", fields_schema=schema)
+    dtm.create_data_type(client, "Event", "Nap", description="d", fields_schema=schema)
 
     assert captured["data"]["record_spec"]["schema"] == json.dumps(schema)
 
@@ -69,7 +76,9 @@ def test_create_accepts_fields_schema_as_json_string():
     client = offline_client()
     captured = capture_request(client, response=b"{}")
 
-    dtm.create_data_type(client, "Metric", "X", unit="u", fields_schema='{"a": 1}')
+    dtm.create_data_type(
+        client, "Metric", "X", description="d", unit="u", fields_schema='{"a": 1}'
+    )
 
     assert captured["data"]["record_spec"] == {
         "unit": "u",
@@ -77,18 +86,98 @@ def test_create_accepts_fields_schema_as_json_string():
     }
 
 
+def test_create_metric_sets_aggregation():
+    client = offline_client()
+    captured = capture_request(client, response=b"{}")
+
+    dtm.create_data_type(
+        client, "Metric", "Steps", description="d", aggregation="cumulative"
+    )
+
+    assert captured["data"]["record_spec"] == {"aggregation": "cumulative"}
+
+
+def test_create_metric_sets_scale_and_value_map():
+    client = offline_client()
+    captured = capture_request(client, response=b"{}")
+
+    dtm.create_data_type(
+        client,
+        "Metric",
+        "Mood",
+        description="d",
+        scale={"min": 0, "max": 10, "step": 1},
+        value_map={0: "off", 1: "on"},
+    )
+
+    assert captured["data"]["record_spec"]["scale"] == {"min": 0, "max": 10, "step": 1}
+    assert captured["data"]["record_spec"]["value_map"] == {0: "off", 1: "on"}
+
+
+def test_create_metric_combines_all_record_spec_fields():
+    client = offline_client()
+    captured = capture_request(client, response=b"{}")
+
+    dtm.create_data_type(
+        client,
+        "Metric",
+        "Everything",
+        description="d",
+        unit="count",
+        aggregation="discrete",
+        scale={"min": 0, "max": 5, "step": 1},
+        value_map={0: "none"},
+        fields_schema={"properties": {"note": {"type": "string"}}},
+    )
+
+    assert captured["data"]["record_spec"] == {
+        "unit": "count",
+        "aggregation": "discrete",
+        "scale": {"min": 0, "max": 5, "step": 1},
+        "value_map": {0: "none"},
+        "schema": json.dumps({"properties": {"note": {"type": "string"}}}),
+    }
+
+
+def test_create_event_rejects_aggregation():
+    client = offline_client()
+
+    with pytest.raises(ValueError, match="may only be set for the Metric"):
+        dtm.create_data_type(
+            client, "Event", "Nap", description="d", aggregation="discrete"
+        )
+
+
+def test_create_event_rejects_scale_and_value_map():
+    client = offline_client()
+
+    with pytest.raises(ValueError, match="may only be set for the Metric"):
+        dtm.create_data_type(
+            client, "Event", "Nap", description="d", scale={"min": 0, "max": 1}
+        )
+
+    with pytest.raises(ValueError, match="may only be set for the Metric"):
+        dtm.create_data_type(
+            client, "Event", "Nap", description="d", value_map={0: "off"}
+        )
+
+
 def test_create_rejects_invalid_fields_json():
     client = offline_client()
 
     with pytest.raises(ValueError, match="Invalid JSON"):
-        dtm.create_data_type(client, "Event", "X", fields_schema="{not json")
+        dtm.create_data_type(
+            client, "Event", "X", description="d", fields_schema="{not json"
+        )
 
 
 def test_create_rejects_non_object_fields_schema():
     client = offline_client()
 
     with pytest.raises(ValueError, match="must be a JSON object"):
-        dtm.create_data_type(client, "Event", "X", fields_schema="[1, 2]")
+        dtm.create_data_type(
+            client, "Event", "X", description="d", fields_schema="[1, 2]"
+        )
 
 
 # --- archive / restore -------------------------------------------------------

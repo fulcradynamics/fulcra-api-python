@@ -21,7 +21,11 @@ def data_type():
 @click.argument("base_data_type", type=str)
 @click.argument("name", type=str)
 @click.option(
-    "-d", "--description", type=str, default=None, help="Description of the data type"
+    "-d",
+    "--description",
+    type=str,
+    default=None,
+    help="Description of the data type (required for v1; optional for v1alpha1)",
 )
 @click.option(
     "-t",
@@ -29,16 +33,18 @@ def data_type():
     "tags",
     type=str,
     multiple=True,
-    help="Tags to attach to the data type",
+    help="Tags to attach to the data type (v1alpha1 annotations only)",
 )
 @optgroup.group(
     "Metric options",
-    help="Only applicable when BASE_DATA_TYPE is a metric record type",
+    help="For metric record types (v1 Metric and v1alpha1 metric annotations)",
 )
 @optgroup.option(
     "-k",
     "--kind",
     "--metric-aggregation",
+    "--aggregation",
+    "--agg",
     "metric_agg",
     type=click.Choice(
         [
@@ -46,7 +52,15 @@ def data_type():
             "discrete",
         ]
     ),
-    help="Metric aggregation"
+    help="Metric aggregation (v1 Metric record spec; v1alpha1 metric kind)",
+)
+@optgroup.option(
+    "-u",
+    "--unit",
+    "--metric-unit",
+    "unit",
+    type=str,
+    help="Unit of measurement (v1 Metric; v1alpha1 numeric annotations)",
 )
 @optgroup.option(
     "-v",
@@ -54,14 +68,43 @@ def data_type():
     "--metric-value",
     "raw_value",
     type=str,
-    help="Default value for recording the data type",
-)
-@optgroup.option(
-    "-u", "--unit", "--metric-unit", "unit", type=str, help="Unit for recording the data type"
+    help="Default value for recording the data type (v1alpha1 annotations only)",
 )
 @optgroup.group(
-    "Scale options",
-    help="Only applicable when BASE_DATA_TYPE is ScaleAnnotation",
+    "v1 Metric options",
+    help="Only applicable when BASE_DATA_TYPE is the v1 Metric base type",
+)
+@optgroup.option(
+    "--scale-min",
+    "scale_min",
+    type=int,
+    default=None,
+    help="Minimum value of the metric scale (requires --scale-max)",
+)
+@optgroup.option(
+    "--scale-max",
+    "scale_max",
+    type=int,
+    default=None,
+    help="Maximum value of the metric scale (requires --scale-min)",
+)
+@optgroup.option(
+    "--scale-step",
+    "scale_step",
+    type=int,
+    default=None,
+    help="Step of the metric scale (default 1 when a scale is set)",
+)
+@optgroup.option(
+    "--value-map",
+    "value_map",
+    type=str,
+    multiple=True,
+    help="Map an integer value to a label, e.g. 0=off (repeatable)",
+)
+@optgroup.group(
+    "Scale annotation options",
+    help="Only applicable when BASE_DATA_TYPE is ScaleAnnotation (v1alpha1)",
 )
 @optgroup.option(
     "-s",
@@ -69,10 +112,12 @@ def data_type():
     "scale_labels",
     type=str,
     multiple=True,
-    help="Used for ScaleAnnotation labels",
+    help="ScaleAnnotation labels, exactly 5 (v1alpha1 only)",
 )
 @click.option(
-    "--add-to-timeline", is_flag=True, help="Add created data type to timeline"
+    "--add-to-timeline",
+    is_flag=True,
+    help="Add created data type to timeline (v1alpha1 annotations only)",
 )
 @click.option(
     "--fields",
@@ -80,7 +125,7 @@ def data_type():
     type=str,
     default=None,
     help="JSON Schema of additional fields to merge onto the base type "
-    "(v1 data types only)",
+    "(v1 Event/Metric only)",
 )
 @pass_fulcra_api
 @requires_auth
@@ -91,8 +136,12 @@ def data_type_create(
     description: Optional[str],
     tags: List[str],
     metric_agg: Optional[str],
-    raw_value: Optional[str],
     unit: Optional[str],
+    raw_value: Optional[str],
+    scale_min: Optional[int],
+    scale_max: Optional[int],
+    scale_step: Optional[int],
+    value_map: Tuple[str, ...],
     scale_labels: List[str],
     add_to_timeline: bool,
     fields_schema: Optional[str],
@@ -132,19 +181,35 @@ def data_type_create(
             name=name,
             description=description,
             unit=unit,
+            metric_agg=metric_agg,
+            scale_min=scale_min,
+            scale_max=scale_max,
+            scale_step=scale_step,
+            value_map=value_map,
             fields_schema=fields_schema,
             tags=tags,
-            metric_agg=metric_agg,
             raw_value=raw_value,
             scale_labels=scale_labels,
             add_to_timeline=add_to_timeline,
         )
         return
 
-    # v1alpha1 annotation path. --fields is a v1-only concept.
+    # v1alpha1 annotation path. --fields and the v1 Metric options are v1-only.
     if fields_schema is not None:
         raise click.BadOptionUsage(
             "fields_schema", "--fields is only valid for v1 data types"
+        )
+
+    if scale_min is not None or scale_max is not None or scale_step is not None:
+        raise click.BadOptionUsage(
+            "scale_min",
+            "--scale-min/--scale-max/--scale-step are only valid for v1 Metric "
+            "data types",
+        )
+
+    if value_map:
+        raise click.BadOptionUsage(
+            "value_map", "--value-map is only valid for v1 Metric data types"
         )
 
     if fulcra_data_type.get("record_spec", {}).get("type") != "metric":
@@ -264,9 +329,13 @@ def _create_v1_data_type(
     name: str,
     description: Optional[str],
     unit: Optional[str],
+    metric_agg: Optional[str],
+    scale_min: Optional[int],
+    scale_max: Optional[int],
+    scale_step: Optional[int],
+    value_map: Tuple[str, ...],
     fields_schema: Optional[str],
     tags: List[str],
-    metric_agg: Optional[str],
     raw_value: Optional[str],
     scale_labels: List[str],
     add_to_timeline: bool,
@@ -274,13 +343,12 @@ def _create_v1_data_type(
     """Create a v1 custom data type (Event or Metric).
 
     The annotation-only options have no v1 equivalent, so they're rejected here
-    rather than silently ignored.
+    rather than silently ignored. Metric-only options (unit/aggregation/scale/
+    value_map) are passed through and validated against the base type downstream.
     """
     rejected = []
     if tags:
         rejected.append("-t / --tag")
-    if metric_agg is not None:
-        rejected.append("-k / --kind")
     if raw_value is not None:
         rejected.append("-v / --value")
     if scale_labels:
@@ -293,6 +361,9 @@ def _create_v1_data_type(
             f"{', '.join(rejected)} cannot be used with v1 data type {base_data_type}",
         )
 
+    scale = _build_scale(scale_min, scale_max, scale_step)
+    parsed_value_map = _parse_value_map(value_map)
+
     try:
         spec = data_type_management.create_data_type(
             fulcra_api,
@@ -300,6 +371,9 @@ def _create_v1_data_type(
             name,
             description=description,
             unit=unit,
+            aggregation=metric_agg,
+            scale=scale,
+            value_map=parsed_value_map,
             fields_schema=fields_schema,
         )
     except ValueError as exc:
@@ -309,6 +383,48 @@ def _create_v1_data_type(
         raise click.ClickException(f"Failed to create data type: {exc}\n{error_body}")
 
     click.echo(json.dumps(spec))
+
+
+def _build_scale(
+    scale_min: Optional[int], scale_max: Optional[int], scale_step: Optional[int]
+) -> Optional[dict]:
+    """Assemble the Metric ``record_spec.scale`` object from the CLI options.
+
+    Returns None when no scale option was given. ``step`` defaults to 1 when a
+    scale is set (the server does not apply that default itself).
+    """
+    if scale_min is None and scale_max is None and scale_step is None:
+        return None
+    if scale_min is None or scale_max is None:
+        raise click.BadOptionUsage(
+            "scale_min", "--scale-min and --scale-max must be provided together"
+        )
+    return {
+        "min": scale_min,
+        "max": scale_max,
+        "step": scale_step if scale_step is not None else 1,
+    }
+
+
+def _parse_value_map(value_map: Tuple[str, ...]) -> Optional[dict]:
+    """Parse repeated ``INT=LABEL`` options into a ``{int: str}`` mapping."""
+    if not value_map:
+        return None
+    parsed: dict = {}
+    for item in value_map:
+        key, sep, label = item.partition("=")
+        if not sep:
+            raise click.BadOptionUsage(
+                "value_map", f"--value-map entry '{item}' must be in INT=LABEL form"
+            )
+        try:
+            int_key = int(key)
+        except ValueError:
+            raise click.BadOptionUsage(
+                "value_map", f"--value-map key '{key}' must be an integer"
+            )
+        parsed[int_key] = label
+    return parsed
 
 
 @data_type.command("archive", short_help="Archive a user-defined data type")
