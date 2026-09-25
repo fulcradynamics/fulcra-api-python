@@ -6,7 +6,7 @@ import click
 
 from fulcra_api.core import FulcraAPI
 
-from .utils import pass_fulcra_api, requires_auth
+from .utils import pass_fulcra_api, reject_blank, requires_auth
 
 
 @click.group(help="Tag management sub-commands")
@@ -100,7 +100,7 @@ def get_tag(fulcra_api: FulcraAPI, name_or_id: str):
 
 
 @tag.command("create", short_help="Create user-defined tags")
-@click.argument("names", nargs=-1)
+@click.argument("names", nargs=-1, required=True, callback=reject_blank)
 @pass_fulcra_api
 @requires_auth
 def tag_create(fulcra_api: FulcraAPI, names: tuple[str, ...]):

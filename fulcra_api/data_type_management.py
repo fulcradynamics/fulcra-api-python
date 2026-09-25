@@ -83,7 +83,7 @@ def create_data_type(
 
     # The server currently requires a description on v1 data types; surface a
     # clear error instead of the raw 422 the missing field would otherwise cause.
-    if description is None:
+    if description is None or not description.strip():
         raise ValueError("A description is required (use -d/--description).")
 
     # unit/aggregation/scale/value_map are part of the Metric record spec and are

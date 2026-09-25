@@ -13,6 +13,7 @@ from .utils import (
     http_error_detail,
     parse_time,
     pass_fulcra_api,
+    reject_blank,
     related_cli_commands,
     requires_auth,
     resolve_data_source,
@@ -649,6 +650,7 @@ def sleep_cycles_aggregated(
 @click.option(
     "--user-id",
     type=str,
+    callback=reject_blank,
     default=None,
     is_eager=True,
     help="Fulcra user ID to query data for (requires an active datashare from that user).",
@@ -724,7 +726,13 @@ def get_records(
 @click.command(
     "catalog", short_help="Return a list of queryable Fulcra data types and metadata"
 )
-@click.option("-d", "--data-type", type=str, help="Data Type to look up by ID.")
+@click.option(
+    "-d",
+    "--data-type",
+    type=str,
+    callback=reject_blank,
+    help="Data Type to look up by ID.",
+)
 @click.option("-n", "--name", type=str, help="Filter results by partial name.")
 @click.option(
     "--base-types-only",
@@ -756,6 +764,7 @@ def get_records(
 @click.option(
     "--user-id",
     type=str,
+    callback=reject_blank,
     default=None,
     help="Fulcra user ID of which data types to fetch.",
 )
@@ -851,6 +860,7 @@ def user_info(fulcra_api: FulcraAPI):
 @click.option(
     "--user-id",
     type=str,
+    callback=reject_blank,
     default=None,
     is_eager=True,
     help="Fulcra user ID to query data updates for (requires an active datashare from that user).",

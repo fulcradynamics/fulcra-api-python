@@ -15,6 +15,7 @@ from .utils import (
     human_size,
     make_filepath,
     pass_fulcra_api,
+    reject_blank,
     requires_auth,
 )
 
@@ -29,6 +30,7 @@ def file():
 @click.option(
     "--user-id",
     type=str,
+    callback=reject_blank,
     default=None,
     help="Fulcra user ID of which files to fetch.",
 )
@@ -68,6 +70,7 @@ def file_list(fulcra_api: FulcraAPI, path: str, user_id: str | None):
 @click.option(
     "--user-id",
     type=str,
+    callback=reject_blank,
     default=None,
     help="Fulcra user ID of which files to fetch.",
 )
@@ -120,6 +123,7 @@ def file_stat(fulcra_api: FulcraAPI, path: str, user_id: str | None):
 @click.option(
     "--user-id",
     type=str,
+    callback=reject_blank,
     default=None,
     help="Fulcra user ID of which files to fetch.",
 )

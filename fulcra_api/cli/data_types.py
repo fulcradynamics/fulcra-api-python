@@ -9,7 +9,7 @@ from click_option_group import optgroup
 from fulcra_api import data_type_management
 from fulcra_api.core import FulcraAPI
 
-from .utils import pass_fulcra_api, requires_auth, resolve_data_type
+from .utils import pass_fulcra_api, reject_blank, requires_auth, resolve_data_type
 
 
 @click.group(name="data-type", help="Data type management sub-commands")
@@ -18,8 +18,8 @@ def data_type():
 
 
 @data_type.command("create", short_help="Create a new data type")
-@click.argument("base_data_type", type=str)
-@click.argument("name", type=str)
+@click.argument("base_data_type", type=str, callback=reject_blank)
+@click.argument("name", type=str, callback=reject_blank)
 @click.option(
     "-d",
     "--description",
@@ -538,6 +538,7 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
 @click.option(
     "--user-id",
     type=str,
+    callback=reject_blank,
     default=None,
     is_eager=True,
     help="User ID for the data type (defaults to authenticated user)",

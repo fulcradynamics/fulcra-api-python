@@ -287,6 +287,20 @@ def tolerate_unencodable_output(*streams) -> None:
             pass
 
 
+def reject_blank(ctx: click.Context, param: click.Parameter, value):
+    """
+    Option/argument callback refusing an empty or whitespace-only value, which
+    is almost always an unset shell variable (`--user-id "$USER_ID"`). Passing
+    it on would quietly change the command's meaning -- an empty user id reads
+    your own data, an empty filter matches everything. A value that wasn't given
+    at all (None) is left alone. Handles repeatable options (tuples) too.
+    """
+    values = value if isinstance(value, tuple) else (value,)
+    if any(v is not None and not v.strip() for v in values):
+        raise click.BadParameter("can't be empty", ctx=ctx, param=param)
+    return value
+
+
 def parse_time(ctx: click.Context, param: click.Parameter, value: str) -> datetime:
     """callback to parse a time string through dateparser and return datetime"""
     dt = dateparser.parse(
@@ -372,6 +386,12 @@ def time_range(func=None, *, allow_latest: bool = False):
                 raise click.UsageError(f"Invalid datetime format: {e}")
         else:
             raise click.UsageError("Expected either 1 or 2 values for TIME_RANGE")
+
+        if not latest and end_time < start_time:
+            raise click.UsageError(
+                f"TIME_RANGE ends before it starts: {start_time.isoformat()} "
+                f"to {end_time.isoformat()}"
+            )
 
         if allow_latest:
             kwargs["latest"] = latest

@@ -11,6 +11,7 @@ from .utils import (
     file_share_type,
     parse_iso_time,
     pass_fulcra_api,
+    reject_blank,
     requires_auth,
     time_range,
     valid_share_types,
@@ -90,6 +91,7 @@ def list_incoming(fulcra_api: FulcraAPI):
     "--user-id",
     "user_ids",
     multiple=True,
+    callback=reject_blank,
     help="User ID to share with",
 )
 @click.option(
