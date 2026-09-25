@@ -225,15 +225,15 @@ def record(
         if not records:
             raise click.ClickException("No valid records found in input")
 
-        # Handle user-created annotation types (BaseType/UUID format)
-        if "/" in data_type["id"]:
-            parts = data_type["id"].split("/", maxsplit=1)
-            base_type = parts[0]
-            annotation_uuid = parts[1].lower()
-            annotation_source = f"com.fulcradynamics.annotation.{annotation_uuid}"
-        else:
-            annotation_source = None
-            base_type = data_type["id"]
+        # v1 types (e.g. "Event/<uuid>") go directly to that endpoint, 
+        # but v1alpha1 go to the base type endpoint.
+        target_type = data_type["id"]
+        annotation_source = None
+        if "/" in data_type["id"] and data_type["api_version"] != "v1":
+            target_type, annotation_uuid = data_type["id"].split("/", maxsplit=1)
+            annotation_source = (
+                f"com.fulcradynamics.annotation.{annotation_uuid.lower()}"
+            )
 
         # Resolve tag names to UUIDs
         tag_ids = []
@@ -290,16 +290,16 @@ def record(
                 else:
                     raise click.ClickException(f"Failed to fetch schema: {exc}")
 
-        # Record data using base type
         response = fulcra_api.record_data_type(
-            data_type=base_type, records=records, api_version=data_type["api_version"]
+            data_type=target_type, records=records, api_version=data_type["api_version"]
         )
 
         # Print summary
         upload_id = response["upload_id"]
         num_records = len(records)
         click.echo(
-            f"Recorded {num_records} record{'s' if num_records != 1 else ''} to {base_type}"
+            f"Recorded {num_records} record{'s' if num_records != 1 else ''} "
+            f"to {target_type}"
         )
         click.echo(f"Upload ID: {upload_id}")
 
