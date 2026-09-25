@@ -6,7 +6,7 @@ import click
 
 from fulcra_api.core import FulcraAPI
 
-from .utils import pass_fulcra_api, reject_blank, requires_auth
+from .utils import error_message, pass_fulcra_api, reject_blank, requires_auth
 
 
 @click.group(help="Tag management sub-commands")
@@ -63,7 +63,7 @@ def tag_list(
                 click.echo(t["name"])
 
     except HTTPError as exc:
-        raise click.ClickException(f"Failed to get tags: {exc}")
+        raise click.ClickException(f"Failed to get tags: {error_message(exc)}")
 
 
 @tag.command("get", short_help="Get a user-defined tag")
@@ -96,7 +96,7 @@ def get_tag(fulcra_api: FulcraAPI, name_or_id: str):
         if exc.status == 404:
             raise click.ClickException(f"No tag found: {tag_name or id}")
         else:
-            raise click.ClickException(f"Failed to get tag: {exc}")
+            raise click.ClickException(f"Failed to get tag: {error_message(exc)}")
 
 
 @tag.command("create", short_help="Create user-defined tags")
@@ -124,6 +124,8 @@ def tag_delete(fulcra_api: FulcraAPI, tag_id: str):
     try:
         fulcra_api.delete_tag(tag_id)
     except HTTPError as exc:
-        raise click.ClickException(f"Failed to delete tag {tag_id}: {exc}")
+        raise click.ClickException(
+            f"Failed to delete tag {tag_id}: {error_message(exc)}"
+        )
 
     click.echo(f"Tag deleted: {tag_id}")

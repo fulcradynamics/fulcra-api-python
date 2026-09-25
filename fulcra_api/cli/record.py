@@ -6,7 +6,7 @@ import click
 
 from fulcra_api.core import FulcraAPI
 
-from .utils import pass_fulcra_api, requires_auth, resolve_data_type
+from .utils import error_message, pass_fulcra_api, requires_auth, resolve_data_type
 
 
 @click.command(
@@ -288,7 +288,9 @@ def record(
                         "Use --no-validate to skip validation"
                     )
                 else:
-                    raise click.ClickException(f"Failed to fetch schema: {exc}")
+                    raise click.ClickException(
+                        f"Failed to fetch schema: {error_message(exc)}"
+                    )
 
         response = fulcra_api.record_data_type(
             data_type=target_type, records=records, api_version=data_type["api_version"]
@@ -439,7 +441,9 @@ def delete_records(
                         "Use --no-validate to skip validation"
                     )
                 else:
-                    raise click.ClickException(f"Failed to fetch schema: {exc}")
+                    raise click.ClickException(
+                        f"Failed to fetch schema: {error_message(exc)}"
+                    )
 
         # Record the tombstones
         response = fulcra_api.record_data_type(

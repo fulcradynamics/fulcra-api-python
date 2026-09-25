@@ -9,6 +9,7 @@ from fulcra_api import records
 from fulcra_api.core import FulcraAPI
 
 from .utils import (
+    error_message,
     group_participant_options,
     http_error_detail,
     parse_time,
@@ -19,6 +20,7 @@ from .utils import (
     resolve_data_source,
     resolve_data_type,
     time_range,
+    valid_user_id,
 )
 
 
@@ -31,7 +33,7 @@ def list_calendars(fulcra_api: FulcraAPI):
     try:
         results = fulcra_api.calendars()
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        raise click.ClickException(error_message(exc))
 
     for c in results:
         click.echo(json.dumps(c))
@@ -51,7 +53,7 @@ def list_calendar_events(
     try:
         results = fulcra_api.calendar_events(start_time, end_time)
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        raise click.ClickException(error_message(exc))
 
     for c in results:
         click.echo(json.dumps(c))
@@ -78,7 +80,7 @@ def list_apple_workouts(
     try:
         results = source.apple_workouts(start_time, end_time)
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        raise click.ClickException(error_message(exc))
 
     for c in results:
         click.echo(json.dumps(c))
@@ -140,7 +142,7 @@ def metric_time_series(
         if exc.code == 404:
             raise click.ClickException("Type not found")
         else:
-            raise click.ClickException(exc)
+            raise click.ClickException(error_message(exc))
 
     if data_type[0]["api_version"] != "v0" or data_type[0]["class"] != "metric":
         raise click.ClickException(
@@ -186,7 +188,7 @@ def google_location_updates(
     try:
         results = source.gmaps_location_updates(start_time, end_time)
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        raise click.ClickException(error_message(exc))
 
     for c in results:
         click.echo(json.dumps(c))
@@ -215,7 +217,7 @@ def apple_location_updates(
     try:
         results = source.apple_location_updates(start_time, end_time)
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        raise click.ClickException(error_message(exc))
 
     for c in results:
         click.echo(json.dumps(c))
@@ -244,7 +246,7 @@ def apple_location_visits(
     try:
         results = source.apple_location_visits(start_time, end_time)
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        raise click.ClickException(error_message(exc))
 
     for c in results:
         click.echo(json.dumps(c))
@@ -299,7 +301,7 @@ def location_time_series(
             start_time, end_time, change_meters, sample_rate, look_back, reverse_geocode
         )
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        raise click.ClickException(error_message(exc))
 
     for c in results:
         click.echo(json.dumps(c))
@@ -352,7 +354,7 @@ def location_at_time(
             time, window_size, include_after, reverse_geocode
         )
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        raise click.ClickException(error_message(exc))
 
     for c in results:
         click.echo(json.dumps(c))
@@ -457,7 +459,7 @@ def sleep_stages(
     try:
         df = source.sleep_stages(**kwargs)
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        raise click.ClickException(error_message(exc))
 
     j = json.loads(df.to_json(orient="table"))
 
@@ -532,7 +534,7 @@ def sleep_cycles(
     try:
         df = source.sleep_cycles(**kwargs)
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        raise click.ClickException(error_message(exc))
 
     j = json.loads(df.to_json(orient="table"))
 
@@ -638,7 +640,7 @@ def sleep_cycles_aggregated(
     try:
         df = source.sleep_agg(**kwargs)
     except HTTPError as exc:
-        raise click.ClickException(exc)
+        raise click.ClickException(error_message(exc))
 
     j = json.loads(df.to_json(orient="table"))
 
@@ -650,7 +652,7 @@ def sleep_cycles_aggregated(
 @click.option(
     "--user-id",
     type=str,
-    callback=reject_blank,
+    callback=valid_user_id,
     default=None,
     is_eager=True,
     help="Fulcra user ID to query data for (requires an active datashare from that user).",
@@ -764,7 +766,7 @@ def get_records(
 @click.option(
     "--user-id",
     type=str,
-    callback=reject_blank,
+    callback=valid_user_id,
     default=None,
     help="Fulcra user ID of which data types to fetch.",
 )
@@ -817,7 +819,7 @@ def catalog(
         if exc.code == 404:
             raise click.ClickException("Type not found")
         else:
-            raise click.ClickException(exc) from exc
+            raise click.ClickException(error_message(exc)) from exc
 
     if name:
         response = [c for c in response if name.lower() in c.get("name", "").lower()]
@@ -849,7 +851,7 @@ def user_info(fulcra_api: FulcraAPI):
     try:
         resp = fulcra_api.get_user_info()
     except HTTPError as exc:
-        raise click.ClickException(exc) from exc
+        raise click.ClickException(error_message(exc)) from exc
 
     click.echo(json.dumps(resp))
 
@@ -860,7 +862,7 @@ def user_info(fulcra_api: FulcraAPI):
 @click.option(
     "--user-id",
     type=str,
-    callback=reject_blank,
+    callback=valid_user_id,
     default=None,
     is_eager=True,
     help="Fulcra user ID to query data updates for (requires an active datashare from that user).",
@@ -883,7 +885,7 @@ def data_updates(
             start_time=start_time, end_time=end_time, fulcra_userid=user_id
         )
     except HTTPError as exc:
-        raise click.ClickException(exc) from exc
+        raise click.ClickException(error_message(exc)) from exc
 
     click.echo(
         json.dumps({"start_time": str(start_time), "end_time": str(end_time), **resp})

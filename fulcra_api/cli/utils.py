@@ -1,6 +1,7 @@
 import json
 import os
 import pathlib
+import uuid
 from datetime import datetime, timezone
 from functools import partial, wraps
 from urllib.error import HTTPError
@@ -33,6 +34,18 @@ def http_error_detail(exc: HTTPError) -> str:
             for item in detail
         )
     return str(detail)
+
+
+def error_message(exc: Exception) -> str:
+    """
+    A failed request's message for the user: for an HTTPError, its status and
+    the server's reason ("HTTP 422: id must be a UUID, got 'abc'"); for any
+    other exception, its own message.
+    """
+    if not isinstance(exc, HTTPError):
+        return str(exc)
+    detail = http_error_detail(exc)
+    return str(exc) if detail == str(exc) else f"HTTP {exc.code}: {detail}"
 
 
 # Create a pass decorator for FulcraAPI to enable type hints in subcommands
@@ -214,7 +227,7 @@ def resolve_data_type(
                 value, api_version=api_version, fulcra_userid=user_id
             )
         except (ValueError, HTTPError) as exc:
-            raise click.BadParameter(str(exc), ctx=ctx, param=param)
+            raise click.BadParameter(error_message(exc), ctx=ctx, param=param)
 
         # Write commands can only target recordable types, so read-only matches
         # are noise when disambiguating. v0 is a legacy read-only API and is never
@@ -298,6 +311,25 @@ def reject_blank(ctx: click.Context, param: click.Parameter, value):
     values = value if isinstance(value, tuple) else (value,)
     if any(v is not None and not v.strip() for v in values):
         raise click.BadParameter("can't be empty", ctx=ctx, param=param)
+    return value
+
+
+def valid_user_id(ctx: click.Context, param: click.Parameter, value):
+    """
+    Callback for --user-id options: refuses a blank value (see reject_blank) or
+    one that isn't a UUID, which every Fulcra user id is. Otherwise the server
+    rejects it, and the error surfaces as a problem with some other argument.
+    """
+    reject_blank(ctx, param, value)
+    for v in value if isinstance(value, tuple) else (value,):
+        if v is None:
+            continue
+        try:
+            uuid.UUID(v)
+        except ValueError:
+            raise click.BadParameter(
+                f"must be a Fulcra user ID (a UUID), got {v!r}", ctx=ctx, param=param
+            )
     return value
 
 

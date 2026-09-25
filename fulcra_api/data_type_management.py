@@ -3,7 +3,7 @@
 This module sits above the transport layer (the client classes in ``core``) and
 below any front-end (the CLI, the MCP server). It orchestrates create / archive /
 restore of v1 custom data types (Event / Metric): it builds the request bodies
-the input-service expects and returns plain data, so front-ends don't each
+the API  expects and returns plain data, so front-ends don't each
 re-implement that logic.
 
 Functions here take a ``FulcraAPI`` as their first argument, return plain dicts,
@@ -135,7 +135,7 @@ def restore_data_type(source, base_type: str, data_type_id: str) -> dict:
 def _schema_json(fields_schema: dict | str) -> str:
     """Normalize a JSON Schema into the JSON *string* record_spec.schema expects.
 
-    input-service stores the additional-fields schema as JSON text, so a dict is
+    The API stores the additional-fields schema as JSON text, so a dict is
     serialized and a string is validated and re-serialized.
     """
     if isinstance(fields_schema, str):
@@ -147,4 +147,12 @@ def _schema_json(fields_schema: dict | str) -> str:
         parsed = fields_schema
     if not isinstance(parsed, dict):
         raise ValueError("Fields schema must be a JSON object.")
+    # Fulcra merges the fragment's properties into the base type's
+    # schema and rejects a fragment without any
+    properties = parsed.get("properties")
+    if not isinstance(properties, dict) or not properties:
+        raise ValueError(
+            'Fields schema must define the fields to add under "properties", e.g. '
+            '{"properties": {"mood": {"type": "string"}}}.'
+        )
     return json.dumps(parsed)

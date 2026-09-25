@@ -76,13 +76,20 @@ def test_create_accepts_fields_schema_as_json_string():
     client = offline_client()
     captured = capture_request(client, response=b"{}")
 
+    fields = {"properties": {"a": {"type": "integer"}}}
+
     dtm.create_data_type(
-        client, "Metric", "X", description="d", unit="u", fields_schema='{"a": 1}'
+        client,
+        "Metric",
+        "X",
+        description="d",
+        unit="u",
+        fields_schema=json.dumps(fields),
     )
 
     assert captured["data"]["record_spec"] == {
         "unit": "u",
-        "schema": json.dumps({"a": 1}),
+        "schema": json.dumps(fields),
     }
 
 

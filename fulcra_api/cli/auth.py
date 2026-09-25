@@ -6,7 +6,7 @@ import click
 
 from fulcra_api.core import FulcraAPI
 
-from .utils import pass_fulcra_api, requires_auth, save_creds
+from .utils import error_message, pass_fulcra_api, requires_auth, save_creds
 
 
 @click.group(help="Authentication sub-commands")
@@ -92,7 +92,7 @@ def login(
 
         except Exception as exc:
             raise click.ClickException(
-                f"Authorization failed, try again: {exc}"
+                f"Authorization failed, try again: {error_message(exc)}"
             ) from exc
 
         click.echo("✅ Authorization successful!")
@@ -114,7 +114,9 @@ def login(
             prompt_callback=prompt
         )
     except Exception as exc:
-        raise click.ClickException(f"Authorization failed, try again: {exc}") from exc
+        raise click.ClickException(
+            f"Authorization failed, try again: {error_message(exc)}"
+        ) from exc
 
     click.echo("✅ Authorization successful!")
 
