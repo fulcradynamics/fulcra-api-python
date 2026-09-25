@@ -6,6 +6,7 @@ from uuid import UUID
 import click
 from click_option_group import optgroup
 
+from fulcra_api import data_type_management
 from fulcra_api.core import FulcraAPI
 
 from .utils import pass_fulcra_api, requires_auth, resolve_data_type
@@ -20,7 +21,11 @@ def data_type():
 @click.argument("base_data_type", type=str)
 @click.argument("name", type=str)
 @click.option(
-    "-d", "--description", type=str, default=None, help="Description of the data type"
+    "-d",
+    "--description",
+    type=str,
+    default=None,
+    help="Description of the data type (required for v1; optional for v1alpha1)",
 )
 @click.option(
     "-t",
@@ -28,16 +33,18 @@ def data_type():
     "tags",
     type=str,
     multiple=True,
-    help="Tags to attach to the data type",
+    help="Tags to attach to the data type (v1alpha1 annotations only)",
 )
 @optgroup.group(
     "Metric options",
-    help="Only applicable when BASE_DATA_TYPE is a metric record type",
+    help="For metric record types (v1 Metric and v1alpha1 metric annotations)",
 )
 @optgroup.option(
     "-k",
     "--kind",
     "--metric-aggregation",
+    "--aggregation",
+    "--agg",
     "metric_agg",
     type=click.Choice(
         [
@@ -45,7 +52,15 @@ def data_type():
             "discrete",
         ]
     ),
-    help="Metric aggregation"
+    help="Metric aggregation (v1 Metric record spec; v1alpha1 metric kind)",
+)
+@optgroup.option(
+    "-u",
+    "--unit",
+    "--metric-unit",
+    "unit",
+    type=str,
+    help="Unit of measurement (v1 Metric; v1alpha1 numeric annotations)",
 )
 @optgroup.option(
     "-v",
@@ -53,14 +68,43 @@ def data_type():
     "--metric-value",
     "raw_value",
     type=str,
-    help="Default value for recording the data type",
-)
-@optgroup.option(
-    "-u", "--unit", "--metric-unit", "unit", type=str, help="Unit for recording the data type"
+    help="Default value for recording the data type (v1alpha1 annotations only)",
 )
 @optgroup.group(
-    "Scale options",
-    help="Only applicable when BASE_DATA_TYPE is ScaleAnnotation",
+    "v1 Metric options",
+    help="Only applicable when BASE_DATA_TYPE is the v1 Metric base type",
+)
+@optgroup.option(
+    "--scale-min",
+    "scale_min",
+    type=int,
+    default=None,
+    help="Minimum value of the metric scale (requires --scale-max)",
+)
+@optgroup.option(
+    "--scale-max",
+    "scale_max",
+    type=int,
+    default=None,
+    help="Maximum value of the metric scale (requires --scale-min)",
+)
+@optgroup.option(
+    "--scale-step",
+    "scale_step",
+    type=int,
+    default=None,
+    help="Step of the metric scale (default 1 when a scale is set)",
+)
+@optgroup.option(
+    "--value-map",
+    "value_map",
+    type=str,
+    multiple=True,
+    help="Map an integer value to a label, e.g. 0=off (repeatable)",
+)
+@optgroup.group(
+    "Scale annotation options",
+    help="Only applicable when BASE_DATA_TYPE is ScaleAnnotation (v1alpha1)",
 )
 @optgroup.option(
     "-s",
@@ -68,10 +112,20 @@ def data_type():
     "scale_labels",
     type=str,
     multiple=True,
-    help="Used for ScaleAnnotation labels",
+    help="ScaleAnnotation labels, exactly 5 (v1alpha1 only)",
 )
 @click.option(
-    "--add-to-timeline", is_flag=True, help="Add created data type to timeline"
+    "--add-to-timeline",
+    is_flag=True,
+    help="Add created data type to timeline (v1alpha1 annotations only)",
+)
+@click.option(
+    "--fields",
+    "fields_schema",
+    type=str,
+    default=None,
+    help="JSON Schema of additional fields to merge onto the base type "
+    "(v1 Event/Metric only)",
 )
 @pass_fulcra_api
 @requires_auth
@@ -82,10 +136,15 @@ def data_type_create(
     description: Optional[str],
     tags: List[str],
     metric_agg: Optional[str],
-    raw_value: Optional[str],
     unit: Optional[str],
+    raw_value: Optional[str],
+    scale_min: Optional[int],
+    scale_max: Optional[int],
+    scale_step: Optional[int],
+    value_map: Tuple[str, ...],
     scale_labels: List[str],
     add_to_timeline: bool,
+    fields_schema: Optional[str],
 ):
     """Create a new data type from a base data type.
 
@@ -104,125 +163,125 @@ def data_type_create(
         raise click.ClickException(f"Failed to validate BASE_DATA_TYPE: {exc}")
 
     filtered_base_data_types = [
-        c
-        for c in catalog_resp
-        if "base_type" in c.get("categories", [])
-        and c.get("api_version", "") == "v1alpha1"
+        c for c in catalog_resp if "base_type" in c.get("categories", [])
     ]
 
     if len(filtered_base_data_types) != 1:
         raise click.ClickException(
-            f"Multiple base data types found for identifier: {base_data_type}"
+            f"Could not resolve a single base data type for identifier: {base_data_type}"
         )
 
     fulcra_data_type = filtered_base_data_types[0]
-    if fulcra_data_type.get("record_spec", {}).get("type") != "metric":
-        if (
-            metric_agg is not None
-        ):  # TODO: DurationAnnotation actually does support metric_agg
-            raise click.BadOptionUsage(
-                "metric_agg",
-                f"-k / --kind cannot be used with base data type {base_data_type}",
-            )
 
-        if raw_value is not None:
-            raise click.BadOptionUsage(
-                "raw_value",
-                f"-v / --value cannot be used with base data type {base_data_type}",
-            )
-
-        if unit is not None:
-            raise click.BadOptionUsage(
-                "unit",
-                f"-u / --unit cannot be used with base data type {base_data_type}",
-            )
-
-    # TODO: Possibly update type metadata to be able to determine that this is a scale
-    if fulcra_data_type["id"] != "ScaleAnnotation" and len(scale_labels) > 0:
+    # --add-to-timeline only makes sense for v1alpha1 annotations; reject it up
+    # front (before any work) for anything else, matching the previous behavior.
+    if add_to_timeline and fulcra_data_type.get("api_version") != "v1alpha1":
         raise click.BadOptionUsage(
-            "scale_labels",
-            f"-s / --scale-label cannot be used with base data type {base_data_type}",
+            "add_to_timeline",
+            f"--add-to-timeline cannot be used with base data type {base_data_type}",
         )
 
-    value = None
-    match fulcra_data_type["id"]:
-        case "MomentAnnotation":
-            annotation_type = "moment"
-        case "DurationAnnotation":
-            annotation_type = "duration"
-        case "BooleanAnnotation":
-            annotation_type = "boolean"
-            # user-service does not accept a unit for boolean annotations
-            if unit is not None:
-                raise click.BadOptionUsage(
-                    "unit",
-                    f"-u / --unit cannot be used with base data type {base_data_type}",
-                )
-            if raw_value is not None:
-                value = click.types.BoolParamType().convert(raw_value, None, None)
-        case "NumericAnnotation":
-            annotation_type = "numeric"
-            if raw_value is not None:
-                value = click.types.FloatParamType().convert(raw_value, None, None)
-        case "ScaleAnnotation":
-            annotation_type = "scale"
-            if len(scale_labels) != 5:
-                raise click.BadOptionUsage(
-                    "scale_labels",
-                    f"-s / --scale-label must be used with exactly 5 values with base data type {base_data_type}",
-                )
-            # user-service does not accept a unit for scale annotations
-            if unit is not None:
-                raise click.BadOptionUsage(
-                    "unit",
-                    f"-u / --unit cannot be used with base data type {base_data_type}",
-                )
-        case _:
-            raise click.ClickException(f"Unsupported base type: {base_data_type}")
+    # The module takes structured scale/value_map dicts; parsing raw CLI strings
+    # stays here so the module remains front-end-agnostic.
+    scale = _build_scale(scale_min, scale_max, scale_step)
+    parsed_value_map = _parse_value_map(value_map)
 
     try:
-        ann = fulcra_api.create_annotation(
-            annotation_type=annotation_type,
-            name=name,
+        created = data_type_management.create_data_type(
+            fulcra_api,
+            fulcra_data_type,
+            name,
             description=description,
-            tags=tags,
-            metric_kind=metric_agg,
-            value=value,
             unit=unit,
+            aggregation=metric_agg,
+            scale=scale,
+            value_map=parsed_value_map,
+            fields_schema=fields_schema,
+            tags=tags,
+            raw_value=raw_value,
             scale_labels=scale_labels,
         )
-
-        if add_to_timeline:
-            try:
-                info = fulcra_api.get_user_info()
-                current_prefs = info.get("preferences", {})
-                existing_metrics_map = current_prefs.get("selected_metrics_map", {})
-
-                current_selection = existing_metrics_map.get(info["userid"], [])
-                ann_id = ann["id"]
-
-                # TODO: this is a legacy naming convention for timeline data tracks
-                updated_selection = [
-                    f"fulcra_custom_event.{ann_id}"
-                ] + current_selection
-
-                prefs_payload = {
-                    "selected_metrics_map": {
-                        **existing_metrics_map,
-                        info["userid"]: updated_selection,
-                    }
-                }
-
-                fulcra_api.update_user_preferences(prefs_payload)
-            except HTTPError as exc:
-                click.echo(f"Failed to add annotation to timeline: {exc}", err=True)
-
-        click.echo(json.dumps(ann))
+    except ValueError as exc:
+        raise click.ClickException(str(exc))
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")
-        raise click.ClickException(
-            f"Failed to create event data type: {exc}\n{error_body}"
+        raise click.ClickException(f"Failed to create data type: {exc}\n{error_body}")
+
+    if add_to_timeline:
+        _add_annotation_to_timeline(fulcra_api, created["id"])
+
+    click.echo(json.dumps(created))
+
+
+def _add_annotation_to_timeline(fulcra_api: FulcraAPI, annotation_id: str):
+    """Best-effort: add a newly created annotation to the user's timeline.
+
+    Kept in the CLI (rather than the reusable module) because it mutates user
+    preferences through a legacy timeline naming convention that is expected to
+    change; a failure here only warns and does not fail the create.
+    """
+    try:
+        info = fulcra_api.get_user_info()
+        current_prefs = info.get("preferences", {})
+        existing_metrics_map = current_prefs.get("selected_metrics_map", {})
+
+        current_selection = existing_metrics_map.get(info["userid"], [])
+
+        # TODO: this is a legacy naming convention for timeline data tracks
+        updated_selection = [f"fulcra_custom_event.{annotation_id}"] + current_selection
+
+        prefs_payload = {
+            "selected_metrics_map": {
+                **existing_metrics_map,
+                info["userid"]: updated_selection,
+            }
+        }
+
+        fulcra_api.update_user_preferences(prefs_payload)
+    except HTTPError as exc:
+        click.echo(f"Failed to add annotation to timeline: {exc}", err=True)
+
+
+def _build_scale(
+    scale_min: Optional[int], scale_max: Optional[int], scale_step: Optional[int]
+) -> Optional[dict]:
+    """Assemble the Metric ``record_spec.scale`` object from the CLI options.
+
+    Returns None when no scale option was given. ``step`` defaults to 1 when a
+    scale is set (the server does not apply that default itself).
+    """
+    if scale_min is None and scale_max is None and scale_step is None:
+        return None
+    if scale_min is None or scale_max is None:
+        raise click.BadOptionUsage(
+            "scale_min", "--scale-min and --scale-max must be provided together"
         )
+    return {
+        "min": scale_min,
+        "max": scale_max,
+        "step": scale_step if scale_step is not None else 1,
+    }
+
+
+def _parse_value_map(value_map: Tuple[str, ...]) -> Optional[dict]:
+    """Parse repeated ``INT=LABEL`` options into a ``{int: str}`` mapping."""
+    if not value_map:
+        return None
+    parsed: dict = {}
+    for item in value_map:
+        key, sep, label = item.partition("=")
+        if not sep:
+            raise click.BadOptionUsage(
+                "value_map", f"--value-map entry '{item}' must be in INT=LABEL form"
+            )
+        try:
+            int_key = int(key)
+        except ValueError:
+            raise click.BadOptionUsage(
+                "value_map", f"--value-map key '{key}' must be an integer"
+            )
+        parsed[int_key] = label
+    return parsed
 
 
 @data_type.command("archive", short_help="Archive a user-defined data type")
@@ -241,6 +300,19 @@ def data_type_archive(fulcra_api: FulcraAPI, data_type: dict):
 
     # data_type is the resolved catalog entry (see resolve_data_type)
     type_id = data_type["id"]
+
+    if data_type.get("api_version") == "v1":
+        try:
+            base_type, type_uuid = data_type_management.parse_v1_shorthand(type_id)
+        except ValueError as exc:
+            raise click.ClickException(str(exc))
+        try:
+            data_type_management.archive_data_type(fulcra_api, base_type, type_uuid)
+            click.echo(f"Archived data type: {type_id}")
+        except HTTPError as exc:
+            raise click.ClickException(f"Failed to archive data type {type_id}: {exc}")
+        return
+
     try:
         parts = type_id.split("/", maxsplit=2)
         ann_id = str(UUID(parts[1]))
@@ -277,11 +349,29 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
     except HTTPError as exc:
         raise click.ClickException(str(exc))
 
-    ann_id = None
+    parts = data_type.split("/", maxsplit=2)
+    base_type = parts[0]
+
+    # An archived type is absent from the catalog list, so its API version can't
+    # be resolved there; infer it from the "<BaseType>/<UUID>" prefix instead.
+    if data_type_management.is_v1_base_type(base_type):
+        try:
+            base_type, type_uuid = data_type_management.parse_v1_shorthand(data_type)
+        except ValueError as exc:
+            raise click.ClickException(str(exc))
+        try:
+            spec = data_type_management.restore_data_type(
+                fulcra_api, base_type, type_uuid
+            )
+            click.echo(json.dumps(spec))
+        except HTTPError as exc:
+            raise click.ClickException(
+                f"Failed to restore data type {data_type}: {exc}"
+            )
+        return
+
     try:
-        parts = data_type.split("/", maxsplit=2)
-        ann_id = parts[1]
-        ann_id = str(UUID(ann_id))
+        ann_id = str(UUID(parts[1]))
     except (ValueError, IndexError):
         raise click.ClickException("DATA_TYPE must be <Annotation Type>/<UUID>")
 

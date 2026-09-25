@@ -2380,6 +2380,51 @@ class FulcraAPI(FulcraDataAccessMixin):
         )
         return json.loads(resp)
 
+    def create_data_type(self, base_type: str, body: dict) -> dict:
+        """
+        Create a v1 custom data type (Event or Metric).
+
+        The server assigns the type's UUID; the create request redirects (303)
+        to the new resource, which the transport follows with a GET, so the
+        created spec is returned.
+
+        Params:
+            base_type: The v1 base type ("Event" or "Metric").
+            body: The create request body (name, description, record_spec, ...).
+
+        Returns:
+            The created data type's spec (including its "<BaseType>/<UUID>" id).
+        """
+        resp = self.fulcra_api(
+            f"/input/v1/data_type/{base_type}", data=body, method="POST"
+        )
+        return json.loads(resp)
+
+    def update_data_type(
+        self, base_type: str, data_type_id: str, body: dict
+    ) -> dict:
+        """
+        Update a v1 custom data type.
+
+        Used to change metadata and to archive/restore a type via the
+        ``deprecated`` field. The update redirects (303) to the resource, which
+        the transport follows with a GET, so the updated spec is returned.
+
+        Params:
+            base_type: The v1 base type ("Event" or "Metric").
+            data_type_id: The type's UUID.
+            body: The update request body (e.g. {"deprecated": True}).
+
+        Returns:
+            The updated data type's spec.
+        """
+        resp = self.fulcra_api(
+            f"/input/v1/data_type/{base_type}/{data_type_id}",
+            data=body,
+            method="PUT",
+        )
+        return json.loads(resp)
+
     def record_data_type(
         self, data_type: str, records: List[dict], api_version: str
     ) -> dict:
