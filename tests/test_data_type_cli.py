@@ -203,14 +203,14 @@ def test_create_v1_event_rejects_aggregation():
 
 
 def test_create_v1alpha1_rejects_scale_and_value_map():
-    for args in (["--scale-min", "0"], ["--value-map", "0=off"]):
+    for args in (["--scale-min", "0", "--scale-max", "10"], ["--value-map", "0=off"]):
         client = _client()
         client.v1_catalog = lambda **k: [
             _base_type("NumericAnnotation", "v1alpha1", "metric")
         ]
 
         result = CliRunner().invoke(
-            data_type_create, ["NumericAnnotation", "X", *args], obj=client
+            data_type_create, ["NumericAnnotation", "X", "-d", "d", *args], obj=client
         )
 
         assert result.exit_code != 0, args
@@ -224,11 +224,49 @@ def test_create_v1alpha1_rejects_fields_option():
     ]
 
     result = CliRunner().invoke(
-        data_type_create, ["MomentAnnotation", "X", "--fields", "{}"], obj=client
+        data_type_create,
+        ["MomentAnnotation", "X", "-d", "d", "--fields", "{}"],
+        obj=client,
     )
 
     assert result.exit_code != 0
-    assert "--fields is only valid for v1" in result.output
+    assert "fields schema is only valid for v1" in result.output
+
+
+def test_create_v1_rejects_add_to_timeline():
+    client = _client()
+    client.v1_catalog = lambda **k: [_base_type("Event", "v1", "event")]
+    client.create_data_type = lambda *a, **k: {"id": "x"}
+
+    result = CliRunner().invoke(
+        data_type_create, ["Event", "Nap", "-d", "d", "--add-to-timeline"], obj=client
+    )
+
+    assert result.exit_code != 0
+    assert "--add-to-timeline cannot be used" in result.output
+
+
+def test_create_v1alpha1_annotation_and_add_to_timeline():
+    client = _client()
+    client.v1_catalog = lambda **k: [
+        _base_type("MomentAnnotation", "v1alpha1", "event")
+    ]
+    ann_id = "annotation-123"
+    created = {}
+    client.create_annotation = lambda **kw: (created.update(kw) or {"id": ann_id})
+    client.get_user_info = lambda: {"userid": "me", "preferences": {}}
+    prefs = {}
+    client.update_user_preferences = lambda payload: prefs.update(payload)
+
+    result = CliRunner().invoke(
+        data_type_create,
+        ["MomentAnnotation", "Nap", "-d", "d", "--add-to-timeline"],
+        obj=client,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert created["annotation_type"] == "moment"
+    assert prefs["selected_metrics_map"]["me"] == [f"fulcra_custom_event.{ann_id}"]
 
 
 # --- archive -----------------------------------------------------------------

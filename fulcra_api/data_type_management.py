@@ -43,7 +43,7 @@ def parse_v1_shorthand(data_type_id: str) -> tuple[str, str]:
 
 def create_data_type(
     source,
-    base_type: str,
+    data_type: dict,
     name: str,
     *,
     description: str | None = None,
@@ -52,33 +52,112 @@ def create_data_type(
     scale: dict | None = None,
     value_map: dict | None = None,
     fields_schema: dict | str | None = None,
+    tags: list[str] | None = None,
+    raw_value: str | None = None,
+    scale_labels: list[str] | None = None,
 ) -> dict:
-    """Create a v1 custom data type (Event or Metric).
+    """Create a custom data type from a resolved base-type catalog entry.
+
+    Dispatches to the right backend based on the base type's ``api_version``: v1
+    custom types (Event / Metric) go to input-service, v1alpha1 annotations go to
+    user-service. Options that don't apply to the resolved version are rejected
+    with a ``ValueError`` rather than silently ignored.
 
     Params:
         source: A FulcraAPI to create through.
-        base_type: ``"Event"`` or ``"Metric"``.
+        data_type: A resolved base-type catalog entry (see
+            FulcraAPI.resolve_data_type); its ``id`` is the base type and its
+            ``api_version`` selects the backend.
         name: Human-readable name for the new type.
-        description: Description of the type (currently required by the server).
-        unit: Unit of measurement (Metric only).
+        description: Description of the type (required for v1; optional otherwise).
+        unit: Unit of measurement (v1 Metric / v1alpha1 numeric annotations).
         aggregation: Metric aggregation, ``"cumulative"`` or ``"discrete"``
-            (Metric only).
-        scale: Metric scale as ``{"min": int, "max": int, "step": int}``
-            (Metric only).
-        value_map: Mapping of integer metric values to labels (Metric only).
-        fields_schema: A JSON Schema (dict or JSON string) of additional fields
-            to merge onto the base type's schema.
+            (v1 Metric record spec / v1alpha1 metric kind).
+        scale: v1 Metric scale as ``{"min": int, "max": int, "step": int}``.
+        value_map: v1 Metric mapping of integer values to labels.
+        fields_schema: v1 JSON Schema (dict or JSON string) of additional fields.
+        tags: Tags to attach (v1alpha1 annotations only).
+        raw_value: Default record value as an unparsed string (v1alpha1 numeric /
+            boolean annotations only); coerced here per annotation type.
+        scale_labels: Exactly five labels for a v1alpha1 ScaleAnnotation.
 
     Returns:
-        The created data type's spec (including its ``"<BaseType>/<UUID>"`` id).
+        The created data type's spec / annotation dict.
 
     Raises:
-        ValueError: For an unknown base type, a missing description, a Metric-only
-            option on a non-Metric type, or an unparseable fields_schema.
+        ValueError: For an unsupported base type, a missing required description,
+            an option that doesn't apply to the resolved API version, or an
+            unparseable value / fields schema.
     """
+    api_version = data_type.get("api_version")
+    base_type = data_type["id"]
+
+    if api_version == "v1":
+        return _create_v1_data_type(
+            source,
+            base_type,
+            name,
+            description=description,
+            unit=unit,
+            aggregation=aggregation,
+            scale=scale,
+            value_map=value_map,
+            fields_schema=fields_schema,
+            tags=tags,
+            raw_value=raw_value,
+            scale_labels=scale_labels,
+        )
+
+    if api_version == "v1alpha1":
+        return _create_v1alpha1_annotation(
+            source,
+            data_type,
+            name,
+            description=description,
+            unit=unit,
+            aggregation=aggregation,
+            scale=scale,
+            value_map=value_map,
+            fields_schema=fields_schema,
+            tags=tags,
+            raw_value=raw_value,
+            scale_labels=scale_labels,
+        )
+
+    raise ValueError(f"Cannot create a data type from base type '{base_type}'.")
+
+
+def _create_v1_data_type(
+    source,
+    base_type: str,
+    name: str,
+    *,
+    description: str | None,
+    unit: str | None,
+    aggregation: str | None,
+    scale: dict | None,
+    value_map: dict | None,
+    fields_schema: dict | str | None,
+    tags: list[str] | None,
+    raw_value: str | None,
+    scale_labels: list[str] | None,
+) -> dict:
+    """Build and POST the body for a v1 custom data type (Event or Metric)."""
     if not is_v1_base_type(base_type):
         raise ValueError(
             f"'{base_type}' is not a v1 base type; expected Event or Metric."
+        )
+
+    # These options only exist for v1alpha1 annotations; there is no v1 equivalent.
+    annotation_only = {
+        "tags": tags,
+        "value": raw_value,
+        "scale labels": scale_labels,
+    }
+    used = [opt for opt, val in annotation_only.items() if val]
+    if used:
+        raise ValueError(
+            f"{', '.join(used)} cannot be used with v1 data type {base_type}."
         )
 
     # The server currently requires a description on v1 data types; surface a
@@ -122,6 +201,98 @@ def create_data_type(
     return source.create_data_type(base_type, body)
 
 
+def _create_v1alpha1_annotation(
+    source,
+    data_type: dict,
+    name: str,
+    *,
+    description: str | None,
+    unit: str | None,
+    aggregation: str | None,
+    scale: dict | None,
+    value_map: dict | None,
+    fields_schema: dict | str | None,
+    tags: list[str] | None,
+    raw_value: str | None,
+    scale_labels: list[str] | None,
+) -> dict:
+    """Validate options and create a v1alpha1 annotation via user-service."""
+    base_type = data_type["id"]
+    scale_labels = list(scale_labels or [])
+    tags = list(tags or [])
+
+    # fields schema and the v1 Metric options have no v1alpha1 equivalent.
+    if fields_schema is not None:
+        raise ValueError("fields schema is only valid for v1 data types.")
+    if scale is not None:
+        raise ValueError("scale is only valid for v1 Metric data types.")
+    if value_map is not None:
+        raise ValueError("value map is only valid for v1 Metric data types.")
+
+    # aggregation/value/unit only apply to annotations backed by a metric record.
+    if data_type.get("record_spec", {}).get("type") != "metric":
+        if aggregation is not None:
+            # TODO: DurationAnnotation actually does support metric aggregation.
+            raise ValueError(
+                f"aggregation cannot be used with base data type {base_type}."
+            )
+        if raw_value is not None:
+            raise ValueError(f"value cannot be used with base data type {base_type}.")
+        if unit is not None:
+            raise ValueError(f"unit cannot be used with base data type {base_type}.")
+
+    # TODO: Possibly update type metadata to be able to determine that this is a scale
+    if base_type != "ScaleAnnotation" and scale_labels:
+        raise ValueError(
+            f"scale labels cannot be used with base data type {base_type}."
+        )
+
+    value = None
+    match base_type:
+        case "MomentAnnotation":
+            annotation_type = "moment"
+        case "DurationAnnotation":
+            annotation_type = "duration"
+        case "BooleanAnnotation":
+            annotation_type = "boolean"
+            # user-service does not accept a unit for boolean annotations
+            if unit is not None:
+                raise ValueError(
+                    f"unit cannot be used with base data type {base_type}."
+                )
+            if raw_value is not None:
+                value = _parse_bool(raw_value)
+        case "NumericAnnotation":
+            annotation_type = "numeric"
+            if raw_value is not None:
+                value = _parse_float(raw_value)
+        case "ScaleAnnotation":
+            annotation_type = "scale"
+            if len(scale_labels) != 5:
+                raise ValueError(
+                    "scale labels must be exactly 5 values with base data type "
+                    f"{base_type}."
+                )
+            # user-service does not accept a unit for scale annotations
+            if unit is not None:
+                raise ValueError(
+                    f"unit cannot be used with base data type {base_type}."
+                )
+        case _:
+            raise ValueError(f"Unsupported base type: {base_type}")
+
+    return source.create_annotation(
+        annotation_type=annotation_type,
+        name=name,
+        description=description,
+        tags=tags,
+        metric_kind=aggregation,
+        value=value,
+        unit=unit,
+        scale_labels=scale_labels,
+    )
+
+
 def archive_data_type(source, base_type: str, data_type_id: str) -> dict:
     """Archive (soft-delete) a v1 custom data type by marking it deprecated."""
     return source.update_data_type(base_type, data_type_id, {"deprecated": True})
@@ -148,3 +319,28 @@ def _schema_json(fields_schema: dict | str) -> str:
     if not isinstance(parsed, dict):
         raise ValueError("Fields schema must be a JSON object.")
     return json.dumps(parsed)
+
+
+# Truthy/falsy strings accepted for a boolean annotation value. Mirrors the set
+# click's BoolParamType recognizes, so the CLI behaves the same after the coercion
+# moved off click's param types and into this front-end-agnostic module.
+_TRUE_STRINGS = {"1", "true", "t", "yes", "y", "on"}
+_FALSE_STRINGS = {"0", "false", "f", "no", "n", "off"}
+
+
+def _parse_bool(value: str) -> bool:
+    """Parse a boolean annotation value string, raising ValueError if unrecognized."""
+    normalized = value.strip().lower()
+    if normalized in _TRUE_STRINGS:
+        return True
+    if normalized in _FALSE_STRINGS:
+        return False
+    raise ValueError(f"'{value}' is not a valid boolean value.")
+
+
+def _parse_float(value: str) -> float:
+    """Parse a numeric annotation value string, raising ValueError if invalid."""
+    try:
+        return float(value)
+    except ValueError:
+        raise ValueError(f"'{value}' is not a valid numeric value.")
