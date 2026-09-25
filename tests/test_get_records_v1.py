@@ -163,3 +163,18 @@ def test_http_error_detail_formats():
     # no body: the status line
     assert "500" in http_error_detail(_http_error(500, b""))
 
+
+
+def test_empty_data_type_is_rejected_instead_of_querying_every_type():
+    client = _v1_client([_entry()])
+    client.resolve_data_type = lambda *a, **k: [_entry(id=f"T{i}") for i in range(5)]
+    queried = []
+    client.fulcra_v1_records = lambda query, fulcra_userid=None: (
+        queried.append(query) or b""
+    )
+
+    result = CliRunner().invoke(get_records, ["", "1 day"], obj=client)
+
+    assert result.exit_code == 2
+    assert "a data type is required" in result.output
+    assert queried == []

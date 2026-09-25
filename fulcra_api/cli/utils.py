@@ -187,6 +187,8 @@ def resolve_data_type(
     def callback(ctx: click.Context, param: click.Parameter, value):
         if value is None:
             return None
+        if not value.strip():
+            raise click.BadParameter("a data type is required", ctx=ctx, param=param)
 
         fulcra_api = ctx.find_object(FulcraAPI)
         if fulcra_api is None:
