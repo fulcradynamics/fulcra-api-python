@@ -186,3 +186,146 @@ def test_value_with_file_is_still_refused():
 
     assert result.exit_code == 1
     assert "Cannot specify both VALUE and --file" in result.output
+
+
+# --- checks before the upload -----------------------------------------------
+# These run the real validate_records against a stubbed schema.
+
+from fulcra_api.core import FulcraAPI  # noqa: E402
+
+from .test_record_validation import EVENT_SCHEMA  # noqa: E402
+
+START = "2026-09-25T12:00:00Z"
+
+
+def _validating_client(entry=None, schema=EVENT_SCHEMA):
+    client, sent = _client(entry or _entry(USER_TYPE, "v1", "event"))
+    client.validate_records = FulcraAPI.validate_records.__get__(client)
+    client.v1_catalog_schema = lambda data_type, api_version: schema
+    return client, sent
+
+
+def test_undeclared_field_warns_and_still_uploads():
+    client, sent = _validating_client()
+
+    result = CliRunner().invoke(
+        record, [USER_TYPE, f"--start_time={START}", "--mod=typo"], obj=client
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (
+        f"Warning: record 1: field 'mod' isn't part of {USER_TYPE} and will be dropped; "
+        "its fields are: details, end_time, id, mood, sources, start_time, tags"
+    ) in result.stderr
+    assert "Recorded 1 record" in result.stdout
+    # sent as given: the server decides what to keep
+    assert _fields(sent) == [{"start_time": START, "mod": "typo"}]
+
+
+def test_each_undeclared_field_is_warned_about_once():
+    client, sent = _validating_client()
+    piped = "\n".join(
+        f'{{"start_time": "{START}", "mod": {i}, "x": 1}}' for i in range(3)
+    )
+
+    result = CliRunner().invoke(record, [USER_TYPE], obj=client, input=piped)
+
+    assert result.exit_code == 0, result.output
+    assert result.stderr.count("Warning:") == 2
+    assert "record 1: field 'mod'" in result.stderr
+    assert "record 1: field 'x'" in result.stderr
+    assert len(sent["records"]) == 3
+
+
+def test_value_on_an_event_type_is_warned_about():
+    client, sent = _validating_client()
+
+    result = CliRunner().invoke(
+        record, [USER_TYPE, "5", f"--start_time={START}"], obj=client
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "field 'value' isn't part of" in result.stderr
+    assert sent
+
+
+@pytest.mark.parametrize(
+    "start_time", ["not a time", "2026-02-30T00:00:00Z", "1790000000"]
+)
+def test_invalid_timestamp_is_refused_and_nothing_is_sent(start_time):
+    client, sent = _validating_client()
+
+    # piped, so the epoch seconds stay a string rather than becoming a number
+    result = CliRunner().invoke(
+        record, [USER_TYPE], obj=client, input=f'{{"start_time": "{start_time}"}}'
+    )
+
+    assert result.exit_code == 1
+    assert "Validation error in record 1:" in result.output
+    assert "is not a 'date-time'" in result.output
+    assert sent == {}
+
+
+def test_invalid_timestamp_with_an_undeclared_field_is_still_refused():
+    client, sent = _validating_client()
+
+    result = CliRunner().invoke(
+        record, [USER_TYPE, "--start_time=garbage", "--mod=typo"], obj=client
+    )
+
+    assert result.exit_code == 1
+    assert "is not a 'date-time'" in result.output
+    assert "Warning" not in result.output
+    assert sent == {}
+
+
+@pytest.mark.parametrize(
+    "start_time", [f"{START[:-1]}.123456789Z", "2026-09-25T12:00:00+00"]
+)
+def test_timestamps_the_v1_etl_parses_are_accepted(start_time):
+    client, sent = _validating_client()
+
+    result = CliRunner().invoke(
+        record, [USER_TYPE, f"--start_time={start_time}"], obj=client
+    )
+
+    assert result.exit_code == 0, result.output
+    assert result.stderr == ""
+    assert _fields(sent) == [{"start_time": start_time}]
+
+
+def test_hour_only_offset_is_refused_for_v1alpha1_types():
+    schema = {
+        "type": "object",
+        "properties": {
+            "value": {"type": "number"},
+            "recorded_at": {"type": "string", "format": "date-time"},
+            "sources": {"type": "array"},
+        },
+    }
+    entry = _entry(f"NumericAnnotation/{TYPE_UUID}", "v1alpha1", "metric")
+    client, sent = _validating_client(entry, schema)
+
+    result = CliRunner().invoke(
+        record,
+        [entry["id"], "--value=1", "--recorded_at=2026-09-25T12:00:00+00"],
+        obj=client,
+    )
+
+    assert result.exit_code == 1
+    assert "needs minutes for v1alpha1" in result.output
+    assert sent == {}
+
+
+def test_no_validate_skips_every_check():
+    client, sent = _validating_client()
+
+    result = CliRunner().invoke(
+        record,
+        [USER_TYPE, "--no-validate", "--start_time=garbage", "--mod=typo"],
+        obj=client,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Warning" not in result.output
+    assert _fields(sent) == [{"start_time": "garbage", "mod": "typo"}]

@@ -5,6 +5,7 @@ from urllib.error import HTTPError
 import click
 
 from fulcra_api.core import FulcraAPI
+from fulcra_api.record_validation import is_unknown_fields_error, unknown_fields
 
 from .utils import error_message, pass_fulcra_api, requires_auth, resolve_data_type
 
@@ -44,7 +45,7 @@ from .utils import error_message, pass_fulcra_api, requires_auth, resolve_data_t
     "--no-validate",
     is_flag=True,
     default=False,
-    help="Skip schema validation",
+    help="Skip all checks of the records against the data type's schema",
 )
 @click.option(
     "--tag",
@@ -95,6 +96,11 @@ def record(
 
     To see available fields for a data type, use:
     fulcra data-type schema <DATA_TYPE> --api-version <VERSION>
+
+    Records are checked against the data type's schema before anything is uploaded; a record that
+    doesn't match, or has a timestamp that can't be read, stops the upload. A field the data type
+    doesn't declare only gets a warning, since the record is still recorded, but without that
+    field. --no-validate skips all of these checks.
 
     Examples:
 
@@ -289,12 +295,26 @@ def record(
                     api_version=data_type["api_version"],
                 )
 
-                # Check for validation errors (only invalid records are returned)
-                if validation_errors:
-                    idx, error_msg, error_obj = validation_errors[0]
+                # Add warnings for unknown fields / other validation errors.
+                errors = [e for e in validation_errors if not is_unknown_fields_error(e[2])]
+                if errors:
+                    idx, error_msg, _ = errors[0]
                     raise click.ClickException(
                         f"Validation error in record {idx + 1}: {error_msg}"
                     )
+                warned = set()
+                for idx, _, error in validation_errors:
+                    for field in unknown_fields(error):
+                        if field in warned:
+                            continue
+                        warned.add(field)
+                        declared = ", ".join(sorted(error.schema.get("properties", {})))
+                        click.echo(
+                            f"Warning: record {idx + 1}: field {field!r} isn't part of "
+                            f"{data_type['id']} and will be dropped; its fields are: "
+                            f"{declared}",
+                            err=True,
+                        )
             except HTTPError as exc:
                 if exc.code == 404:
                     raise click.ClickException(
