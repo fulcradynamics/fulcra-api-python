@@ -15,6 +15,7 @@ from urllib.error import HTTPError
 import jsonschema
 import pandas as pd
 
+from . import record_validation
 from .credentials import FulcraCredentials
 from .oidc import FulcraOIDCProvider
 
@@ -40,6 +41,22 @@ FULCRA_OIDC_SCOPE = os.environ.get(
 # Sentinel distinguishing "parameter not passed" from an explicit None, for
 # update calls where None means "clear this field on the server".
 UNSET: Any = object()
+
+
+def _validation_message(error: jsonschema.ValidationError) -> str:
+    """A readable message for one error from `FulcraAPI.validate_records`."""
+    if record_validation.is_unknown_fields_error(error):
+        return record_validation.unknown_fields_message(error)
+    # For anyOf/oneOf (every nullable field in a Pydantic-made schema), explain
+    # the branch that fits best rather than "not valid under any of the given
+    # schemas".
+    leaf = jsonschema.exceptions.best_match([error]) or error
+    message = leaf.message
+    if leaf.validator == "format" and leaf.cause is not None:
+        message += f": {leaf.cause}"
+    if leaf.absolute_path:
+        message += f" (path: {'.'.join(str(p) for p in leaf.absolute_path)})"
+    return message
 
 
 def _boundary_timestamp(value: Any, name: str) -> Any:
@@ -2459,10 +2476,21 @@ class FulcraAPI(FulcraDataAccessMixin):
         return json.loads(resp)
 
     def validate_records(
-        self, data_type: str, records: List[dict], api_version: str = "v1alpha1"
+        self,
+        data_type: str,
+        records: List[dict],
+        api_version: str = "v1alpha1",
+        *,
+        allow_unknown_fields: bool = False,
     ) -> list[tuple[int, str, jsonschema.ValidationError]]:
         """
         Validate records against the schema for a Fulcra data type.
+
+        Beyond the schema itself, this checks what would otherwise be lost after
+        upload: date-time values are checked the way the ETL for `api_version`
+        parses them, and fields the data type doesn't declare (which the ETL
+        drops) are errors unless `allow_unknown_fields` is set. Use
+        `record_validation.is_unknown_fields_error` to tell those apart.
 
         Requires a valid access token.
 
@@ -2470,10 +2498,12 @@ class FulcraAPI(FulcraDataAccessMixin):
             data_type: The Fulcra data type to validate against
             records: List of record dictionaries to validate
             api_version: API version to use (default: "v1alpha1")
+            allow_unknown_fields: Accept fields the data type doesn't declare
 
         Returns:
-            List of tuples (record_index, error_message, validation_error) for records with errors.
-            Empty list if all records are valid.
+            List of tuples (record_index, error_message, validation_error), one per
+            error; a record with several errors appears several times, its most
+            relevant error first. Empty list if all records are valid.
             - record_index: zero-based index of the invalid record
             - error_message: human-readable error description
             - validation_error: the full jsonschema.ValidationError object
@@ -2491,24 +2521,23 @@ class FulcraAPI(FulcraDataAccessMixin):
                 for idx, error_msg, error_obj in errors:
                     print(f"Record {idx + 1}: {error_msg}")
         """
-        # Fetch schema
         schema = self.v1_catalog_schema(data_type, api_version)
+        if not allow_unknown_fields:
+            schema = record_validation.strict_schema(schema)
+        validator = jsonschema.validators.validator_for(schema)(
+            schema, format_checker=record_validation.record_format_checker(api_version)
+        )
 
-        # Validate each record and collect errors
+        def rank(e: jsonschema.ValidationError):
+            # sorted highest first: real problems before unknown fields, then
+            # jsonschema's own relevance (higher is more relevant)
+            known = not record_validation.is_unknown_fields_error(e)
+            return (known, jsonschema.exceptions.relevance(e))
+
         errors = []
         for idx, record in enumerate(records):
-            try:
-                jsonschema.validate(
-                    instance=record,
-                    schema=schema,
-                    format_checker=jsonschema.FormatChecker(),
-                )
-            except jsonschema.ValidationError as e:
-                error_msg = e.message
-                if e.path:
-                    error_msg += f" (path: {'.'.join(str(p) for p in e.path)})"
-                errors.append((idx, error_msg, e))
-
+            for e in sorted(validator.iter_errors(record), key=rank, reverse=True):
+                errors.append((idx, _validation_message(e), e))
         return errors
 
     #

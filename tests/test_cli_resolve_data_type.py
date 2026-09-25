@@ -155,3 +155,27 @@ def test_single_recordable_happy_path():
         resolved=[_entry("v1alpha1", recordable=True)],
     )
     assert result["api_version"] == "v1alpha1"
+
+
+@pytest.mark.parametrize("value", ["", "   "])
+def test_empty_data_type_is_rejected_without_a_lookup(value):
+    """An empty value (e.g. an unset shell variable) would match the whole catalog."""
+    api = FulcraAPI()
+    api.fulcra_credentials = object()
+    api.resolve_data_type = MagicMock()
+
+    @click.command()
+    def dummy():
+        pass
+
+    ctx = click.Context(dummy, obj=api)
+    ctx.params = {"api_version": None}
+
+    with pytest.raises(click.BadParameter, match="a data type is required"):
+        resolve_data_type()(ctx, click.Argument(["data_type"]), value)
+    api.resolve_data_type.assert_not_called()
+
+
+def test_non_empty_data_type_still_resolves():
+    entry = _entry("v1", recordable=True)
+    assert _invoke(resolve_data_type(), "HeartRate", resolved=[entry]) == entry

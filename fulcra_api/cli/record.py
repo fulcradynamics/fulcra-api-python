@@ -5,8 +5,9 @@ from urllib.error import HTTPError
 import click
 
 from fulcra_api.core import FulcraAPI
+from fulcra_api.record_validation import is_unknown_fields_error, unknown_fields
 
-from .utils import pass_fulcra_api, requires_auth, resolve_data_type
+from .utils import error_message, pass_fulcra_api, requires_auth, resolve_data_type
 
 
 @click.command(
@@ -44,7 +45,7 @@ from .utils import pass_fulcra_api, requires_auth, resolve_data_type
     "--no-validate",
     is_flag=True,
     default=False,
-    help="Skip schema validation",
+    help="Skip all checks of the records against the data type's schema",
 )
 @click.option(
     "--tag",
@@ -85,12 +86,21 @@ def record(
     By default, records a single record using VALUE and/or field options. To record multiple records,
     pipe JSON or JSONL (newline-delimited JSON) data, or use -f to read from a file.
 
+    Piped input is only read when neither VALUE nor field options are given, so a script can pass
+    field options without stdin getting in the way. To combine piped records with field options,
+    read stdin explicitly with -f -.
+
     Field options (--<NAME>=<VALUE>) set arbitrary record fields. Values are parsed as JSON first
     (numbers, booleans, objects), falling back to strings if not valid JSON. Field options override
     any fields specified in the input data.
 
     To see available fields for a data type, use:
     fulcra data-type schema <DATA_TYPE> --api-version <VERSION>
+
+    Records are checked against the data type's schema before anything is uploaded; a record that
+    doesn't match, or has a timestamp that can't be read, stops the upload. A field the data type
+    doesn't declare only gets a warning, since the record is still recorded, but without that
+    field. --no-validate skips all of these checks.
 
     Examples:
 
@@ -118,17 +128,24 @@ def record(
     \b
     Record multiple records from a file:
     fulcra record NumericAnnotation/<UUID> -f records.jsonl
+
+    \b
+    Add a field to every piped record (-f - reads stdin):
+    echo '{"value": 75.5}
+    {"value": 80.2}' | fulcra record NumericAnnotation/<UUID> -f - --note="Morning"
     """
     try:
-        # VALUE argument is incompatible with --file
-        if value is not None and file is not None:
-            raise click.ClickException("Cannot specify both VALUE and --file")
-
-        # Copy extra args and prepend VALUE if it's a field option
+        # Copy extra args and prepend VALUE if it's a field option: Click puts the
+        # first unknown option (--note=x) in the optional VALUE slot. Done before
+        # the check below, so `-f FILE --note=x` isn't taken for VALUE with -f.
         args_to_parse = list(ctx.args)
         if value is not None and value.startswith("--"):
             args_to_parse.insert(0, value)
             value = None
+
+        # VALUE argument is incompatible with --file
+        if value is not None and file is not None:
+            raise click.ClickException("Cannot specify both VALUE and --file")
 
         # Parse field options from args (any --option not handled by Click)
         fields = {}
@@ -170,9 +187,12 @@ def record(
 
                 fields[field_name] = parsed_value
 
-        # Handle input from file or stdin
+        # Handle input from file or stdin. Piped stdin is only read when no VALUE or
+        # field options were given: in a script, cron job or CI run stdin is often
+        # empty or never closes, which would otherwise break `record T --x=1`.
+        # `-f -` reads stdin explicitly, e.g. to merge field options into it.
         input_stream = file
-        if input_stream is None and value is None:
+        if input_stream is None and not fields:
             stdin_stream = click.get_text_stream("stdin")
             if not stdin_stream.isatty():
                 input_stream = stdin_stream
@@ -225,15 +245,15 @@ def record(
         if not records:
             raise click.ClickException("No valid records found in input")
 
-        # Handle user-created annotation types (BaseType/UUID format)
-        if "/" in data_type["id"]:
-            parts = data_type["id"].split("/", maxsplit=1)
-            base_type = parts[0]
-            annotation_uuid = parts[1].lower()
-            annotation_source = f"com.fulcradynamics.annotation.{annotation_uuid}"
-        else:
-            annotation_source = None
-            base_type = data_type["id"]
+        # v1 types (e.g. "Event/<uuid>") go directly to that endpoint, 
+        # but v1alpha1 go to the base type endpoint.
+        target_type = data_type["id"]
+        annotation_source = None
+        if "/" in data_type["id"] and data_type["api_version"] != "v1":
+            target_type, annotation_uuid = data_type["id"].split("/", maxsplit=1)
+            annotation_source = (
+                f"com.fulcradynamics.annotation.{annotation_uuid.lower()}"
+            )
 
         # Resolve tag names to UUIDs
         tag_ids = []
@@ -275,12 +295,26 @@ def record(
                     api_version=data_type["api_version"],
                 )
 
-                # Check for validation errors (only invalid records are returned)
-                if validation_errors:
-                    idx, error_msg, error_obj = validation_errors[0]
+                # Add warnings for unknown fields / other validation errors.
+                errors = [e for e in validation_errors if not is_unknown_fields_error(e[2])]
+                if errors:
+                    idx, error_msg, _ = errors[0]
                     raise click.ClickException(
                         f"Validation error in record {idx + 1}: {error_msg}"
                     )
+                warned = set()
+                for idx, _, error in validation_errors:
+                    for field in unknown_fields(error):
+                        if field in warned:
+                            continue
+                        warned.add(field)
+                        declared = ", ".join(sorted(error.schema.get("properties", {})))
+                        click.echo(
+                            f"Warning: record {idx + 1}: field {field!r} isn't part of "
+                            f"{data_type['id']} and will be dropped; its fields are: "
+                            f"{declared}",
+                            err=True,
+                        )
             except HTTPError as exc:
                 if exc.code == 404:
                     raise click.ClickException(
@@ -288,18 +322,20 @@ def record(
                         "Use --no-validate to skip validation"
                     )
                 else:
-                    raise click.ClickException(f"Failed to fetch schema: {exc}")
+                    raise click.ClickException(
+                        f"Failed to fetch schema: {error_message(exc)}"
+                    )
 
-        # Record data using base type
         response = fulcra_api.record_data_type(
-            data_type=base_type, records=records, api_version=data_type["api_version"]
+            data_type=target_type, records=records, api_version=data_type["api_version"]
         )
 
         # Print summary
         upload_id = response["upload_id"]
         num_records = len(records)
         click.echo(
-            f"Recorded {num_records} record{'s' if num_records != 1 else ''} to {base_type}"
+            f"Recorded {num_records} record{'s' if num_records != 1 else ''} "
+            f"to {target_type}"
         )
         click.echo(f"Upload ID: {upload_id}")
 
@@ -439,7 +475,9 @@ def delete_records(
                         "Use --no-validate to skip validation"
                     )
                 else:
-                    raise click.ClickException(f"Failed to fetch schema: {exc}")
+                    raise click.ClickException(
+                        f"Failed to fetch schema: {error_message(exc)}"
+                    )
 
         # Record the tombstones
         response = fulcra_api.record_data_type(

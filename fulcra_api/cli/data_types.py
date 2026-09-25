@@ -9,7 +9,14 @@ from click_option_group import optgroup
 from fulcra_api import data_type_management
 from fulcra_api.core import FulcraAPI
 
-from .utils import pass_fulcra_api, requires_auth, resolve_data_type
+from .utils import (
+    error_message,
+    pass_fulcra_api,
+    reject_blank,
+    requires_auth,
+    resolve_data_type,
+    valid_user_id,
+)
 
 
 @click.group(name="data-type", help="Data type management sub-commands")
@@ -18,8 +25,8 @@ def data_type():
 
 
 @data_type.command("create", short_help="Create a new data type")
-@click.argument("base_data_type", type=str)
-@click.argument("name", type=str)
+@click.argument("base_data_type", type=str, callback=reject_blank)
+@click.argument("name", type=str, callback=reject_blank)
 @click.option(
     "-d",
     "--description",
@@ -160,7 +167,9 @@ def data_type_create(
             data_type=base_data_type, fulcra_userid=fulcra_api.get_fulcra_userid()
         )
     except HTTPError as exc:
-        raise click.ClickException(f"Failed to validate BASE_DATA_TYPE: {exc}")
+        raise click.ClickException(
+            f"Failed to validate BASE_DATA_TYPE: {error_message(exc)}"
+        )
 
     filtered_base_data_types = [
         c for c in catalog_resp if "base_type" in c.get("categories", [])
@@ -239,7 +248,9 @@ def _add_annotation_to_timeline(fulcra_api: FulcraAPI, annotation_id: str):
 
         fulcra_api.update_user_preferences(prefs_payload)
     except HTTPError as exc:
-        click.echo(f"Failed to add annotation to timeline: {exc}", err=True)
+        click.echo(
+            f"Failed to add annotation to timeline: {error_message(exc)}", err=True
+        )
 
 
 def _build_scale(
@@ -284,6 +295,15 @@ def _parse_value_map(value_map: Tuple[str, ...]) -> Optional[dict]:
     return parsed
 
 
+def _only_user_defined(type_id: str, action: str) -> click.ClickException:
+    """The error for archiving/restoring a type that isn't user-defined."""
+    return click.ClickException(
+        f"{type_id} is a built-in data type, so it can't be {action}. Only "
+        "user-defined data types can: <Event|Metric>/<UUID>, or an annotation's "
+        "<Annotation Type>/<UUID>."
+    )
+
+
 @data_type.command("archive", short_help="Archive a user-defined data type")
 @click.argument(
     "data_type",
@@ -300,6 +320,8 @@ def data_type_archive(fulcra_api: FulcraAPI, data_type: dict):
 
     # data_type is the resolved catalog entry (see resolve_data_type)
     type_id = data_type["id"]
+    if "/" not in type_id:
+        raise _only_user_defined(type_id, "archived")
 
     if data_type.get("api_version") == "v1":
         try:
@@ -310,20 +332,26 @@ def data_type_archive(fulcra_api: FulcraAPI, data_type: dict):
             data_type_management.archive_data_type(fulcra_api, base_type, type_uuid)
             click.echo(f"Archived data type: {type_id}")
         except HTTPError as exc:
-            raise click.ClickException(f"Failed to archive data type {type_id}: {exc}")
+            raise click.ClickException(
+                f"Failed to archive data type {type_id}: {error_message(exc)}"
+            )
         return
 
     try:
         parts = type_id.split("/", maxsplit=2)
         ann_id = str(UUID(parts[1]))
     except (ValueError, IndexError):
-        raise click.ClickException("DATA_TYPE must be <Annotation Type>/<UUID>")
+        raise click.ClickException(
+            "DATA_TYPE must be <Event|Metric>/<UUID> or <Annotation Type>/<UUID>"
+        )
 
     try:
         fulcra_api.delete_annotation(annotation_id=ann_id)
         click.echo(f"Archived data type: {type_id}")
     except HTTPError as exc:
-        raise click.ClickException(f"Failed to archive data type {type_id}: {exc}")
+        raise click.ClickException(
+            f"Failed to archive data type {type_id}: {error_message(exc)}"
+        )
 
 
 @data_type.command("restore", short_help="Restore an archived user-defined data type")
@@ -337,6 +365,9 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
     DATA_TYPE: ID of a Fulcra Data Type. Run `fulcra catalog` for a list of Fulcra Data Types
     """
 
+    if "/" not in data_type:
+        raise _only_user_defined(data_type, "restored")
+
     try:
         fulcra_api.resolve_data_type(
             data_type=data_type,
@@ -347,7 +378,7 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
         # If we did not find this data type, then it may be archived
         pass
     except HTTPError as exc:
-        raise click.ClickException(str(exc))
+        raise click.ClickException(error_message(exc))
 
     parts = data_type.split("/", maxsplit=2)
     base_type = parts[0]
@@ -366,20 +397,24 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
             click.echo(json.dumps(spec))
         except HTTPError as exc:
             raise click.ClickException(
-                f"Failed to restore data type {data_type}: {exc}"
+                f"Failed to restore data type {data_type}: {error_message(exc)}"
             )
         return
 
     try:
         ann_id = str(UUID(parts[1]))
     except (ValueError, IndexError):
-        raise click.ClickException("DATA_TYPE must be <Annotation Type>/<UUID>")
+        raise click.ClickException(
+            "DATA_TYPE must be <Event|Metric>/<UUID> or <Annotation Type>/<UUID>"
+        )
 
     try:
         ann = fulcra_api.restore_annotation(annotation_id=ann_id)
         click.echo(json.dumps(ann))
     except HTTPError as exc:
-        raise click.ClickException(f"Failed to restore data type {data_type}: {exc}")
+        raise click.ClickException(
+            f"Failed to restore data type {data_type}: {error_message(exc)}"
+        )
 
 
 @data_type.command("schema", short_help="Get the JSON schema for a data type")
@@ -393,6 +428,7 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
 @click.option(
     "--user-id",
     type=str,
+    callback=valid_user_id,
     default=None,
     is_eager=True,
     help="User ID for the data type (defaults to authenticated user)",
@@ -438,4 +474,4 @@ def get_schema(
         if exc.code == 404:
             raise click.ClickException(f"Schema not found for {data_type['id']}")
         else:
-            raise click.ClickException(f"Failed to fetch schema: {exc}")
+            raise click.ClickException(f"Failed to fetch schema: {error_message(exc)}")
