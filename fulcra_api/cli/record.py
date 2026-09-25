@@ -85,6 +85,10 @@ def record(
     By default, records a single record using VALUE and/or field options. To record multiple records,
     pipe JSON or JSONL (newline-delimited JSON) data, or use -f to read from a file.
 
+    Piped input is only read when neither VALUE nor field options are given, so a script can pass
+    field options without stdin getting in the way. To combine piped records with field options,
+    read stdin explicitly with -f -.
+
     Field options (--<NAME>=<VALUE>) set arbitrary record fields. Values are parsed as JSON first
     (numbers, booleans, objects), falling back to strings if not valid JSON. Field options override
     any fields specified in the input data.
@@ -118,17 +122,24 @@ def record(
     \b
     Record multiple records from a file:
     fulcra record NumericAnnotation/<UUID> -f records.jsonl
+
+    \b
+    Add a field to every piped record (-f - reads stdin):
+    echo '{"value": 75.5}
+    {"value": 80.2}' | fulcra record NumericAnnotation/<UUID> -f - --note="Morning"
     """
     try:
-        # VALUE argument is incompatible with --file
-        if value is not None and file is not None:
-            raise click.ClickException("Cannot specify both VALUE and --file")
-
-        # Copy extra args and prepend VALUE if it's a field option
+        # Copy extra args and prepend VALUE if it's a field option: Click puts the
+        # first unknown option (--note=x) in the optional VALUE slot. Done before
+        # the check below, so `-f FILE --note=x` isn't taken for VALUE with -f.
         args_to_parse = list(ctx.args)
         if value is not None and value.startswith("--"):
             args_to_parse.insert(0, value)
             value = None
+
+        # VALUE argument is incompatible with --file
+        if value is not None and file is not None:
+            raise click.ClickException("Cannot specify both VALUE and --file")
 
         # Parse field options from args (any --option not handled by Click)
         fields = {}
@@ -170,9 +181,12 @@ def record(
 
                 fields[field_name] = parsed_value
 
-        # Handle input from file or stdin
+        # Handle input from file or stdin. Piped stdin is only read when no VALUE or
+        # field options were given: in a script, cron job or CI run stdin is often
+        # empty or never closes, which would otherwise break `record T --x=1`.
+        # `-f -` reads stdin explicitly, e.g. to merge field options into it.
         input_stream = file
-        if input_stream is None and value is None:
+        if input_stream is None and not fields:
             stdin_stream = click.get_text_stream("stdin")
             if not stdin_stream.isatty():
                 input_stream = stdin_stream

@@ -89,3 +89,100 @@ def test_empty_data_type_is_rejected_before_anything_is_sent():
     assert result.exit_code == 2
     assert "a data type is required" in result.output
     assert sent == {}
+
+
+# --- where records come from: field options vs piped stdin -------------------
+# CliRunner's stdin is never a terminal, like a script, cron job or CI run.
+
+USER_TYPE = f"Event/{TYPE_UUID}"
+
+
+def _event_client():
+    return _client(_entry(USER_TYPE, "v1", "event"))
+
+
+def _fields(sent):
+    """each sent record without the sources the CLI adds"""
+    return [{k: v for k, v in r.items() if k != "sources"} for r in sent["records"]]
+
+
+def test_field_options_work_when_stdin_is_not_a_terminal_and_empty():
+    client, sent = _event_client()
+
+    result = CliRunner().invoke(record, [USER_TYPE, "--mood=calm"], obj=client, input="")
+
+    assert result.exit_code == 0, result.output
+    assert _fields(sent) == [{"mood": "calm"}]
+
+
+def test_field_options_do_not_read_piped_stdin():
+    client, sent = _event_client()
+
+    result = CliRunner().invoke(
+        record, [USER_TYPE, "--mood=calm"], obj=client, input='{"mood": "piped"}\n'
+    )
+
+    assert result.exit_code == 0, result.output
+    assert _fields(sent) == [{"mood": "calm"}]
+
+
+def test_dash_f_dash_merges_field_options_into_piped_records():
+    client, sent = _event_client()
+
+    result = CliRunner().invoke(
+        record,
+        [USER_TYPE, "-f", "-", "--energy=5"],
+        obj=client,
+        input='{"mood": "calm"}\n{"mood": "happy", "energy": 1}\n',
+    )
+
+    assert result.exit_code == 0, result.output
+    assert _fields(sent) == [
+        {"mood": "calm", "energy": 5},
+        {"mood": "happy", "energy": 5},
+    ]
+
+
+def test_piped_records_are_still_read_without_field_options():
+    client, sent = _event_client()
+
+    result = CliRunner().invoke(
+        record, [USER_TYPE], obj=client, input='{"mood": "calm"}\n{"mood": "happy"}\n'
+    )
+
+    assert result.exit_code == 0, result.output
+    assert _fields(sent) == [{"mood": "calm"}, {"mood": "happy"}]
+
+
+def test_empty_pipe_without_field_options_is_still_an_error():
+    client, sent = _event_client()
+
+    result = CliRunner().invoke(record, [USER_TYPE], obj=client, input="")
+
+    assert result.exit_code == 1
+    assert "No input provided" in result.output
+    assert sent == {}
+
+
+def test_file_with_field_options_is_not_mistaken_for_value(tmp_path):
+    records_file = tmp_path / "records.jsonl"
+    records_file.write_text('{"mood": "calm"}\n')
+    client, sent = _event_client()
+
+    result = CliRunner().invoke(
+        record, [USER_TYPE, "-f", str(records_file), "--energy=3"], obj=client
+    )
+
+    assert result.exit_code == 0, result.output
+    assert _fields(sent) == [{"mood": "calm", "energy": 3}]
+
+
+def test_value_with_file_is_still_refused():
+    client, sent = _event_client()
+
+    result = CliRunner().invoke(
+        record, [USER_TYPE, "5", "-f", "-"], obj=client, input="{}"
+    )
+
+    assert result.exit_code == 1
+    assert "Cannot specify both VALUE and --file" in result.output
