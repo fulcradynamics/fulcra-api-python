@@ -1,6 +1,7 @@
 import json
 import os
 import pathlib
+import uuid
 from datetime import datetime, timezone
 from functools import partial, wraps
 from urllib.error import HTTPError
@@ -10,6 +11,42 @@ import dateparser
 
 from fulcra_api.core import FulcraAPI
 from fulcra_api.credentials import FulcraCredentials
+
+
+def http_error_detail(exc: HTTPError) -> str:
+    """
+    The reason an API request failed: the response's `detail` when it's the
+    usual FastAPI JSON error body, otherwise the raw body, otherwise the HTTP
+    status line.
+    """
+    try:
+        body = exc.read().decode("utf-8", errors="replace").strip()
+    except Exception:
+        body = ""
+    try:
+        detail = json.loads(body)["detail"]
+    except (ValueError, KeyError, TypeError):
+        return body or str(exc)
+    if isinstance(detail, list):
+        # request validation errors: one message per invalid field
+        return "; ".join(
+            item.get("msg", str(item)) if isinstance(item, dict) else str(item)
+            for item in detail
+        )
+    return str(detail)
+
+
+def error_message(exc: Exception) -> str:
+    """
+    A failed request's message for the user: for an HTTPError, its status and
+    the server's reason ("HTTP 422: id must be a UUID, got 'abc'"); for any
+    other exception, its own message.
+    """
+    if not isinstance(exc, HTTPError):
+        return str(exc)
+    detail = http_error_detail(exc)
+    return str(exc) if detail == str(exc) else f"HTTP {exc.code}: {detail}"
+
 
 # Create a pass decorator for FulcraAPI to enable type hints in subcommands
 pass_fulcra_api = click.make_pass_decorator(FulcraAPI)
@@ -163,6 +200,8 @@ def resolve_data_type(
     def callback(ctx: click.Context, param: click.Parameter, value):
         if value is None:
             return None
+        if not value.strip():
+            raise click.BadParameter("a data type is required", ctx=ctx, param=param)
 
         fulcra_api = ctx.find_object(FulcraAPI)
         if fulcra_api is None:
@@ -188,7 +227,7 @@ def resolve_data_type(
                 value, api_version=api_version, fulcra_userid=user_id
             )
         except (ValueError, HTTPError) as exc:
-            raise click.BadParameter(str(exc), ctx=ctx, param=param)
+            raise click.BadParameter(error_message(exc), ctx=ctx, param=param)
 
         # Write commands can only target recordable types, so read-only matches
         # are noise when disambiguating. v0 is a legacy read-only API and is never
@@ -259,6 +298,39 @@ def tolerate_unencodable_output(*streams) -> None:
             reconfigure(errors="replace")
         except (ValueError, OSError):
             pass
+
+
+def reject_blank(ctx: click.Context, param: click.Parameter, value):
+    """
+    Option/argument callback refusing an empty or whitespace-only value, which
+    is almost always an unset shell variable (`--user-id "$USER_ID"`). Passing
+    it on would quietly change the command's meaning -- an empty user id reads
+    your own data, an empty filter matches everything. A value that wasn't given
+    at all (None) is left alone. Handles repeatable options (tuples) too.
+    """
+    values = value if isinstance(value, tuple) else (value,)
+    if any(v is not None and not v.strip() for v in values):
+        raise click.BadParameter("can't be empty", ctx=ctx, param=param)
+    return value
+
+
+def valid_user_id(ctx: click.Context, param: click.Parameter, value):
+    """
+    Callback for --user-id options: refuses a blank value (see reject_blank) or
+    one that isn't a UUID, which every Fulcra user id is. Otherwise the server
+    rejects it, and the error surfaces as a problem with some other argument.
+    """
+    reject_blank(ctx, param, value)
+    for v in value if isinstance(value, tuple) else (value,):
+        if v is None:
+            continue
+        try:
+            uuid.UUID(v)
+        except ValueError:
+            raise click.BadParameter(
+                f"must be a Fulcra user ID (a UUID), got {v!r}", ctx=ctx, param=param
+            )
+    return value
 
 
 def parse_time(ctx: click.Context, param: click.Parameter, value: str) -> datetime:
@@ -346,6 +418,12 @@ def time_range(func=None, *, allow_latest: bool = False):
                 raise click.UsageError(f"Invalid datetime format: {e}")
         else:
             raise click.UsageError("Expected either 1 or 2 values for TIME_RANGE")
+
+        if not latest and end_time < start_time:
+            raise click.UsageError(
+                f"TIME_RANGE ends before it starts: {start_time.isoformat()} "
+                f"to {end_time.isoformat()}"
+            )
 
         if allow_latest:
             kwargs["latest"] = latest
