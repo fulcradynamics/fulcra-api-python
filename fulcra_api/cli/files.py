@@ -11,11 +11,14 @@ import puremagic
 from fulcra_api.core import FulcraAPI
 
 from .utils import (
+    error_message,
     file_share_type,
     human_size,
     make_filepath,
     pass_fulcra_api,
+    reject_blank,
     requires_auth,
+    valid_user_id,
 )
 
 
@@ -29,6 +32,7 @@ def file():
 @click.option(
     "--user-id",
     type=str,
+    callback=valid_user_id,
     default=None,
     help="Fulcra user ID of which files to fetch.",
 )
@@ -68,6 +72,7 @@ def file_list(fulcra_api: FulcraAPI, path: str, user_id: str | None):
 @click.option(
     "--user-id",
     type=str,
+    callback=valid_user_id,
     default=None,
     help="Fulcra user ID of which files to fetch.",
 )
@@ -95,7 +100,7 @@ def file_stat(fulcra_api: FulcraAPI, path: str, user_id: str | None):
         error_body = exc.read().decode("utf-8")
         raise click.ClickException(f"Failed to stat file: {exc}\n{error_body}")
     except Exception as exc:
-        raise click.ClickException(exc)
+        raise click.ClickException(error_message(exc))
 
     latest_version = f[0]
 
@@ -120,6 +125,7 @@ def file_stat(fulcra_api: FulcraAPI, path: str, user_id: str | None):
 @click.option(
     "--user-id",
     type=str,
+    callback=valid_user_id,
     default=None,
     help="Fulcra user ID of which files to fetch.",
 )
@@ -149,7 +155,7 @@ def file_download(
         error_body = exc.read().decode("utf-8")
         raise click.ClickException(f"Failed to download file: {exc}\n{error_body}")
     except Exception as exc:
-        raise click.ClickException(exc)
+        raise click.ClickException(error_message(exc))
 
     remote_name = pathlib.PurePosixPath(f[0].get("name")).name
 
@@ -274,7 +280,7 @@ def file_delete(fulcra_api: FulcraAPI, path):
         error_body = exc.read().decode("utf-8")
         raise click.ClickException(f"Failed to delete file: {exc}\n{error_body}")
     except Exception as exc:
-        raise click.ClickException(exc)
+        raise click.ClickException(error_message(exc))
 
     fulcra_api.delete_file(f[0].get("id"))
 

@@ -27,17 +27,22 @@ def build_v1_promql(
     """
     Build a PromQL query selecting a data type's records.
 
-    With ``latest=True``, emits a bare instant vector (just the type id), which
+    A user-defined type's id (``Event/<uuid>``) can't be a PromQL metric name,
+    which can't contain ``/``, so it's selected with a ``__name__`` matcher
+    (``{__name__="Event/<uuid>"}``) instead.
+
+    With ``latest=True``, emits a bare instant vector (just the selector), which
     the v1 records endpoint evaluates as the single most recent record.
 
     Otherwise encodes the window as a range vector anchored at the end time
     (``Type[<duration>s] @ <end_unix_ts>``), which the v1 records endpoint
     evaluates as records overlapping [start_time, end_time).
     """
+    selector = f'{{__name__="{data_type_id}"}}' if "/" in data_type_id else data_type_id
     if latest:
-        return data_type_id
+        return selector
     duration = max(1, int((end_time - start_time).total_seconds()))
-    return f"{data_type_id}[{duration}s] @ {int(end_time.timestamp())}"
+    return f"{selector}[{duration}s] @ {int(end_time.timestamp())}"
 
 
 def _owner_scope(source, data_type: dict):
@@ -92,7 +97,8 @@ def get_records(
             f"provide a time range instead (data type '{data_type['id']}')."
         )
 
-    # User-configured annotation shorthand: "<AnnotationType>/<UUID>".
+    # A custom type's shorthand, "<Base Type>/<UUID>": a user-configured
+    # annotation (v1alpha1) or a user-defined type (v1).
     annotation_id = None
     parts = data_type["id"].split("/", maxsplit=2)
     base_type = parts[0]
@@ -101,8 +107,8 @@ def get_records(
             annotation_id = UUID(parts[1])
         except ValueError:
             raise ValueError(
-                "User configured annotation shorthand must be "
-                "<Annotation Type>/<UUID>"
+                f"Custom data type '{data_type['id']}' must be written "
+                "<Base Type>/<UUID>"
             )
 
     owner = _owner_scope(source, data_type)
@@ -131,7 +137,9 @@ def get_records(
             raise ValueError(
                 "Group participant queries are not supported for v1 data types."
             )
-        query = build_v1_promql(base_type, start_time, end_time, latest=latest)
+        # the full id: a user-defined type (Event/<uuid>) is its own data type,
+        # not its base type
+        query = build_v1_promql(data_type["id"], start_time, end_time, latest=latest)
         resp = source.fulcra_v1_records(query, fulcra_userid=owner)
         return _as_records(resp, jsonl=True)
 
