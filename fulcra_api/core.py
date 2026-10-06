@@ -1334,7 +1334,6 @@ class FulcraAPI(FulcraDataAccessMixin):
         Make a call to the v1alpha1 API.
 
         Params:
-            access_token: The access token to authenticate the request with
             data_class: The class of data to query (event or metric)
             data_type: The data type to query
             params: Additional params to add to the query
@@ -2138,8 +2137,8 @@ class FulcraAPI(FulcraDataAccessMixin):
             A dict with two keys:
 
             - `all_data_types`: True if everything is shared with you, in
-              which case `fulcra_data_types` is empty -- check this flag
-              before reading the list
+                which case `fulcra_data_types` is empty -- check this flag
+                before reading the list
             - `fulcra_data_types`: the sorted data types you may read
 
         Examples:
