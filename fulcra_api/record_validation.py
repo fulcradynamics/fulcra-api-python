@@ -53,7 +53,12 @@ def check_date_time(value: str, api_version: str) -> None:
             digits += "00"
         offset = f"{offset[0]}{digits[:2]}:{digits[2:]}"
 
-    # Let datetime rule out impossible dates and times (month 13, hour 24, ...)
+    # Python 3.14's fromisoformat reads hour 24 as midnight the next day; the
+    # ETLs refuse it, so rule it out here on every Python version.
+    if match["time"] and int(match["time"][:2]) > 23:
+        raise ValueError("not a real date-time: hour must be in 0..23")
+
+    # Let datetime rule out the other impossible dates and times (month 13, ...)
     normalized = match["date"]
     if match["time"]:
         normalized += f"T{match['time']}:{match['seconds'] or '00'}"

@@ -304,6 +304,70 @@ def _only_user_defined(type_id: str, action: str) -> click.ClickException:
     )
 
 
+USER_DATA_TYPE_CATEGORIES = {"user_configured", "user_defined"}
+
+
+@data_type.command("list", short_help="List user-defined data types")
+@click.option(
+    "--include-shared",
+    is_flag=True,
+    default=False,
+    help="Also list user-defined data types that others have shared with you.",
+)
+@click.option(
+    "--api-version",
+    type=str,
+    default=None,
+    help="Only list data types of this API version (e.g. v1).",
+)
+@click.option("-n", "--name", type=str, help="Filter results by partial name.")
+@pass_fulcra_api
+@requires_auth
+def data_type_list(
+    fulcra_api: FulcraAPI,
+    include_shared: bool,
+    api_version: str | None,
+    name: str | None,
+):
+    """
+    List the user-defined data types you have created, one JSON object per line.
+
+    Archived data types are not listed; restore one with `fulcra data-type restore`.
+
+    Examples:
+
+    \b
+    List your v1 Event and Metric data types:
+    fulcra data-type list --api-version v1
+
+    \b
+    Include data types shared with you by other users:
+    fulcra data-type list --include-shared
+    """
+    # The server tags these "user_configured" today; fulcra-data-types also
+    # defines "user_defined" as its replacement, so accept either. Filter
+    # client-side, since the server's category filter matches only one name.
+    try:
+        response = fulcra_api.v1_catalog()
+    except HTTPError as exc:
+        raise click.ClickException(error_message(exc)) from exc
+
+    response = [
+        c
+        for c in response
+        if USER_DATA_TYPE_CATEGORIES.intersection(c.get("categories", []))
+    ]
+    if not include_shared:
+        response = [c for c in response if "shared_type" not in c.get("categories", [])]
+    if api_version:
+        response = [c for c in response if c.get("api_version") == api_version]
+    if name:
+        response = [c for c in response if name.lower() in c.get("name", "").lower()]
+
+    for c in response:
+        click.echo(json.dumps(c))
+
+
 @data_type.command("archive", short_help="Archive a user-defined data type")
 @click.argument(
     "data_type",
