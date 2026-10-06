@@ -1,7 +1,8 @@
 name: release
 
 # Publishes pyproject.toml's version to PyPI if PyPI doesn't have it yet: test,
-# build, upload (Trusted Publishing), then tag and create a GitHub release.
+# build, upload (Trusted Publishing), tag and create a GitHub release, then
+# deploy the docs to GitHub Pages so they match the released version.
 # A release is a PR that runs `scripts/release.py bump`; merging it publishes.
 # Pushes that don't change the version do nothing. Run it by hand to retry.
 # See RELEASING.md.
@@ -9,6 +10,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      deploy_docs:
+        description: Deploy the docs from main even if there's nothing to publish
+        type: boolean
+        default: false
 
 concurrency:
   group: release
@@ -56,3 +62,26 @@ jobs:
         run: >
           gh release create "v${VERSION}" dist/*
           --target "${GITHUB_SHA}" --title "v${VERSION}" --generate-notes
+
+  # Same as `mkdocs gh-deploy` by hand: build, commit to the gh-pages branch,
+  # push. GitHub Pages serves that branch.
+  docs:
+    needs: [plan, pypi]
+    if: >
+      always() &&
+      (needs.pypi.result == 'success' ||
+       (github.event_name == 'workflow_dispatch' && inputs.deploy_docs &&
+        needs.pypi.result != 'failure' && needs.pypi.result != 'cancelled'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push to gh-pages
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch gh-pages, so the deploy adds a commit on top of it
+        run: git fetch origin gh-pages:gh-pages
+      - uses: astral-sh/setup-uv@v6
+      - name: Deploy to GitHub Pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          uv run --locked mkdocs gh-deploy --strict

@@ -27,3 +27,13 @@ jobs:
         run: uv sync --locked
       - name: Test
         run: uv run pytest -q
+
+  # The API docs (mkdocs + mkdocstrings) build from the docstrings; strict mode
+  # turns docstring problems into failures. release.yml deploys them.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Build the docs
+        run: uv run --locked mkdocs build --strict --site-dir "${RUNNER_TEMP}/site"
