@@ -1,0 +1,30 @@
+name: release metadata
+
+# Catches a bad release PR in review rather than at publish time: a changed
+# version must go up, uv.lock must match pyproject.toml, and the package must
+# build with a description PyPI will accept.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # A required status check in the branch ruleset (infrastructure:
+  # tf/github/repos/fulcra-api-python), matched by this job name.
+  release-metadata:
+    name: release-metadata
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+      - name: Check the version
+        run: python3 scripts/release.py check --github --base "origin/${{ github.base_ref }}"
+      - name: Check uv.lock matches pyproject.toml
+        run: uv lock --check
+      - name: Build
+        run: uv build
+      - name: Check the package metadata PyPI will see
+        run: uvx twine check --strict dist/*
