@@ -11,6 +11,7 @@ import json
 from fulcra_api.cli.data_types import (
     data_type_archive,
     data_type_create,
+    data_type_list,
     get_schema,
     restore_data_type,
 )
@@ -423,3 +424,83 @@ def test_schema_of_a_user_defined_type_is_fetched_by_its_full_id():
         "fulcra_userid": "sharer",
     }
 
+
+
+# --- list --------------------------------------------------------------------
+
+MINE_V1 = {
+    "id": "Event/3982a39a-ed7b-444b-b54d-90134ac46309",
+    "name": "Headaches",
+    "api_version": "v1",
+    "categories": ["user_configured"],
+}
+MINE_ANNOTATION = {
+    "id": "MomentAnnotation/642f37c8-67aa-4758-8cc9-9368b47dd766",
+    "name": "Coffee",
+    "api_version": "v1alpha1",
+    "categories": ["user_configured"],
+}
+SHARED_V1 = {
+    "id": "Metric/11111111-aaaa-4aaa-8aaa-111111111111",
+    "name": "Their Metric",
+    "api_version": "v1",
+    "categories": ["user_configured", "shared_type"],
+}
+BUILT_IN = {"id": "HeartRate", "name": "Heart Rate", "api_version": "v1alpha1"}
+
+
+def _list_client():
+    client = _client()
+    captured = {}
+
+    def v1_catalog(**kwargs):
+        captured.update(kwargs)
+        return [dict(e) for e in (MINE_V1, MINE_ANNOTATION, SHARED_V1, BUILT_IN)]
+
+    client.v1_catalog = v1_catalog
+    return client, captured
+
+
+def _list_ids(*args):
+    client, captured = _list_client()
+    result = CliRunner().invoke(data_type_list, list(args), obj=client)
+    assert result.exit_code == 0, result.output
+    return [json.loads(line)["id"] for line in result.output.splitlines()], captured
+
+
+def test_list_returns_only_own_user_defined_types():
+    ids, captured = _list_ids()
+
+    assert captured.get("category") is None
+    assert ids == [MINE_V1["id"], MINE_ANNOTATION["id"]]
+
+
+def test_list_include_shared_adds_shared_types():
+    ids, _ = _list_ids("--include-shared")
+
+    assert ids == [MINE_V1["id"], MINE_ANNOTATION["id"], SHARED_V1["id"]]
+
+
+def test_list_filters_by_api_version():
+    ids, _ = _list_ids("--api-version", "v1", "--include-shared")
+
+    assert ids == [MINE_V1["id"], SHARED_V1["id"]]
+
+
+def test_list_filters_by_partial_name():
+    ids, _ = _list_ids("-n", "head")
+
+    assert ids == [MINE_V1["id"]]
+
+
+def test_list_accepts_the_user_defined_category():
+    client = _client()
+    entry = dict(MINE_V1, categories=["user_defined"])
+    client.v1_catalog = lambda **k: [dict(entry), dict(BUILT_IN)]
+
+    result = CliRunner().invoke(data_type_list, [], obj=client)
+
+    assert result.exit_code == 0, result.output
+    assert [json.loads(line)["id"] for line in result.output.splitlines()] == [
+        MINE_V1["id"]
+    ]
