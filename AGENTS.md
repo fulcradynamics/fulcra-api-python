@@ -13,6 +13,8 @@ Data is primarily collected through the human's phone; the human installs [Conte
 
 Always use `uv` to run Python commands in this repository. For example, run tests with `uv run python -m pytest [options...]`; do not invoke `python`, `python -m pytest`, or `pytest` directly.
 
+By default the tests run fully offline, as CI does. Tests that talk to a real Fulcra backend are marked `live` and skipped unless you pass `--live` (`uv run python -m pytest --live`). That run opens a device login in the browser, which a person has to finish, so don't use `--live` unattended.
+
 ### Interactive Access to the User's Data
 The human user gets to investigate their data interactively using beautiful mobile and [web apps](https://context.fulcradynamics.com/).
 
