@@ -2,6 +2,8 @@
 
 import uuid
 
+import pytest
+
 from click.testing import CliRunner
 
 import json
@@ -341,6 +343,34 @@ def test_restore_v1alpha1_restores_annotation():
 
     assert result.exit_code == 0, result.output
     assert captured["id"] == ann_uuid
+
+
+@pytest.mark.parametrize(
+    "data_type",
+    [
+        f"Metric/{uuid.uuid4()}/unexpected",
+        f"MomentAnnotation/{uuid.uuid4()}/unexpected",
+        f"MomentAnnotation/junk/{uuid.uuid4()}",
+        f"NotAnAnnotation/{uuid.uuid4()}",
+    ],
+    ids=["v1-extra", "annotation-extra", "annotation-junk", "not-annotation"],
+)
+def test_restore_refuses_malformed_ids_without_restoring_anything(data_type):
+    """An archived type isn't in the catalog, so restore parses the ID itself;
+    a malformed one must not restore the real type it resembles"""
+    client = _client()
+    client.resolve_data_type = _raise_value_error
+
+    def fail(*a, **k):
+        pytest.fail("restore acted on a malformed ID")
+
+    client.update_data_type = fail
+    client.restore_annotation = fail
+
+    result = CliRunner().invoke(restore_data_type, [data_type], obj=client)
+
+    assert result.exit_code != 0
+    assert "<UUID>" in result.output
 
 
 # --- schema ------------------------------------------------------------------

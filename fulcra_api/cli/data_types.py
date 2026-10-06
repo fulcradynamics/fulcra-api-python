@@ -402,8 +402,8 @@ def restore_data_type(fulcra_api: FulcraAPI, data_type: str):
         return
 
     try:
-        ann_id = str(UUID(parts[1]))
-    except (ValueError, IndexError):
+        _, ann_id = data_type_management.parse_annotation_shorthand(data_type)
+    except ValueError:
         raise click.ClickException(
             "DATA_TYPE must be <Event|Metric>/<UUID> or <Annotation Type>/<UUID>"
         )

@@ -449,6 +449,39 @@ def test_parse_v1_shorthand_rejects_bad_uuid():
         dtm.parse_v1_shorthand("Metric/not-a-uuid")
 
 
+@pytest.mark.parametrize(
+    "suffix", ["/extra", "/", f"/{uuid.uuid4()}"], ids=["extra", "trailing-slash", "two-uuids"]
+)
+def test_parse_v1_shorthand_rejects_anything_after_the_uuid(suffix):
+    """Event/<uuid>/extra must not stand in for Event/<uuid>: archive and restore
+    would act on that real type"""
+    with pytest.raises(ValueError, match="Event|Metric"):
+        dtm.parse_v1_shorthand(f"Event/{uuid.uuid4()}{suffix}")
+
+
+def test_parse_annotation_shorthand_splits_base_and_uuid():
+    u = str(uuid.uuid4())
+    for base in dtm.ANNOTATION_BASE_TYPES:
+        assert dtm.parse_annotation_shorthand(f"{base}/{u}") == (base, u)
+
+
+@pytest.mark.parametrize(
+    "data_type",
+    [
+        f"MomentAnnotation/{uuid.uuid4()}/extra",
+        f"MomentAnnotation/junk/{uuid.uuid4()}",
+        f"HeartRate/{uuid.uuid4()}",
+        f"Event/{uuid.uuid4()}",
+        "MomentAnnotation/not-a-uuid",
+        str(uuid.uuid4()),
+    ],
+    ids=["extra", "junk-before-uuid", "not-annotation", "v1-base", "bad-uuid", "bare-uuid"],
+)
+def test_parse_annotation_shorthand_rejects_other_ids(data_type):
+    with pytest.raises(ValueError, match="AnnotationType"):
+        dtm.parse_annotation_shorthand(data_type)
+
+
 def test_is_v1_base_type():
     assert dtm.is_v1_base_type("Event")
     assert dtm.is_v1_base_type("Metric")
