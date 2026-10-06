@@ -15,26 +15,59 @@ from uuid import UUID
 
 V1_BASE_TYPES = ("Event", "Metric")
 
+# The v1alpha1 base types a user-defined annotation is built on
+ANNOTATION_BASE_TYPES = (
+    "MomentAnnotation",
+    "DurationAnnotation",
+    "BooleanAnnotation",
+    "NumericAnnotation",
+    "ScaleAnnotation",
+)
+
 
 def is_v1_base_type(name: str) -> bool:
     """Whether ``name`` is a v1 custom base type (``Event`` or ``Metric``)."""
     return name in V1_BASE_TYPES
 
 
+def _split_shorthand(data_type_id: str, base_types: tuple[str, ...]) -> tuple[str, str] | None:
+    """(base type, UUID) for an id that is exactly ``<base>/<UUID>`` with
+    ``<base>`` in ``base_types``, else None. Nothing may follow the UUID: an id
+    like ``Event/<uuid>/extra`` must not stand in for ``Event/<uuid>``."""
+    base_type, sep, rest = data_type_id.partition("/")
+    if not sep or base_type not in base_types:
+        return None
+    try:
+        return base_type, str(UUID(rest))
+    except ValueError:
+        return None
+
+
 def parse_v1_shorthand(data_type_id: str) -> tuple[str, str]:
     """Split a ``"<BaseType>/<UUID>"`` id into its base type and UUID string.
 
     Raises:
-        ValueError: If the id isn't ``<Event|Metric>/<UUID>``.
+        ValueError: If the id isn't exactly ``<Event|Metric>/<UUID>``.
     """
-    parts = data_type_id.split("/", maxsplit=2)
-    if len(parts) < 2 or not is_v1_base_type(parts[0]):
+    parsed = _split_shorthand(data_type_id, V1_BASE_TYPES)
+    if parsed is None:
         raise ValueError("v1 data type id must be <Event|Metric>/<UUID>")
-    try:
-        type_uuid = str(UUID(parts[1]))
-    except ValueError:
-        raise ValueError("v1 data type id must be <Event|Metric>/<UUID>")
-    return parts[0], type_uuid
+    return parsed
+
+
+def parse_annotation_shorthand(data_type_id: str) -> tuple[str, str]:
+    """Split a ``"<AnnotationType>/<UUID>"`` id (e.g. ``MomentAnnotation/<UUID>``)
+    into its base type and UUID string.
+
+    Raises:
+        ValueError: If the id isn't exactly ``<AnnotationType>/<UUID>``.
+    """
+    parsed = _split_shorthand(data_type_id, ANNOTATION_BASE_TYPES)
+    if parsed is None:
+        raise ValueError(
+            "annotation data type id must be <AnnotationType>/<UUID>, e.g. MomentAnnotation/<UUID>"
+        )
+    return parsed
 
 
 def create_data_type(
