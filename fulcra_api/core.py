@@ -10,7 +10,7 @@ import urllib.request
 import webbrowser
 from pathlib import PurePosixPath
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 
 import jsonschema
 import pandas as pd
@@ -2005,6 +2005,8 @@ class FulcraAPI(FulcraDataAccessMixin):
         start_time: str | datetime.datetime,
         end_time: str | datetime.datetime,
         fulcra_userid: str | None = None,
+        include_shared: bool = False,
+        max_peers: int | None = None,
     ) -> dict:
         """
         Retrieve a summary of the data that was updated during the specified
@@ -2014,16 +2016,43 @@ class FulcraAPI(FulcraDataAccessMixin):
         (along with the number of records processed for each), as well as any
         uploaded files that changed.
 
+        The range is matched against when Fulcra processed each record, rounded
+        down to the minute, not against the records' own timestamps.  Counts
+        appear a few minutes after the records themselves can be read, so a
+        "since my last check" range should start a little before that check.
+
         Params:
             start_time: The start of the time range (inclusive), as an ISO 8601 string or `datetime` object.
             end_time: The end of the range (exclusive), as an ISO 8601 string or `datetime` object.
             fulcra_userid: Optional Fulcra user ID to get updates for
+            include_shared: Also check every user who shares data with the
+                authenticated user.  Can't be combined with `fulcra_userid`.
+            max_peers: With `include_shared`, check at most this many people
+                (default: everyone).  The server answers for one account at a
+                time, so each person is one more request; a caller that must
+                answer quickly can cap it.
 
         Returns:
             A dict with two keys:
 
             - `data_types`: a dict mapping each data type to the number of records processed for it
             - `file_changes`: a list of files that were added, changed, or removed
+
+            With `include_shared`, also:
+
+            - `shared`: a dict keyed by the user ID of each person sharing with
+              you who has updates in the range, each with their `name` and the
+              same `data_types` and `file_changes` (only what they share with
+              you).  People with no updates are left out.  A person whose
+              updates couldn't be read has an `error` instead.
+            - `peers_checked`: how many people were checked.
+            - `peers_skipped`: present only when more than `max_peers` people
+              share with you; the IDs of those not checked, to query one at a
+              time with `fulcra_userid`.
+
+        Raises:
+            ValueError: if both `fulcra_userid` and `include_shared` are given,
+                or `max_peers` is negative.
 
         Examples:
             To see what data was updated during a given range:
@@ -2034,7 +2063,22 @@ class FulcraAPI(FulcraDataAccessMixin):
             ... )
             >>> updates["data_types"]
             {'StepCount': 412, 'HeartRate': 1875}
+
+            To also see which of the people sharing with you have new data:
+
+            >>> updates = fulcra.data_updates(
+            ...     start_time="2026-02-01 00:00:00Z",
+            ...     end_time="2026-02-03 00:00:00Z",
+            ...     include_shared=True,
+            ... )
+            >>> {uid: peer["data_types"] for uid, peer in updates["shared"].items()}
+            {'5ce6549b-91ff-4413-b326-93722f3cbbaf': {'Event/f79de9b1-1245-41dc-a2b4-86706874aad8': 1}}
         """
+        if fulcra_userid is not None and include_shared:
+            raise ValueError("Pass either fulcra_userid or include_shared, not both.")
+        if max_peers is not None and max_peers < 0:
+            raise ValueError("max_peers can't be negative.")
+
         params = {
             "start_time": start_time,
             "end_time": end_time,
@@ -2044,7 +2088,58 @@ class FulcraAPI(FulcraDataAccessMixin):
             params["fulcra_userid"] = fulcra_userid
 
         resp = self.fulcra_api("/data/v1/updates", query=params)
-        return json.loads(resp)
+        updates = json.loads(resp)
+        if include_shared:
+            updates.update(self._shared_data_updates(start_time, end_time, max_peers))
+        return updates
+
+    def _shared_data_updates(
+        self,
+        start_time: str | datetime.datetime,
+        end_time: str | datetime.datetime,
+        max_peers: int | None,
+    ) -> dict:
+        """The `shared`, `peers_checked` and `peers_skipped` part of
+        `data_updates(include_shared=True)`.
+
+        The server answers for one account at a time, so this asks once per
+        person sharing with the authenticated user, one after another.
+        """
+        try:
+            own = self.get_fulcra_userid()
+        except Exception:
+            own = None
+        peers: Dict[str, Optional[str]] = {}
+        for grant in self.get_shared_datasets():
+            # The "self" grant is the user's own data.  A share the user made
+            # to a group they belong to comes back as a grant from themselves.
+            if grant.get("grant_type") == "self":
+                continue
+            uid = grant.get("sharing_fulcra_userid")
+            if uid and uid != own and uid not in peers:
+                peers[uid] = grant.get("sharing_fulcra_user_name")
+
+        polled = list(peers.items())[:max_peers]
+        shared = {}
+        for uid, name in polled:
+            try:
+                peer_updates = self.data_updates(
+                    start_time, end_time, fulcra_userid=uid
+                )
+            except HTTPError as exc:
+                shared[uid] = {"name": name, "error": f"HTTP {exc.code}"}
+                continue
+            except (TimeoutError, URLError):
+                shared[uid] = {"name": name, "error": "timeout"}
+                continue
+            if peer_updates.get("data_types") or peer_updates.get("file_changes"):
+                shared[uid] = {"name": name, **peer_updates}
+
+        result: Dict[str, Any] = {"shared": shared, "peers_checked": len(polled)}
+        if len(peers) > len(polled):
+            # Name the rest explicitly so nobody is silently never checked.
+            result["peers_skipped"] = [uid for uid in list(peers)[len(polled) :]]
+        return result
 
     def get_shared_datasets(self) -> List[Dict]:
         """
