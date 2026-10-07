@@ -4519,7 +4519,7 @@ ISO 8601 string or <code>datetime</code>.  Must include a timezone offset.</p>
 
 
 <h3 id="fulcra_api.core.FulcraAPI.data_updates" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">data_updates</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">data_updates</span><span class="p">(</span><span class="n">start_time</span><span class="p">,</span> <span class="n">end_time</span><span class="p">,</span> <span class="n">fulcra_userid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">include_shared</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">max_peers</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -4531,6 +4531,10 @@ time range for the authenticated user.</p>
 <p>This reports the data types that had records processed during the range
 (along with the number of records processed for each), as well as any
 uploaded files that changed.</p>
+<p>The range is matched against when Fulcra processed each record, rounded
+down to the minute, not against the records' own timestamps.  Counts
+appear a few minutes after the records themselves can be read, so a
+"since my last check" range should start a little before that check.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -4592,6 +4596,42 @@ uploaded files that changed.</p>
                   <code>None</code>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>include_shared</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Also check every user who shares data with the
+authenticated user.  Can't be combined with <code>fulcra_userid</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_peers</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>With <code>include_shared</code>, check at most this many people
+(default: everyone).  The server answers for one account at a
+time, so each person is one more request; a caller that must
+answer quickly can cap it.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -4639,6 +4679,82 @@ uploaded files that changed.</p>
               </div>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>With <code>include_shared</code>, also:</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li><code>shared</code>: a dict keyed by the user ID of each person sharing with
+you who has updates in the range, each with their <code>name</code> and the
+same <code>data_types</code> and <code>file_changes</code> (only what they share with
+you).  People with no updates are left out.  A person whose
+updates couldn't be read has an <code>error</code> instead.</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li><code>peers_checked</code>: how many people were checked.</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="dict">dict</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <ul>
+<li><code>peers_skipped</code>: present only when more than <code>max_peers</code> people
+share with you; the IDs of those not checked, to query one at a
+time with <code>fulcra_userid</code>.</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>if both <code>fulcra_userid</code> and <code>include_shared</code> are given,
+or <code>max_peers</code> is negative.</p>
+              </div>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -4651,6 +4767,15 @@ uploaded files that changed.</p>
 <span class="gp">... </span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">updates</span><span class="p">[</span><span class="s2">&quot;data_types&quot;</span><span class="p">]</span>
 <span class="go">{&#39;StepCount&#39;: 412, &#39;HeartRate&#39;: 1875}</span>
+</code></pre></div>
+    <p>To also see which of the people sharing with you have new data:</p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">updates</span> <span class="o">=</span> <span class="n">fulcra</span><span class="o">.</span><span class="n">data_updates</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">start_time</span><span class="o">=</span><span class="s2">&quot;2026-02-01 00:00:00Z&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">end_time</span><span class="o">=</span><span class="s2">&quot;2026-02-03 00:00:00Z&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">include_shared</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="p">{</span><span class="n">uid</span><span class="p">:</span> <span class="n">peer</span><span class="p">[</span><span class="s2">&quot;data_types&quot;</span><span class="p">]</span> <span class="k">for</span> <span class="n">uid</span><span class="p">,</span> <span class="n">peer</span> <span class="ow">in</span> <span class="n">updates</span><span class="p">[</span><span class="s2">&quot;shared&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+<span class="go">{&#39;5ce6549b-91ff-4413-b326-93722f3cbbaf&#39;: {&#39;Event/f79de9b1-1245-41dc-a2b4-86706874aad8&#39;: 1}}</span>
 </code></pre></div>
 
 
