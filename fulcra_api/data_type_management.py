@@ -30,6 +30,25 @@ def is_v1_base_type(name: str) -> bool:
     return name in V1_BASE_TYPES
 
 
+# The catalog category of user-defined data types. The server sends
+# "user_configured" today; "user_defined" replaces it (PLAT-375). Treat the two
+# as one category so filters work before, during and after the rename.
+USER_DEFINED_CATEGORIES = frozenset({"user_defined", "user_configured"})
+
+
+def is_user_defined(entry: dict) -> bool:
+    """Whether a catalog entry is a user-defined data type (yours or shared)."""
+    return bool(USER_DEFINED_CATEGORIES.intersection(entry.get("categories") or []))
+
+
+def has_category(entry: dict, category: str) -> bool:
+    """Whether a catalog entry is in ``category``, with either name of the
+    user-defined category matching both."""
+    if category in USER_DEFINED_CATEGORIES:
+        return is_user_defined(entry)
+    return category in (entry.get("categories") or [])
+
+
 def _split_shorthand(data_type_id: str, base_types: tuple[str, ...]) -> tuple[str, str] | None:
     """(base type, UUID) for an id that is exactly ``<base>/<UUID>`` with
     ``<base>`` in ``base_types``, else None. Nothing may follow the UUID: an id
