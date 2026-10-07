@@ -486,3 +486,26 @@ def test_is_v1_base_type():
     assert dtm.is_v1_base_type("Event")
     assert dtm.is_v1_base_type("Metric")
     assert not dtm.is_v1_base_type("NumericAnnotation")
+
+
+# --- user-defined category (PLAT-619) -----------------------------------------
+
+
+@pytest.mark.parametrize("categories", [["user_configured"], ["user_defined"],
+                                        ["user_configured", "shared_type"]])
+def test_either_category_name_is_user_defined(categories):
+    assert dtm.is_user_defined({"categories": categories})
+
+
+@pytest.mark.parametrize("entry", [{"categories": ["base_type"]}, {"categories": []},
+                                   {"categories": None}, {}])
+def test_other_entries_are_not_user_defined(entry):
+    assert not dtm.is_user_defined(entry)
+
+
+def test_has_category_treats_both_user_defined_names_as_one():
+    renamed = {"categories": ["user_defined"]}
+    assert dtm.has_category(renamed, "user_configured")
+    assert dtm.has_category(renamed, "user_defined")
+    assert not dtm.has_category(renamed, "base_type")
+    assert dtm.has_category({"categories": ["base_type"]}, "base_type")

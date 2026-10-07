@@ -5,7 +5,7 @@ from urllib.error import HTTPError
 
 import click
 
-from fulcra_api import records
+from fulcra_api import data_type_management, records
 from fulcra_api.core import FulcraAPI
 
 from .utils import (
@@ -757,7 +757,20 @@ def get_records(
     default=False,
     help="Only show queryable data types.",
 )
-@click.option("-c", "--category", type=str, help="Filter by category.")
+@click.option(
+    "--user-defined",
+    is_flag=True,
+    default=False,
+    help="Only list user-defined data types: ones you created, and ones others "
+    "share with you. Add --recordable for only your own.",
+)
+@click.option(
+    "-c",
+    "--category",
+    type=str,
+    help="Filter by category, e.g. base_type or healthkit. For user-defined "
+    "types, use --user-defined.",
+)
 @click.option(
     "--api-version",
     type=str,
@@ -777,6 +790,7 @@ def catalog(
     base_types_only: bool,
     recordable_only: bool,
     queryable_only: bool,
+    user_defined: bool = False,
     data_type: str | None = None,
     name: str | None = None,
     category: str | None = None,
@@ -786,8 +800,48 @@ def catalog(
     """
     Return a list of Fulcra Data Types that can be queried with `get-records`, `metric-time-series`, and other commands.
 
+    This includes user-defined data types: ones you created with `fulcra
+    data-type create`, and ones other users share with you. Their IDs look like
+    `Event/<UUID>`. `--user-defined` lists only those; `fulcra data-type list`
+    lists the ones you created, which you can archive or restore.
+
     The `related_cli_commands` property contains a list of CLI sub-commands that can be used with a given data type.
+
+    Examples:
+
+    \b
+    List user-defined data types, yours and shared with you:
+    fulcra catalog --user-defined
+
+    \b
+    Only your own user-defined data types:
+    fulcra catalog --user-defined --recordable
+
+    \b
+    User-defined data types one person shares with you:
+    fulcra catalog --user-defined --user-id <USER-UUID>
+
+    \b
+    Base types to build a new data type on:
+    fulcra catalog --base-types
+
+    \b
+    Data types whose name contains "heart":
+    fulcra catalog -n heart
     """
+
+    if user_defined and base_types_only:
+        raise click.UsageError(
+            "--user-defined and --base-types can't be combined: base types "
+            "are built in, not user-defined"
+        )
+
+    # Either name of the user-defined category matches both (see
+    # data_type_management.has_category), but the server's filter matches only
+    # the exact name, so filter for those client-side.
+    user_defined_category = (
+        category in data_type_management.USER_DEFINED_CATEGORIES
+    )
 
     try:
         # If data_type, api_version, and user_id are specified, use the specific endpoint
@@ -799,7 +853,7 @@ def catalog(
         else:
             if base_types_only:
                 catalog_category = "base_type"
-            elif category:
+            elif category and not user_defined_category:
                 catalog_category = category
             else:
                 catalog_category = None
@@ -814,12 +868,19 @@ def catalog(
 
             # Filter by category if provided
             if category:
-                response = [c for c in response if category in c.get("categories", [])]
+                response = [
+                    c
+                    for c in response
+                    if data_type_management.has_category(c, category)
+                ]
     except HTTPError as exc:
         if exc.code == 404:
             raise click.ClickException("Type not found")
         else:
             raise click.ClickException(error_message(exc)) from exc
+
+    if user_defined:
+        response = [c for c in response if data_type_management.is_user_defined(c)]
 
     if name:
         response = [c for c in response if name.lower() in c.get("name", "").lower()]

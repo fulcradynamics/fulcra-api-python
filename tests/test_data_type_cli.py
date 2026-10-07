@@ -504,3 +504,8 @@ def test_list_accepts_the_user_defined_category():
     assert [json.loads(line)["id"] for line in result.output.splitlines()] == [
         MINE_V1["id"]
     ]
+
+
+def test_list_help_points_to_catalog():
+    result = CliRunner().invoke(data_type_list, ["--help"])
+    assert "fulcra catalog --user-defined" in result.output
