@@ -928,11 +928,21 @@ def user_info(fulcra_api: FulcraAPI):
     is_eager=True,
     help="Fulcra user ID to query data updates for (requires an active datashare from that user).",
 )
+@click.option(
+    "--include-shared",
+    is_flag=True,
+    default=False,
+    help="Also check everyone who shares data with you.",
+)
 @time_range
 @pass_fulcra_api
 @requires_auth
 def data_updates(
-    fulcra_api: FulcraAPI, start_time: datetime, end_time: datetime, user_id: str | None
+    fulcra_api: FulcraAPI,
+    start_time: datetime,
+    end_time: datetime,
+    user_id: str | None,
+    include_shared: bool,
 ):
     """Return a summary of the data that was updated across TIME_RANGE.
 
@@ -940,10 +950,36 @@ def data_updates(
 
     The result contains the data types that had records processed (along with
     the number of records processed for each) and any uploaded files that changed.
+
+    With --include-shared, the result also has "shared": an entry for each
+    person sharing with you who has updates in the range, keyed by their user
+    ID, with their name and the same summary of what they share with you.
+    People with no updates are left out. Each person checked takes one more
+    request, so this takes longer the more people share with you.
+
+    \b
+    Examples:
+
+    \b
+    What changed in your own data in the last day:
+    fulcra data-updates "1 day"
+
+    \b
+    What changed in the data one person shares with you:
+    fulcra data-updates "1 day" --user-id <USER-UUID>
+
+    \b
+    What changed for you and everyone who shares with you:
+    fulcra data-updates "1 hour" --include-shared
     """
+    if user_id is not None and include_shared:
+        raise click.UsageError("Use either --user-id or --include-shared, not both.")
     try:
         resp = fulcra_api.data_updates(
-            start_time=start_time, end_time=end_time, fulcra_userid=user_id
+            start_time=start_time,
+            end_time=end_time,
+            fulcra_userid=user_id,
+            include_shared=include_shared,
         )
     except HTTPError as exc:
         raise click.ClickException(error_message(exc)) from exc
