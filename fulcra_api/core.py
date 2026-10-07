@@ -2041,14 +2041,14 @@ class FulcraAPI(FulcraDataAccessMixin):
             With `include_shared`, also:
 
             - `shared`: a dict keyed by the user ID of each person sharing with
-              you who has updates in the range, each with their `name` and the
-              same `data_types` and `file_changes` (only what they share with
-              you).  People with no updates are left out.  A person whose
-              updates couldn't be read has an `error` instead.
+                you who has updates in the range, each with their `name` and the
+                same `data_types` and `file_changes` (only what they share with
+                you).  People with no updates are left out.  A person whose
+                updates couldn't be read has an `error` instead.
             - `peers_checked`: how many people were checked.
             - `peers_skipped`: present only when more than `max_peers` people
-              share with you; the IDs of those not checked, to query one at a
-              time with `fulcra_userid`.
+                share with you; the IDs of those not checked, to query one at a
+                time with `fulcra_userid`.
 
         Raises:
             ValueError: if both `fulcra_userid` and `include_shared` are given,
