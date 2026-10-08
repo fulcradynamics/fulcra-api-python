@@ -24,11 +24,18 @@ If you're using pip, use:
 pip install fulcra-api
 ```
 
+The methods that return pandas DataFrames (`metric_time_series`,
+`sleep_cycles`, `sleep_stages` and `sleep_agg`) need pandas and pyarrow, which
+are an optional extra.  To install them too, use `fulcra-api[pandas]` in place
+of `fulcra-api` in any of the commands above.  Without them, the `*_rows`
+variants of those methods (e.g. `metric_time_series_rows`) return the same data
+as a list of dicts.
+
 ### Installing in a Jupyter notebook
 
 In a Python cell in your notebook, use:
 ```
-%pip install fulcra-api
+%pip install 'fulcra-api[pandas]'
 ```
 
 *Colaboratory note*: You may see a dependency error while installing pyarrow; this

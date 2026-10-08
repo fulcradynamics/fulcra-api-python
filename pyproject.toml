@@ -13,10 +13,6 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "pandas> 1.5, < 3",
-    "pyarrow>= 19.0.0",
-    "numpy>=2.0.0,<3",
-    "pytest>=7.4.2,<8",
     "click>=8.2.1",
     "dateparser>=1.4.0",
     "puremagic>=1.30",
@@ -24,6 +20,15 @@ dependencies = [
     "click-option-group>=0.5.9",
 ]
 packages = [{ include = "fulcra_api" }]
+
+[project.optional-dependencies]
+# Needed by the methods that return pandas DataFrames (metric_time_series,
+# sleep_cycles, ...).  The CLI and the *_rows methods work without them.
+pandas = [
+    "pandas> 1.5, < 3",
+    "pyarrow>= 19.0.0",
+    "numpy>=2.0.0,<3",
+]
 
 [project.scripts]
 fulcra = "fulcra_api.cli:cli"
@@ -36,7 +41,7 @@ docs = [
     "mkdocstrings[python]>=0.29.0,<0.30",
     "mkdocs-material>=9.4.5,<10",
 ]
-test = ["pytest>=7.4.2,<8"]
+test = ["pytest>=7.4.2,<8", "fulcra-api[pandas]"]
 dev = ["black>=23.9.1,<24"]
 
 [tool.uv]
