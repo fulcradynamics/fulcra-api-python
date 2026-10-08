@@ -19,7 +19,8 @@ pkgs.mkShell {
     UV_PYTHON_DOWNLOADS = "never";
   };
   shellHook = ''
-    export PATH=.venv/bin/:$PATH
+    export VIRTUAL_ENV=.venv
+    export PATH="$VIRTUAL_ENV/bin/:$PATH"
 
     # LD_LIBRARY_PATH magic for NixOS + nix-ld environments so we can import numpy/etc
     [ -n "''${NIX_LD_LIBRARY_PATH:-}" ] && export LD_LIBRARY_PATH="$NIX_LD_LIBRARY_PATH" || true
