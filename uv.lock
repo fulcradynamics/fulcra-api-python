@@ -223,13 +223,16 @@ dependencies = [
     { name = "click-option-group" },
     { name = "dateparser" },
     { name = "jsonschema" },
+    { name = "puremagic", version = "1.30", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "puremagic", version = "2.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
+
+[package.optional-dependencies]
+pandas = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pandas" },
-    { name = "puremagic", version = "1.30", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "puremagic", version = "2.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pyarrow" },
-    { name = "pytest" },
 ]
 
 [package.dev-dependencies]
@@ -243,6 +246,7 @@ docs = [
     { name = "sphinx" },
 ]
 test = [
+    { name = "fulcra-api", extra = ["pandas"] },
     { name = "pytest" },
 ]
 
@@ -252,12 +256,12 @@ requires-dist = [
     { name = "click-option-group", specifier = ">=0.5.9" },
     { name = "dateparser", specifier = ">=1.4.0" },
     { name = "jsonschema", specifier = ">=4.0.0" },
-    { name = "numpy", specifier = ">=2.0.0,<3" },
-    { name = "pandas", specifier = ">1.5,<3" },
+    { name = "numpy", marker = "extra == 'pandas'", specifier = ">=2.0.0,<3" },
+    { name = "pandas", marker = "extra == 'pandas'", specifier = ">1.5,<3" },
     { name = "puremagic", specifier = ">=1.30" },
-    { name = "pyarrow", specifier = ">=19.0.0" },
-    { name = "pytest", specifier = ">=7.4.2,<8" },
+    { name = "pyarrow", marker = "extra == 'pandas'", specifier = ">=19.0.0" },
 ]
+provides-extras = ["pandas"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "black", specifier = ">=23.9.1,<24" }]
@@ -267,7 +271,10 @@ docs = [
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.29.0,<0.30" },
     { name = "sphinx", specifier = ">=7.2.6,<8" },
 ]
-test = [{ name = "pytest", specifier = ">=7.4.2,<8" }]
+test = [
+    { name = "fulcra-api", extras = ["pandas"] },
+    { name = "pytest", specifier = ">=7.4.2,<8" },
+]
 
 [[package]]
 name = "ghp-import"

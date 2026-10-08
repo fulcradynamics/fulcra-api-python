@@ -150,7 +150,7 @@ def metric_time_series(
         )
 
     source = resolve_data_source(fulcra_api, group_id, participant_id)
-    df = source.metric_time_series(
+    rows = source.metric_time_series_rows(
         start_time,
         end_time,
         metric,
@@ -159,10 +159,8 @@ def metric_time_series(
         calculations=list(agg_function),
     )
 
-    j = json.loads(df.to_json(orient="table"))
-
-    for c in j["data"]:
-        click.echo(json.dumps(c))
+    for row in rows:
+        click.echo(json.dumps(row))
 
 
 @click.command(
@@ -457,14 +455,12 @@ def sleep_stages(
 
     source = resolve_data_source(fulcra_api, group_id, participant_id)
     try:
-        df = source.sleep_stages(**kwargs)
+        rows = source.sleep_stages_rows(**kwargs)
     except HTTPError as exc:
         raise click.ClickException(error_message(exc))
 
-    j = json.loads(df.to_json(orient="table"))
-
-    for c in j["data"]:
-        click.echo(json.dumps(c))
+    for row in rows:
+        click.echo(json.dumps(row))
 
 
 @click.command(
@@ -532,14 +528,12 @@ def sleep_cycles(
 
     source = resolve_data_source(fulcra_api, group_id, participant_id)
     try:
-        df = source.sleep_cycles(**kwargs)
+        rows = source.sleep_cycles_rows(**kwargs)
     except HTTPError as exc:
         raise click.ClickException(error_message(exc))
 
-    j = json.loads(df.to_json(orient="table"))
-
-    for c in j["data"]:
-        click.echo(json.dumps(c))
+    for row in rows:
+        click.echo(json.dumps(row))
 
 
 @click.command(
@@ -638,14 +632,12 @@ def sleep_cycles_aggregated(
 
     source = resolve_data_source(fulcra_api, group_id, participant_id)
     try:
-        df = source.sleep_agg(**kwargs)
+        rows = source.sleep_agg_rows(**kwargs)
     except HTTPError as exc:
         raise click.ClickException(error_message(exc))
 
-    j = json.loads(df.to_json(orient="table"))
-
-    for c in j["data"]:
-        click.echo(json.dumps(c))
+    for row in rows:
+        click.echo(json.dumps(row))
 
 
 @click.command("get-records", short_help="Return raw sample records for a data type")

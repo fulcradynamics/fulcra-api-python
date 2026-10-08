@@ -112,7 +112,6 @@ builds = data_type_management.create_data_type(
         "properties": {"repo": {"type": "string"}, "seconds": {"type": "number"}},
         "required": ["repo"],
     },
-)
 
 # Record into it, and read it back (records are readable within about a minute)
 fulcra.record_data_type(builds["id"], [{"repo": "fulcra-api-python", "seconds": 312}], api_version="v1")

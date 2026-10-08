@@ -9,15 +9,17 @@ import urllib.parse
 import urllib.request
 import webbrowser
 from pathlib import PurePosixPath
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 from urllib.error import HTTPError, URLError
 
 import jsonschema
-import pandas as pd
 
 from . import record_validation
 from .credentials import FulcraCredentials
 from .oidc import FulcraOIDCProvider
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 try:
     from IPython.display import HTML, display
@@ -41,6 +43,29 @@ FULCRA_OIDC_SCOPE = os.environ.get(
 # Sentinel distinguishing "parameter not passed" from an explicit None, for
 # update calls where None means "clear this field on the server".
 UNSET: Any = object()
+
+
+def _import_pandas():
+    """
+    Import pandas for the methods that return DataFrames.
+
+    pandas and pyarrow are an optional extra so that the base install (and
+    the CLI) stays small.
+    """
+    try:
+        import pandas as pd
+    except ImportError:
+        raise ImportError(
+            "This method returns a pandas DataFrame, which needs the optional "
+            "pandas dependencies: uv add 'fulcra-api[pandas]' "
+            "(or pip install 'fulcra-api[pandas]')"
+        ) from None
+    return pd
+
+
+def _parse_ndjson(resp: bytes) -> List[Dict[str, Any]]:
+    """Parse a newline-delimited JSON response into a list of rows."""
+    return [json.loads(line) for line in resp.splitlines() if line.strip()]
 
 
 def _validation_message(error: jsonschema.ValidationError) -> str:
@@ -366,7 +391,7 @@ class FulcraDataAccessMixin:
         replace_nulls: Optional[bool] = False,
         fulcra_userid: Optional[str] = None,
         calculations: Optional[list[str]] = None,
-    ) -> pd.DataFrame:
+    ) -> "pd.DataFrame":
         """
         Retrieve time-series data from a single Fulcra metric, covering the
         time starting at `start_time` (inclusive) until `end_time`
@@ -429,11 +454,61 @@ class FulcraDataAccessMixin:
         >>> df.columns
         Index(['step_count'], dtype='object')
         """
+        pd = _import_pandas()
+        resp = self._metric_time_series(
+            start_time=start_time,
+            end_time=end_time,
+            metric=metric,
+            sample_rate=sample_rate,
+            replace_nulls=replace_nulls,
+            fulcra_userid=fulcra_userid,
+            calculations=calculations,
+            output="arrow",
+        )
+        return pd.read_feather(io.BytesIO(resp)).set_index("time")
+
+    def metric_time_series_rows(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        metric: str,
+        sample_rate: float = 60,
+        replace_nulls: Optional[bool] = False,
+        fulcra_userid: Optional[str] = None,
+        calculations: Optional[list[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Like `metric_time_series`, but returns the rows as a list of dicts, so it
+        works without the optional pandas dependencies.
+        """
+        resp = self._metric_time_series(
+            start_time=start_time,
+            end_time=end_time,
+            metric=metric,
+            sample_rate=sample_rate,
+            replace_nulls=replace_nulls,
+            fulcra_userid=fulcra_userid,
+            calculations=calculations,
+            output="ndjson",
+        )
+        return _parse_ndjson(resp)
+
+    def _metric_time_series(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        metric: str,
+        sample_rate: float = 60,
+        replace_nulls: Optional[bool] = False,
+        fulcra_userid: Optional[str] = None,
+        calculations: Optional[list[str]] = None,
+        output: str = "arrow",
+    ) -> bytes:
         params = {
             "start_time": start_time,
             "end_time": end_time,
             "metric": metric,
-            "output": "arrow",
+            "output": output,
             "samprate": sample_rate,
             "replace_nulls": int(replace_nulls),
         }
@@ -443,7 +518,7 @@ class FulcraDataAccessMixin:
         resp = self.fulcra_api(
             self._v0_data_path("metric_time_series", fulcra_userid), query=params
         )
-        return pd.read_feather(io.BytesIO(resp)).set_index("time")
+        return resp
 
     def location_time_series(
         self,
@@ -553,7 +628,7 @@ class FulcraDataAccessMixin:
         gap_stages: Optional[List[int]] = None,
         clip_to_range: Optional[bool] = True,
         fulcra_userid: Optional[str] = None,
-    ) -> pd.DataFrame:
+    ) -> "pd.DataFrame":
         """
         Return sleep cycles summarized from sleep stages.
 
@@ -578,10 +653,60 @@ class FulcraDataAccessMixin:
         Returns:
             A pandas DataFrame containing the sleep cycle data.
         """
+        pd = _import_pandas()
+        resp = self._sleep_cycles(
+            start_time=start_time,
+            end_time=end_time,
+            cycle_gap=cycle_gap,
+            stages=stages,
+            gap_stages=gap_stages,
+            clip_to_range=clip_to_range,
+            fulcra_userid=fulcra_userid,
+            output="arrow",
+        )
+        return pd.read_feather(io.BytesIO(resp))
+
+    def sleep_cycles_rows(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        cycle_gap: Optional[str] = None,
+        stages: Optional[List[int]] = None,
+        gap_stages: Optional[List[int]] = None,
+        clip_to_range: Optional[bool] = True,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Like `sleep_cycles`, but returns the rows as a list of dicts, so it
+        works without the optional pandas dependencies.
+        """
+        resp = self._sleep_cycles(
+            start_time=start_time,
+            end_time=end_time,
+            cycle_gap=cycle_gap,
+            stages=stages,
+            gap_stages=gap_stages,
+            clip_to_range=clip_to_range,
+            fulcra_userid=fulcra_userid,
+            output="ndjson",
+        )
+        return _parse_ndjson(resp)
+
+    def _sleep_cycles(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        cycle_gap: Optional[str] = None,
+        stages: Optional[List[int]] = None,
+        gap_stages: Optional[List[int]] = None,
+        clip_to_range: Optional[bool] = True,
+        fulcra_userid: Optional[str] = None,
+        output: str = "arrow",
+    ) -> bytes:
         params = {
             "start_time": start_time,
             "end_time": end_time,
-            "output": "arrow",
+            "output": output,
         }
         if cycle_gap is not None:
             params["cycle_gap"] = cycle_gap
@@ -595,7 +720,7 @@ class FulcraDataAccessMixin:
         resp = self.fulcra_api(
             self._v0_data_path("sleep_cycles", fulcra_userid), query=params
         )
-        return pd.read_feather(io.BytesIO(resp))
+        return resp
 
     def sleep_stages(
         self,
@@ -608,7 +733,7 @@ class FulcraDataAccessMixin:
         merge_contiguous: Optional[bool] = True,
         clip_to_range: Optional[bool] = True,
         fulcra_userid: Optional[str] = None,
-    ) -> pd.DataFrame:
+    ) -> "pd.DataFrame":
         """
         Return sleep stages derived from raw fulcra metric samples.
 
@@ -642,10 +767,68 @@ class FulcraDataAccessMixin:
         Returns:
             A pandas DataFrame containing the sleep stage data.
         """
+        pd = _import_pandas()
+        resp = self._sleep_stages(
+            start_time=start_time,
+            end_time=end_time,
+            cycle_gap=cycle_gap,
+            stages=stages,
+            gap_stages=gap_stages,
+            merge_overlapping=merge_overlapping,
+            merge_contiguous=merge_contiguous,
+            clip_to_range=clip_to_range,
+            fulcra_userid=fulcra_userid,
+            output="arrow",
+        )
+        return pd.read_feather(io.BytesIO(resp))
+
+    def sleep_stages_rows(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        cycle_gap: Optional[str] = None,
+        stages: Optional[List[int]] = None,
+        gap_stages: Optional[List[int]] = None,
+        merge_overlapping: Optional[bool] = True,
+        merge_contiguous: Optional[bool] = True,
+        clip_to_range: Optional[bool] = True,
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Like `sleep_stages`, but returns the rows as a list of dicts, so it
+        works without the optional pandas dependencies.
+        """
+        resp = self._sleep_stages(
+            start_time=start_time,
+            end_time=end_time,
+            cycle_gap=cycle_gap,
+            stages=stages,
+            gap_stages=gap_stages,
+            merge_overlapping=merge_overlapping,
+            merge_contiguous=merge_contiguous,
+            clip_to_range=clip_to_range,
+            fulcra_userid=fulcra_userid,
+            output="ndjson",
+        )
+        return _parse_ndjson(resp)
+
+    def _sleep_stages(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        cycle_gap: Optional[str] = None,
+        stages: Optional[List[int]] = None,
+        gap_stages: Optional[List[int]] = None,
+        merge_overlapping: Optional[bool] = True,
+        merge_contiguous: Optional[bool] = True,
+        clip_to_range: Optional[bool] = True,
+        fulcra_userid: Optional[str] = None,
+        output: str = "arrow",
+    ) -> bytes:
         params = {
             "start_time": start_time,
             "end_time": end_time,
-            "output": "arrow",
+            "output": output,
         }
         if cycle_gap is not None:
             params["cycle_gap"] = cycle_gap
@@ -663,7 +846,7 @@ class FulcraDataAccessMixin:
         resp = self.fulcra_api(
             self._v0_data_path("sleep_stages", fulcra_userid), query=params
         )
-        return pd.read_feather(io.BytesIO(resp))
+        return resp
 
     def sleep_agg(
         self,
@@ -678,7 +861,7 @@ class FulcraDataAccessMixin:
         agg_functions: Optional[List[str]] = None,
         tz: Optional[str] = "UTC",
         fulcra_userid: Optional[str] = None,
-    ) -> pd.DataFrame:
+    ) -> "pd.DataFrame":
         """
         Return sleep cycles aggregated by a specified period.
 
@@ -709,10 +892,76 @@ class FulcraDataAccessMixin:
         Returns:
             A pandas DataFrame containing the aggregated sleep data.
         """
+        pd = _import_pandas()
+        resp = self._sleep_agg(
+            start_time=start_time,
+            end_time=end_time,
+            cycle_gap=cycle_gap,
+            stages=stages,
+            gap_stages=gap_stages,
+            clip_to_range=clip_to_range,
+            mode=mode,
+            period=period,
+            agg_functions=agg_functions,
+            tz=tz,
+            fulcra_userid=fulcra_userid,
+            output="arrow",
+        )
+        return pd.read_feather(io.BytesIO(resp))
+
+    def sleep_agg_rows(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        cycle_gap: Optional[str] = None,
+        stages: Optional[List[int]] = None,
+        gap_stages: Optional[List[int]] = None,
+        clip_to_range: Optional[bool] = True,
+        mode: Optional[str] = "end",
+        period: Optional[str] = "1d",
+        agg_functions: Optional[List[str]] = None,
+        tz: Optional[str] = "UTC",
+        fulcra_userid: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Like `sleep_agg`, but returns the rows as a list of dicts, so it
+        works without the optional pandas dependencies.
+        """
+        resp = self._sleep_agg(
+            start_time=start_time,
+            end_time=end_time,
+            cycle_gap=cycle_gap,
+            stages=stages,
+            gap_stages=gap_stages,
+            clip_to_range=clip_to_range,
+            mode=mode,
+            period=period,
+            agg_functions=agg_functions,
+            tz=tz,
+            fulcra_userid=fulcra_userid,
+            output="ndjson",
+        )
+        return _parse_ndjson(resp)
+
+    def _sleep_agg(
+        self,
+        start_time: Union[str, datetime.datetime],
+        end_time: Union[str, datetime.datetime],
+        cycle_gap: Optional[str] = None,
+        stages: Optional[List[int]] = None,
+        gap_stages: Optional[List[int]] = None,
+        clip_to_range: Optional[bool] = True,
+        mode: Optional[str] = "end",
+        period: Optional[str] = "1d",
+        agg_functions: Optional[List[str]] = None,
+        tz: Optional[str] = "UTC",
+        fulcra_userid: Optional[str] = None,
+        output: str = "arrow",
+    ) -> bytes:
         params = {
             "start_time": start_time,
             "end_time": end_time,
-            "output": "arrow",
+            "output": output,
         }
         if cycle_gap is not None:
             params["cycle_gap"] = cycle_gap
@@ -736,7 +985,7 @@ class FulcraDataAccessMixin:
         resp = self.fulcra_api(
             self._v0_data_path("sleep_agg", fulcra_userid), query=params
         )
-        return pd.read_feather(io.BytesIO(resp))
+        return resp
 
 
     def moment_annotations(
