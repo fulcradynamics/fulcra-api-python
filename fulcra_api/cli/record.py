@@ -10,6 +10,55 @@ from fulcra_api.record_validation import is_unknown_fields_error, unknown_fields
 from .utils import error_message, pass_fulcra_api, requires_auth, resolve_data_type
 
 
+def _not_an_object(where: str, value) -> click.ClickException:
+    shown = json.dumps(value)
+    if len(shown) > 40:
+        shown = shown[:37] + "..."
+    return click.ClickException(
+        f"{where} isn't a JSON object ({shown}); each record must be one."
+    )
+
+
+def parse_records(content: str) -> list[dict]:
+    """The records in piped or file input.
+
+    Accepts one JSON object, a JSON array of objects, or one object per line
+    (JSON Lines). An object or array may span several lines.
+    """
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError as whole_error:
+        # Not a single document: read it as one object per line.
+        records = []
+        first = True
+        for line_num, line in enumerate(content.split("\n"), 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                parsed_line = json.loads(line)
+            except json.JSONDecodeError as e:
+                if first:
+                    # Most likely one object or array written over several
+                    # lines with a mistake in it: report where in the whole.
+                    raise click.ClickException(f"Invalid JSON: {whole_error}")
+                raise click.ClickException(f"Invalid JSON on line {line_num}: {e}")
+            first = False
+            if not isinstance(parsed_line, dict):
+                raise _not_an_object(f"Line {line_num}", parsed_line)
+            records.append(parsed_line)
+        return records
+
+    if isinstance(parsed, dict):
+        return [parsed]
+    if isinstance(parsed, list):
+        for position, item in enumerate(parsed, 1):
+            if not isinstance(item, dict):
+                raise _not_an_object(f"Item {position} of the array", item)
+        return parsed
+    raise _not_an_object("The input", parsed)
+
+
 @click.command(
     "record",
     short_help="Record data for a data type",
@@ -83,8 +132,9 @@ def record(
 
     VALUE: Optional metric value for recording a single record (e.g., "75.5" for NumericAnnotation)
 
-    By default, records a single record using VALUE and/or field options. To record multiple records,
-    pipe JSON or JSONL (newline-delimited JSON) data, or use -f to read from a file.
+    By default, records a single record using VALUE and/or field options. To record from JSON
+    instead, pipe it in or use -f to read it from a file: one JSON object, a JSON array of
+    objects, or one object per line (JSONL). An object or array may span several lines.
 
     Piped input is only read when neither VALUE nor field options are given, so a script can pass
     field options without stdin getting in the way. To combine piped records with field options,
@@ -128,6 +178,15 @@ def record(
     \b
     Record multiple records from a file:
     fulcra record NumericAnnotation/<UUID> -f records.jsonl
+
+    \b
+    Record one record written as JSON over several lines:
+    fulcra record Event/<UUID> -f - <<'EOF'
+    {
+      "note": "Felt energized",
+      "energy": 4
+    }
+    EOF
 
     \b
     Add a field to every piped record (-f - reads stdin):
@@ -205,37 +264,7 @@ def record(
             if not content:
                 raise click.ClickException("No input provided")
 
-            # Parse as JSONL or JSON
-            records = []
-            lines = content.split("\n")
-
-            # Try parsing as JSONL first (one JSON object per line)
-            if len(lines) > 1 or (len(lines) == 1 and not content.startswith("[")):
-                for line_num, line in enumerate(lines, 1):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        record = json.loads(line)
-                        records.append(record)
-                    except json.JSONDecodeError as e:
-                        raise click.ClickException(
-                            f"Invalid JSON on line {line_num}: {e}"
-                        )
-            else:
-                # Try parsing as JSON array
-                try:
-                    parsed = json.loads(content)
-                    if isinstance(parsed, list):
-                        records = parsed
-                    elif isinstance(parsed, dict):
-                        records = [parsed]
-                    else:
-                        raise click.ClickException(
-                            "Input must be a JSON object, array, or JSONL"
-                        )
-                except json.JSONDecodeError as e:
-                    raise click.ClickException(f"Invalid JSON: {e}")
+            records = parse_records(content)
 
             # Apply --field-* options to all records from file/stdin
             if fields:
@@ -388,9 +417,9 @@ def delete_records(
 
     RECORD_ID: A single record UUID to delete
 
-    By default, deletes a single record using RECORD_ID. To delete multiple records, pipe JSON or
-    JSONL (newline-delimited JSON) data, or use -f to read from a file. Each record should have
-    the form {"record_id": "<UUID>"}.
+    By default, deletes a single record using RECORD_ID. To delete multiple records, pipe JSON in
+    or use -f to read it from a file: one JSON object, a JSON array of objects, or one object per
+    line (JSONL). Each object has the form {"record_id": "<UUID>"}.
 
     Examples:
 
@@ -438,17 +467,7 @@ def delete_records(
                     "No RECORD_ID provided and no data in stdin/file"
                 )
 
-            # Parse JSONL or JSON
-            lines = input_data.split("\n")
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    record = json.loads(line)
-                    records.append(record)
-                except json.JSONDecodeError as e:
-                    raise click.ClickException(f"Invalid JSON in input: {e}")
+            records = parse_records(input_data)
 
         if not records:
             raise click.ClickException("No records to delete")
