@@ -14,13 +14,61 @@ def auth():
     pass
 
 
+def _attended() -> bool:
+    """Whether a person is at a terminal running this command.
+
+    An agent's shell tool, a pipe or a script gives the command no terminal,
+    and usually shows its output only once the command exits.  A login that
+    waits for approval then hides the link from the person who must open it
+    until the code has expired.
+    """
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _print_auth_url(
+    device_code: str, uri: str, code: str, timeout, interval, unattended: bool
+):
+    """Print the link and code, and how to finish logging in with the device code."""
+    click.echo(
+        "Open the web auth URL in a browser, verify the web auth code, and complete the web auth flow.\n"
+    )
+    click.echo(f"Web auth URL: {uri}")
+    click.echo(f"- Web auth code: {code}")
+    click.echo(f"- Device code: {device_code}\n")
+    if unattended:
+        click.echo(
+            "NOTE FOR AI AGENTS AND SCRIPTS: a person must open the link above and approve it.\n"
+            "Show them the link and code now, in your reply to them. Then finish logging in by running\n"
+            "the command below, which waits until they have approved it.\n"
+        )
+    else:
+        click.echo(
+            "After finishing the web auth flow, complete authentication with the device code by running:\n"
+        )
+    click.echo(
+        f"fulcra-api auth login --device-code {device_code} --poll-timeout {timeout} --poll-interval {interval}"
+    )
+    if unattended:
+        click.echo(
+            "\nIf the code expires first, run `fulcra-api auth login` again for a new one."
+            "\n(To wait for approval in this command instead, add --wait.)"
+        )
+
+
 @auth.command(short_help="Authenticate to Fulcra")
 @click.option(
     "-u",
     "--get-auth-url",
     default=False,
     is_flag=True,
-    help="Run non-interactively. A web auth URL, web auth verification code, and a device code will be returned. Call `fulcra-api auth login --device-code <DEVICE CODE>` to complete authentication after finishing the web auth flow.",
+    help="Run non-interactively. A web auth URL, web auth verification code, and a device code will be returned. Call `fulcra-api auth login --device-code <DEVICE CODE>` to complete authentication after finishing the web auth flow. This is the default when the command isn't run at a terminal.",
+)
+@click.option(
+    "-w",
+    "--wait",
+    default=False,
+    is_flag=True,
+    help="Show the link and wait for approval in this command, even when it isn't run at a terminal.",
 )
 @click.option(
     "-d",
@@ -47,13 +95,25 @@ def auth():
 def login(
     fulcra_api: FulcraAPI,
     get_auth_url: bool,
+    wait: bool,
     device_code: str | None,
     poll_timeout: float,
     poll_interval: float,
 ):
     """Authenticates to the Fulcra Platform.
 
-    The OAuth Device Authorization Flow isused to authenticate a user to the Fulcra Life API. Run interactively. A URL will be presented to load in browser. A new browser session will be automatically launched on supported platforms, and this command will poll for a valid token from the completion of the flow for up to the given Auth0 timeout.
+    Uses the OAuth Device Authorization Flow: a person opens a link in a browser and approves the login.
+
+    \b
+    At a terminal, this opens the browser, shows the link and code, and waits
+    for approval.
+
+    \b
+    When it isn't run at a terminal (an AI agent's shell, a pipe, a script),
+    it prints the link, the code and a device code, then exits at once, as
+    --get-auth-url does. Show the person the link and code, then finish with
+    `fulcra-api auth login --device-code <DEVICE CODE>`, which waits for their
+    approval. --wait keeps the waiting behavior instead.
 
     Credentials are persisted on the filesystem at ~/.config/fulcra/credentials.json
     """
@@ -62,24 +122,22 @@ def login(
         raise click.ClickException(
             "--get-auth-url and --device-code are mutually exclusive"
         )
+    if wait and (get_auth_url or device_code is not None):
+        raise click.ClickException(
+            "--wait can't be combined with --get-auth-url or --device-code"
+        )
 
-    if get_auth_url:
+    unattended = (
+        not wait and not get_auth_url and device_code is None and not _attended()
+    )
+    if get_auth_url or unattended:
         try:
             device_code, uri, code, timeout, interval = fulcra_api.oidc.get_device_code()
         except Exception as exc:
             print(exc)
             raise click.ClickException("Authorization failed, try again.") from exc
 
-        click.echo(
-            "Open the web auth URL in a browser, verify the web auth code, and complete the web auth flow.\n"
-        )
-        click.echo(f"Web auth URL: {uri}")
-        click.echo(f"- Web auth code: {code}")
-        click.echo(f"- Device code: {device_code}\n")
-        click.echo(
-            "After finishing the web auth flow, complete authentication with the device code by running:\n"
-        )
-        click.echo(f"fulcra-api auth login --device-code {device_code} --poll-timeout {timeout} --poll-interval {interval}")
+        _print_auth_url(device_code, uri, code, timeout, interval, unattended)
         return
 
     if device_code is not None:
@@ -107,6 +165,9 @@ def login(
         )
         click.echo(
             f"❗ Ensure the following code matches what's displayed in your browser: {code}"
+        )
+        click.echo(
+            "(AI agents: show this link and code to the person now, and keep this command running.)"
         )
 
     try:
