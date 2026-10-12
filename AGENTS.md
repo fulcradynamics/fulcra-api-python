@@ -50,12 +50,14 @@ Every interface uses OAuth2 and never asks the agent to handle a password: the u
 
 ### Shell-first agents (CLI)
 
-`uvx fulcra-api auth login` runs the device authorization flow and caches credentials in `~/.config/fulcra/credentials.json`, so later commands don't need to log in again. For non-interactive use, split it in two:
+Logging in takes two steps, because a person has to approve it in a browser while you wait. Credentials are then cached in `~/.config/fulcra/credentials.json`, so later commands don't need to log in again.
 
 ```sh
-uvx fulcra-api auth login --get-auth-url                 # prints a URL and device code; send the URL to the user
-uvx fulcra-api auth login --device-code <DEVICE CODE>    # waits until the user finishes in the browser
+uvx fulcra-api auth login                                # prints a URL, a code and a device code, then exits
+uvx fulcra-api auth login --device-code <DEVICE CODE>    # waits until the person has approved it
 ```
+
+Show the person the URL and code in your reply **before** running the second command. Without a terminal (an agent's shell, a pipe, a script), `auth login` always behaves this way; `--get-auth-url` asks for it explicitly. At a terminal, `auth login` opens the browser and waits in one step.
 
 If `auth login` fails immediately, the environment probably has no outbound network access; suggest the MCP server instead of retrying.
 
