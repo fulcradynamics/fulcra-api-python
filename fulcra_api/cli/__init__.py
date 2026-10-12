@@ -24,6 +24,7 @@ from .commands import (
     sleep_stages,
     user_info,
 )
+from .connection import connection
 from .data_types import data_type
 from .files import file
 from .groups import group
@@ -60,6 +61,7 @@ def cli(ctx, beta):
 cli.add_command(auth)
 cli.add_command(tag)
 cli.add_command(data_type)
+cli.add_command(connection)
 cli.add_command(file)
 cli.add_command(share)
 cli.add_command(group)

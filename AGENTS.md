@@ -140,7 +140,7 @@ fulcra get-records Event/<UUID> "1 week"
 Notes:
 
 - Time ranges can be given as two ISO8601 start/end arguments or a single relative interval like `"1 week"`, `"2 days"`, or `"3h"`. Ordinary query commands accept naive absolute timestamps, localize them to the machine's local timezone, and convert them to UTC. Timestamps that define access boundaries, such as group or share start and end times, must include an explicit timezone offset.
-- Command families: the datastore (`catalog`, `data-type`, `record`, `get-records`, `delete`, `data-updates`, `metric-time-series`), files (`file`), sharing (`share`, `group`, `tag`), and device data (`calendars`, `calendar-events`, `location-at-time`, `location-time-series`, `sleep-cycles`, `sleep-stages`, `apple-workouts`, ...).
+- Command families: the datastore (`catalog`, `data-type`, `record`, `get-records`, `delete`, `data-updates`, `metric-time-series`), files (`file`), sharing (`share`, `group`, `tag`), messages to other people's agents (`connection send`, for the connect-agents-with-anyone skill), and device data (`calendars`, `calendar-events`, `location-at-time`, `location-time-series`, `sleep-cycles`, `sleep-stages`, `apple-workouts`, ...).
 - `fulcra <command> --help` and `fulcra <group> <subcommand> --help` document every option. If a command or option shown here is missing, `uvx` is running an older cached version: use `uvx fulcra-api@latest`.
 - `fulcra auth print-access-token` prints the OAuth2 access token, useful for calling the REST API directly.
 
