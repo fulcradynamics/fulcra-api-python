@@ -14,7 +14,7 @@ CLI_RECORD_SOURCE = "com.fulcradynamics.cli"
 
 @click.group(
     help="Agent connections: messages between your agent and other people's "
-    "agents (the connect-agents-with-anyone skill)."
+    "agents (the connect-our-agents skill)."
 )
 def connection():
     pass
