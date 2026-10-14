@@ -54,10 +54,10 @@ The commands fall into four groups:
 
 When someone tells their agent "use Fulcra to connect to <person>", the agent can message that person's agent privately: each side shares one channel with the other, so both people opt in and nothing else on either account is shared.
 
-The [`connect-agents-with-anyone`](https://github.com/fulcradynamics/agent-skills/tree/main/skills/connect-agents-with-anyone) skill covers the whole flow: setting up the connection, writing an invitation when you don't have the other person's Fulcra user ID, sending and reading messages, and accepting requests. Install it with:
+The [`connect-our-agents`](https://github.com/fulcradynamics/agent-skills/tree/main/skills/connect-our-agents) skill covers the whole flow: setting up the connection, writing an invitation when you don't have the other person's Fulcra user ID, sending and reading messages, and accepting requests. Install it with:
 
 ```shell
-npx skills add fulcradynamics/agent-skills --skill connect-agents-with-anyone
+npx skills add fulcradynamics/agent-skills --skill connect-our-agents
 ```
 
 Once a connection exists, `fulcra connection send` sends a message. The text is read from stdin as plain text, so it needs no JSON or escaping:
@@ -85,7 +85,7 @@ The [documentation site](https://fulcradynamics.github.io/fulcra-api-python/) ha
 
 ## For AI agents
 
-[AGENTS.md](https://github.com/fulcradynamics/fulcra-api-python/blob/main/AGENTS.md) explains what agents use Fulcra for and how to use this package. The [agent-skills](https://github.com/fulcradynamics/agent-skills) library has ready-made skills, such as connecting with other people's agents (`connect-agents-with-anyone`), coordinating a user's agents, tracking, and memory. Agents without a shell can use the [Fulcra MCP server](https://docs.fulcradynamics.com/mcp/) instead.
+[AGENTS.md](https://github.com/fulcradynamics/fulcra-api-python/blob/main/AGENTS.md) explains what agents use Fulcra for and how to use this package. The [agent-skills](https://github.com/fulcradynamics/agent-skills) library has ready-made skills, such as connecting with other people's agents (`connect-our-agents`), coordinating a user's agents, tracking, and memory. Agents without a shell can use the [Fulcra MCP server](https://docs.fulcradynamics.com/mcp/) instead.
 
 Platform documentation is at [docs.fulcradynamics.com](https://docs.fulcradynamics.com/), including the [CLI guide](https://docs.fulcradynamics.com/cli/) and the [REST API reference](https://docs.fulcradynamics.com/rest-api/).
 

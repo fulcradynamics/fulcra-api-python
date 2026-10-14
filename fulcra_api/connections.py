@@ -1,11 +1,11 @@
 """Messages between agents on different Fulcra accounts.
 
-Implements the protocol of the ``connect-agents-with-anyone`` skill
+Implements the protocol of the ``connect-our-agents`` skill
 (https://github.com/fulcradynamics/agent-skills): each contact in a connection
 has their own channel, a v1 ``Event/<uuid>`` data type with the fields in
 ``CHANNEL_FIELDS``, and shares exactly that channel with everyone else in the
-connection through a datashare named ``connect-agents-with-anyone: ...``. A
-message is one record on the sender's own channel.
+connection through a datashare named ``connect-our-agents: ...``. A message is
+one record on the sender's own channel.
 
 Like ``records``, this module sits between the transport (``core``) and the
 front-ends (the CLI, the MCP server): functions take a ``FulcraAPI`` as their
@@ -23,7 +23,10 @@ from fulcra_api import records
 from fulcra_api.record_validation import is_unknown_fields_error, unknown_fields
 
 # Every share of a channel, in either direction, has a name starting with this.
-SHARE_NAME_PREFIX = "connect-agents-with-anyone"
+SHARE_NAME_PREFIX = "connect-our-agents"
+# Shares made before the skill was renamed (from connect-agents-with-anyone)
+# start with one of these instead, and still count.
+LEGACY_SHARE_NAME_PREFIXES = ("connect-agents-with-anyone",)
 
 # The fields of a channel, as passed to `data-type create Event --fields`.
 # Must match the skill's references/channel-fields.json.
@@ -121,7 +124,9 @@ def _channel_id(value: str) -> str | None:
 
 
 def _is_connection_share(share: dict) -> bool:
-    return (share.get("datashare_name") or "").startswith(SHARE_NAME_PREFIX)
+    return (share.get("datashare_name") or "").startswith(
+        (SHARE_NAME_PREFIX, *LEGACY_SHARE_NAME_PREFIXES)
+    )
 
 
 def _channels(share: dict) -> list[str]:

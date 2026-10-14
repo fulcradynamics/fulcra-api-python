@@ -1,4 +1,4 @@
-"""Offline tests for sending connect-agents-with-anyone messages (PLAT-696):
+"""Offline tests for sending connect-our-agents messages (PLAT-696):
 the library's `connections` module and `fulcra connection send`."""
 
 import json
@@ -51,12 +51,12 @@ class FakeFulcra(FulcraAPI):
         self.outgoing_shares = (
             outgoing_shares
             if outgoing_shares is not None
-            else [outgoing("connect-agents-with-anyone: Me with Bob", MY_CHANNEL, BOB)]
+            else [outgoing("connect-our-agents: Me with Bob", MY_CHANNEL, BOB)]
         )
         self.incoming_grants = (
             incoming_grants
             if incoming_grants is not None
-            else [incoming("connect-agents-with-anyone: Bob with Me", BOB_CHANNEL, BOB)]
+            else [incoming("connect-our-agents: Bob with Me", BOB_CHANNEL, BOB)]
         )
         self.channels = channels or {
             BOB_CHANNEL: [
@@ -109,8 +109,8 @@ class FakeFulcra(FulcraAPI):
 
 def test_a_channel_id_resolves_to_itself_and_its_people():
     shares = [
-        outgoing("connect-agents-with-anyone: Me with Bob", MY_CHANNEL, BOB),
-        outgoing("connect-agents-with-anyone: Me with Carol", MY_CHANNEL, CAROL),
+        outgoing("connect-our-agents: Me with Bob", MY_CHANNEL, BOB),
+        outgoing("connect-our-agents: Me with Carol", MY_CHANNEL, CAROL),
     ]
     channel, people = connections.resolve_connection(
         shares, MY_CHANNEL.upper().replace("EVENT", "event")
@@ -121,8 +121,8 @@ def test_a_channel_id_resolves_to_itself_and_its_people():
 
 def test_a_user_id_resolves_to_the_one_channel_shared_with_them():
     shares = [
-        outgoing("connect-agents-with-anyone: Me with Bob", MY_CHANNEL, BOB),
-        outgoing("connect-agents-with-anyone: Me with Carol", MY_OTHER_CHANNEL, CAROL),
+        outgoing("connect-our-agents: Me with Bob", MY_CHANNEL, BOB),
+        outgoing("connect-our-agents: Me with Carol", MY_OTHER_CHANNEL, CAROL),
     ]
     assert connections.resolve_connection(shares, BOB.upper()) == (MY_CHANNEL, [BOB])
 
@@ -137,9 +137,9 @@ def test_shares_not_named_for_connections_are_ignored():
 
 def test_a_user_with_several_channels_needs_the_channel_id():
     shares = [
-        outgoing("connect-agents-with-anyone: Me with Bob", MY_CHANNEL, BOB),
+        outgoing("connect-our-agents: Me with Bob", MY_CHANNEL, BOB),
         outgoing(
-            "connect-agents-with-anyone: Me, Bob and Carol",
+            "connect-our-agents: Me, Bob and Carol",
             MY_OTHER_CHANNEL,
             BOB,
             CAROL,
@@ -161,14 +161,38 @@ def test_a_connection_that_is_neither_id_is_refused(connection):
 
 def test_peer_channels_are_named_user_grants_from_the_connection():
     grants = [
-        incoming("connect-agents-with-anyone: Bob with Me", BOB_CHANNEL, BOB),
-        incoming(
-            "connect-agents-with-anyone: Bob's group", MY_OTHER_CHANNEL, BOB, "group"
-        ),
+        incoming("connect-our-agents: Bob with Me", BOB_CHANNEL, BOB),
+        incoming("connect-our-agents: Bob's group", MY_OTHER_CHANNEL, BOB, "group"),
         incoming("Bob's sleep", "Event/" + str(uuid.uuid4()), BOB),
-        incoming("connect-agents-with-anyone: Carol with Me", MY_OTHER_CHANNEL, CAROL),
+        incoming("connect-our-agents: Carol with Me", MY_OTHER_CHANNEL, CAROL),
     ]
     assert connections.peer_channels(grants, [BOB]) == [(BOB, BOB_CHANNEL)]
+
+
+def test_connections_from_before_the_rename_still_count():
+    """Shares named with the skill's old name, connect-agents-with-anyone,
+    are found in both directions."""
+    shares = [outgoing("connect-agents-with-anyone: Me with Bob", MY_CHANNEL, BOB)]
+    grants = [incoming("connect-agents-with-anyone: Bob with Me", BOB_CHANNEL, BOB)]
+    assert connections.resolve_connection(shares, BOB) == (MY_CHANNEL, [BOB])
+    assert connections.resolve_connection(shares, MY_CHANNEL) == (MY_CHANNEL, [BOB])
+    assert connections.peer_channels(grants, [BOB]) == [(BOB, BOB_CHANNEL)]
+
+
+def test_a_connection_can_mix_old_and_new_share_names():
+    """One side renamed, the other not yet: their old-named channel still
+    pairs with our new-named one."""
+    fulcra = FakeFulcra(
+        outgoing_shares=[outgoing("connect-our-agents: Me with Bob", MY_CHANNEL, BOB)],
+        incoming_grants=[
+            incoming("connect-agents-with-anyone: Bob with Me", BOB_CHANNEL, BOB)
+        ],
+    )
+    channel, people = connections.resolve_connection(fulcra.outgoing_shares, BOB)
+    assert (channel, people) == (MY_CHANNEL, [BOB])
+    assert connections.peer_channels(fulcra.incoming_grants, people) == [
+        (BOB, BOB_CHANNEL)
+    ]
 
 
 # build_message
@@ -316,7 +340,7 @@ def test_a_type_without_the_channel_fields_is_refused():
         schema={"properties": {"note": {}}, "additionalProperties": False},
     )
     fulcra.validation_errors = [(0, error.message, error)]
-    with pytest.raises(ValueError, match="isn't a connect-agents-with-anyone channel"):
+    with pytest.raises(ValueError, match="isn't a connect-our-agents channel"):
         connections.send_agent_message(fulcra, BOB, sender="a", body="b")
     assert fulcra.sent == []
 
