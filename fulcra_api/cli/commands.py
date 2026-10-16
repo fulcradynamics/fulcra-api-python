@@ -894,6 +894,9 @@ def catalog(
         click.echo(json.dumps(c))
 
 
+USER_INFO_HIDDEN_FIELDS = ("status", "tier", "service_status", "intercom_token")
+
+
 @click.command(
     "user-info", short_help="Return information about the authenticated user"
 )
@@ -906,7 +909,9 @@ def user_info(fulcra_api: FulcraAPI):
     except HTTPError as exc:
         raise click.ClickException(error_message(exc)) from exc
 
-    click.echo(json.dumps(resp))
+    click.echo(
+        json.dumps({k: v for k, v in resp.items() if k not in USER_INFO_HIDDEN_FIELDS})
+    )
 
 
 @click.command(
