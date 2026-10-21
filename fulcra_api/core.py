@@ -16,7 +16,10 @@ import jsonschema
 
 from . import record_validation
 from .credentials import FulcraCredentials
-from .oidc import FulcraOIDCProvider
+from .oidc import FulcraAuthError, FulcraOIDCProvider
+
+if TYPE_CHECKING:
+    from .credentials_store import CredentialsFile
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -39,6 +42,9 @@ FULCRA_OIDC_AUDIENCE = os.environ.get(
 FULCRA_OIDC_SCOPE = os.environ.get(
     "FULCRA_OIDC_SCOPE", "openid profile name email offline_access"
 )
+
+# Refresh an access token this long before it expires
+REFRESH_LEEWAY = datetime.timedelta(seconds=60)
 
 # Sentinel distinguishing "parameter not passed" from an explicit None, for
 # update calls where None means "clear this field on the server".
@@ -1205,6 +1211,7 @@ class FulcraAPI(FulcraDataAccessMixin):
         refresh_token: Optional[str] = None,
         credentials: Optional[FulcraCredentials] = None,
         refresh_callback: Optional[Callable] = None,
+        credentials_store: Optional["CredentialsFile"] = None,
     ):
         """
         Initializes the FulcraAPI client.
@@ -1224,6 +1231,10 @@ class FulcraAPI(FulcraDataAccessMixin):
             refresh_token: Optional. An existing refresh token to use. [Deprecated]
             credentials: Optional. A FulcraCredentials object with credentials to use.
             refresh_callback: Optional. A callback function for when the access token is successfully refreshed.
+            credentials_store: Optional. A `CredentialsFile` shared with other
+                processes. Refreshes happen under its lock and are saved to
+                it, and a token another process already refreshed is reused
+                instead of spending the refresh token again.
         """
 
         # New OIDC provider which should replace most of the oidc workflow functionality here
@@ -1263,6 +1274,7 @@ class FulcraAPI(FulcraDataAccessMixin):
             self.fulcra_credentials = FulcraCredentials(**kwargs)
 
         self.refresh_callback = refresh_callback
+        self.credentials_store = credentials_store
 
     def get_token(
         self, device_code: str
@@ -1453,9 +1465,44 @@ class FulcraAPI(FulcraDataAccessMixin):
             raise Exception("No refresh token available to refresh the access token.")
 
         try:
-            new_creds = self.oidc.refresh_credentials(self.fulcra_credentials)
+            self.refresh_credentials()
         except Exception:
             return False
+
+        return True
+
+    def refresh_credentials(self):
+        """
+        Replace the access token, raising if that fails.
+
+        With a `credentials_store`, this holds its lock and first re-reads it:
+        if another process already replaced the token this client holds, that
+        token is used rather than spending the refresh token again.
+
+        Raises:
+            FulcraReauthRequired: the refresh token was rejected.
+            FulcraAuthUnavailable: the login service couldn't be reached.
+        """
+        if self.credentials_store is None:
+            self._exchange_refresh_token()
+            return
+
+        held_token = self.fulcra_credentials.access_token
+        with self.credentials_store.lock():
+            stored = self.credentials_store.load()
+            if stored is not None and stored.refresh_token is not None:
+                # The stored refresh token is the newest one: with rotation,
+                # the one this client was loaded with may already be spent.
+                self.fulcra_credentials = stored
+                if stored.access_token != held_token and not stored.is_expired(
+                    REFRESH_LEEWAY
+                ):
+                    return
+            self._exchange_refresh_token()
+            self.credentials_store.save(self.fulcra_credentials)
+
+    def _exchange_refresh_token(self):
+        new_creds = self.oidc.refresh_credentials(self.fulcra_credentials)
 
         # Preserve old refresh token if the server didn't issue a new one
         if new_creds.refresh_token is None:
@@ -1466,7 +1513,27 @@ class FulcraAPI(FulcraDataAccessMixin):
         if self.refresh_callback is not None:
             self.refresh_callback(self.fulcra_credentials)
 
-        return True
+    def refresh_if_expiring(self):
+        """
+        Refresh the access token if it expires within `REFRESH_LEEWAY`.
+
+        A failed refresh is raised only if the token has actually expired;
+        until then the current token is still worth sending.
+        """
+        creds = self.fulcra_credentials
+        if creds is None or not creds.is_expired(REFRESH_LEEWAY):
+            return
+        if creds.refresh_token is None:
+            if creds.is_expired():
+                raise Exception(
+                    "No refresh token available to refresh the access token."
+                )
+            return
+        try:
+            self.refresh_credentials()
+        except FulcraAuthError:
+            if self.fulcra_credentials.is_expired():
+                raise
 
     def fulcra_api(
         self,
@@ -1496,13 +1563,9 @@ class FulcraAPI(FulcraDataAccessMixin):
             The raw response data (as bytes).  Raises an exception on failure.
         """
 
-        # Attempt to refresh our access token if it's expired
-        if (
-            authenticated
-            and self.fulcra_credentials is not None
-            and self.fulcra_credentials.is_expired()
-        ):
-            self.refresh_access_token()
+        # Refresh our access token if it's expired or about to be
+        if authenticated:
+            self.refresh_if_expiring()
 
         if self.fulcra_api_is_http:
             proto = "http"
@@ -1553,7 +1616,23 @@ class FulcraAPI(FulcraDataAccessMixin):
         req = urllib.request.Request(url=url, data=ds, headers=headers, method=method)
 
         try:
-            response = urllib.request.urlopen(req)
+            try:
+                response = urllib.request.urlopen(req)
+            except HTTPError as exc:
+                # The server rejected a token we believed was valid (e.g. a
+                # wrong local clock): refresh it and try once more.
+                if not (
+                    exc.code == 401
+                    and authenticated
+                    and self.fulcra_credentials is not None
+                    and self.fulcra_credentials.refresh_token is not None
+                ):
+                    raise
+                self.refresh_credentials()
+                req.add_header(
+                    "Authorization", f"Bearer {self.fulcra_credentials.access_token}"
+                )
+                response = urllib.request.urlopen(req)
 
             if return_http_response:
                 return response

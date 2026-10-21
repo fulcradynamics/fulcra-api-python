@@ -59,6 +59,11 @@ uvx fulcra-api auth login --device-code <DEVICE CODE>    # waits until the perso
 
 Show the person the URL and code in your reply **before** running the second command. Without a terminal (an agent's shell, a pipe, a script), `auth login` always behaves this way; `--get-auth-url` asks for it explicitly. At a terminal, `auth login` opens the browser and waits in one step.
 
+The CLI refreshes the access token on its own, so a scheduled agent doesn't need to log in again each day. If a refresh fails, the command exits with a code that says what to do:
+
+- **3**: the login has expired or been revoked. Ask the person to run `fulcra auth login` again.
+- **4**: the login service couldn't be reached. The login is probably fine; retry later instead of asking for a new login.
+
 If `auth login` fails immediately, the environment probably has no outbound network access; suggest the MCP server instead of retrying.
 
 ### Code-first agents (Python)

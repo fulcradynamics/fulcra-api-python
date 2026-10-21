@@ -9,7 +9,34 @@ from urllib.error import HTTPError
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
 
-from .credentials import FulcraCredentials
+from .credentials import FulcraCredentials, jwt_expiration
+
+# Seconds to wait for Auth0 before giving up on a request.
+TOKEN_REQUEST_TIMEOUT = 30
+
+# Attempts at a refresh that fails for a reason worth retrying, and the delay
+# before the first retry (doubled each time).
+REFRESH_ATTEMPTS = 3
+REFRESH_RETRY_DELAY = 2.0
+
+
+class FulcraAuthError(Exception):
+    """The access token could not be refreshed."""
+
+
+class FulcraReauthRequired(FulcraAuthError):
+    """
+    Auth0 rejected the refresh token (revoked, expired, or reused), so the
+    user has to log in again.
+    """
+
+
+class FulcraAuthUnavailable(FulcraAuthError):
+    """
+    Auth0 couldn't be reached or failed (network error, timeout, 429, 5xx).
+    The credentials are probably still good; try again later.
+    """
+
 
 @dataclass
 class FulcraOIDCProvider:
@@ -131,7 +158,7 @@ class FulcraOIDCProvider:
             headers=headers,
             method="POST",
         )
-        response = urllib.request.urlopen(request)
+        response = urllib.request.urlopen(request, timeout=TOKEN_REQUEST_TIMEOUT)
 
         if response.status != 200:
             raise Exception(f"could not get device code: {response}")
@@ -160,16 +187,16 @@ class FulcraOIDCProvider:
             headers=headers,
             method="POST",
         )
-        response = urllib.request.urlopen(request)
+        response = urllib.request.urlopen(request, timeout=TOKEN_REQUEST_TIMEOUT)
         body = json.loads(response.read())
 
         if "access_token" not in body:
             raise Exception("Got invalid response when requesting token")
 
         access_token = body["access_token"]
-        expires_in = datetime.datetime.now() + datetime.timedelta(
-            seconds=float(body["expires_in"])
-        )
+        expires_in = jwt_expiration(access_token) or datetime.datetime.now(
+            datetime.timezone.utc
+        ) + datetime.timedelta(seconds=float(body["expires_in"]))
 
         refresh_token = body.get("refresh_token")
         id_token = body.get("id_token")
@@ -182,10 +209,47 @@ class FulcraOIDCProvider:
         )
 
     def refresh_credentials(self, credentials: FulcraCredentials) -> FulcraCredentials:
+        """
+        Exchange the refresh token for new credentials, retrying failures
+        that are likely to be temporary.
+
+        Raises:
+            FulcraReauthRequired: Auth0 rejected the refresh token.
+            FulcraAuthUnavailable: Auth0 couldn't be reached or kept failing.
+        """
 
         if credentials.refresh_token is None:
             raise Exception("No refresh token available to refresh credentials with")
 
         payload = {"refresh_token": credentials.refresh_token, "scope": self.scope}
 
-        return self.get_token("refresh_token", payload)
+        delay = REFRESH_RETRY_DELAY
+        for attempt in range(REFRESH_ATTEMPTS):
+            try:
+                return self.get_token("refresh_token", payload)
+            except HTTPError as exc:
+                if 400 <= exc.code < 500 and exc.code not in (408, 429):
+                    raise FulcraReauthRequired(_token_error(exc)) from exc
+                error: Exception = exc
+            except Exception as exc:
+                # URLError, timeouts, and malformed responses
+                error = exc
+            if attempt + 1 < REFRESH_ATTEMPTS:
+                time.sleep(delay)
+                delay *= 2
+        raise FulcraAuthUnavailable(
+            f"could not reach the Fulcra login service to refresh the access token: {error}"
+        ) from error
+
+
+def _token_error(exc: HTTPError) -> str:
+    """The OAuth error from a failed /oauth/token response, e.g. "invalid_grant: ..." """
+    try:
+        body = json.loads(exc.read())
+        return ": ".join(
+            str(part)
+            for part in (body.get("error"), body.get("error_description"))
+            if part
+        ) or str(exc)
+    except Exception:
+        return str(exc)

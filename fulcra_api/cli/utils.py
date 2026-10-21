@@ -11,6 +11,7 @@ import dateparser
 
 from fulcra_api.core import FulcraAPI
 from fulcra_api.credentials import FulcraCredentials
+from fulcra_api.credentials_store import CredentialsFile
 
 
 def http_error_detail(exc: HTTPError) -> str:
@@ -53,6 +54,7 @@ pass_fulcra_api = click.make_pass_decorator(FulcraAPI)
 
 CONFIG_PATH = pathlib.Path.home() / ".config" / "fulcra"
 CREDS_FILE = pathlib.Path(CONFIG_PATH / "credentials.json")
+CREDS_STORE = CredentialsFile(CREDS_FILE)
 
 
 def ensure_config_directory():
@@ -63,16 +65,12 @@ def ensure_config_directory():
 
 
 def load_creds() -> FulcraCredentials | None:
-    if CREDS_FILE.is_file():
-        with CREDS_FILE.open(mode="r") as f:
-            creds = FulcraCredentials.from_json(f.read())
-        return creds
-    return None
+    return CREDS_STORE.load()
 
 
 def save_creds(creds: FulcraCredentials):
-    with CREDS_FILE.open(mode="w+") as f:
-        f.write(creds.to_json())
+    with CREDS_STORE.lock():
+        CREDS_STORE.save(creds)
 
 
 def requires_auth(f):
