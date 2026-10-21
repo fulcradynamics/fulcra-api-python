@@ -5,6 +5,7 @@ import click
 
 from ..core import FulcraAPI
 from ..credentials import FulcraCredentials
+from ..oidc import FulcraAuthError, FulcraReauthRequired
 from .auth import auth
 from .commands import (
     catalog,
@@ -32,15 +33,61 @@ from .record import delete_records, record
 from .share import share
 from .tags import tag
 from .utils import (
+    CREDS_STORE,
     ensure_config_directory,
     load_creds,
     pass_fulcra_api,
-    save_creds,
     tolerate_unencodable_output,
 )
 
+# Exit codes for a failed token refresh, so a script or scheduler can tell
+# "log in again" from "try again later" without parsing the message.
+EXIT_REAUTH_REQUIRED = 3
+EXIT_AUTH_UNAVAILABLE = 4
 
-@click.group()
+
+class AuthFailure(click.ClickException):
+    def __init__(self, exc: FulcraAuthError):
+        if isinstance(exc, FulcraReauthRequired):
+            message = (
+                f"Your Fulcra login has expired or been revoked ({exc}). "
+                "Run `fulcra auth login` to log in again."
+            )
+            self.exit_code = EXIT_REAUTH_REQUIRED
+        else:
+            message = (
+                f"{exc}. Your login is probably still valid; this is likely "
+                "temporary, so try again shortly rather than logging in again."
+            )
+            self.exit_code = EXIT_AUTH_UNAVAILABLE
+        super().__init__(message)
+
+
+def _auth_failure(exc: BaseException) -> FulcraAuthError | None:
+    """The token refresh failure behind `exc`, if any, however it was wrapped."""
+    seen = set()
+    while exc is not None and id(exc) not in seen:
+        if isinstance(exc, FulcraAuthError):
+            return exc
+        seen.add(id(exc))
+        exc = exc.__cause__ or exc.__context__
+    return None
+
+
+class FulcraGroup(click.Group):
+    def invoke(self, ctx):
+        try:
+            return super().invoke(ctx)
+        except (click.exceptions.Exit, click.exceptions.Abort):
+            raise
+        except Exception as exc:
+            failure = _auth_failure(exc)
+            if failure is None:
+                raise
+            raise AuthFailure(failure) from exc
+
+
+@click.group(cls=FulcraGroup)
 @click.option("--beta", is_flag=True, default=False, help="Enable beta features")
 @click.pass_context
 def cli(ctx, beta):
@@ -51,7 +98,7 @@ def cli(ctx, beta):
     tolerate_unencodable_output(sys.stdout, sys.stderr)
     ensure_config_directory()
     creds: FulcraCredentials | None = load_creds()
-    kwargs: Dict[str, Any] = {"refresh_callback": save_creds}
+    kwargs: Dict[str, Any] = {"credentials_store": CREDS_STORE}
     if creds:
         kwargs["credentials"] = creds
 

@@ -196,6 +196,5 @@ def get_access_token(fulcra_api: FulcraAPI):
     EXAMPLE:
         curl --oauth2-bearer "$(fulcra auth print-access-token)" 'https://api.fulcradynamics.com/user/v1alpha1/info'
     """
-    if fulcra_api.fulcra_credentials.is_expired():
-        fulcra_api.refresh_access_token()
+    fulcra_api.refresh_if_expiring()
     click.echo(fulcra_api.fulcra_credentials.access_token)
