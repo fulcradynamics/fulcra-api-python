@@ -68,7 +68,7 @@ class CredentialsFile:
             raise
 
     @contextlib.contextmanager
-    def lock(self) -> Generator[None]:
+    def lock(self) -> Generator[None, None, None]:
         """Hold an exclusive lock on the credentials, across processes."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         lock_path = self.path.with_name(self.path.name + ".lock")
