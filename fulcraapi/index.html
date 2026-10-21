@@ -983,6 +983,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.refresh_credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        refresh_credentials
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.refresh_if_expiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        refresh_if_expiring
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fulcra_api.core.FulcraAPI.resolve_data_type" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2258,6 +2280,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.refresh_credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        refresh_credentials
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fulcra_api.core.FulcraAPI.refresh_if_expiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        refresh_if_expiring
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#fulcra_api.core.FulcraAPI.resolve_data_type" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2852,7 +2896,7 @@ making calls, and loading data.</p>
 
 
 <h3 id="fulcra_api.core.FulcraAPI.__init__" class="doc doc-heading">
-            <code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="n">oidc_domain</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">oidc_client_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">oidc_scope</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">oidc_audience</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">access_token</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">access_token_expiration</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">refresh_token</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">credentials</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">refresh_callback</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="n">oidc_domain</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">oidc_client_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">oidc_scope</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">oidc_audience</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">access_token</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">access_token_expiration</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">refresh_token</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">credentials</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">refresh_callback</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">credentials_store</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -3016,6 +3060,25 @@ making calls, and loading data.</p>
             <td>
               <div class="doc-md-description">
                 <p>Optional. A callback function for when the access token is successfully refreshed.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>credentials_store</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="fulcra_api.credentials_store.CredentialsFile">CredentialsFile</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional. A <code>CredentialsFile</code> shared with other
+processes. Refreshes happen under its lock and are saved to
+it, and a token another process already refreshed is reused
+instead of spending the refresh token again.</p>
               </div>
             </td>
             <td>
@@ -8498,6 +8561,80 @@ print(response["upload_id"])</p>
           </tr>
       </tbody>
     </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fulcra_api.core.FulcraAPI.refresh_credentials" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">refresh_credentials</span><span class="p">()</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Replace the access token, raising if that fails.</p>
+<p>With a <code>credentials_store</code>, this holds its lock and first re-reads it:
+if another process already replaced the token this client holds, that
+token is used rather than spending the refresh token again.</p>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="FulcraReauthRequired">FulcraReauthRequired</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the refresh token was rejected.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="FulcraAuthUnavailable">FulcraAuthUnavailable</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>the login service couldn't be reached.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="fulcra_api.core.FulcraAPI.refresh_if_expiring" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">refresh_if_expiring</span><span class="p">()</span></code>
+
+</h3>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Refresh the access token if it expires within <code>REFRESH_LEEWAY</code>.</p>
+<p>A failed refresh is raised only if the token has actually expired;
+until then the current token is still worth sending.</p>
 
 
     </div>
