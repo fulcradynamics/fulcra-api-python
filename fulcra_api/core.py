@@ -17,6 +17,7 @@ import jsonschema
 from . import record_validation
 from .credentials import FulcraCredentials
 from .oidc import FulcraAuthError, FulcraOIDCProvider
+from .user_agent import build_user_agent
 
 if TYPE_CHECKING:
     from .credentials_store import CredentialsFile
@@ -1200,6 +1201,11 @@ class FulcraAPI(FulcraDataAccessMixin):
 
     fulcra_credentials: Optional[FulcraCredentials] = None
 
+    # Product tokens appended to the User-Agent of every request, e.g.
+    # "my-tool/1.0". Subclasses can set this instead of passing
+    # `user_agent_extra`.
+    user_agent_extra: Optional[str] = None
+
     def __init__(
         self,
         oidc_domain: Optional[str] = None,
@@ -1212,6 +1218,7 @@ class FulcraAPI(FulcraDataAccessMixin):
         credentials: Optional[FulcraCredentials] = None,
         refresh_callback: Optional[Callable] = None,
         credentials_store: Optional["CredentialsFile"] = None,
+        user_agent_extra: Optional[str] = None,
     ):
         """
         Initializes the FulcraAPI client.
@@ -1235,7 +1242,17 @@ class FulcraAPI(FulcraDataAccessMixin):
                 processes. Refreshes happen under its lock and are saved to
                 it, and a token another process already refreshed is reused
                 instead of spending the refresh token again.
+            user_agent_extra: Optional. Product tokens to add after the
+                library's own in the User-Agent header of every request, so
+                Fulcra can tell your tool's traffic apart (e.g. "my-tool/1.0").
+                Printable ASCII only; don't put anything identifying the user
+                in it.
         """
+
+        if user_agent_extra is not None:
+            self.user_agent_extra = user_agent_extra
+        # Raises ValueError for an invalid `user_agent_extra`.
+        self.user_agent = build_user_agent(self.user_agent_extra)
 
         # New OIDC provider which should replace most of the oidc workflow functionality here
         self.oidc = FulcraOIDCProvider(
@@ -1243,6 +1260,7 @@ class FulcraAPI(FulcraDataAccessMixin):
             client_id=oidc_client_id or FULCRA_OIDC_CLIENT_ID,
             scope=oidc_scope or FULCRA_OIDC_SCOPE,
             audience=oidc_audience or FULCRA_OIDC_AUDIENCE,
+            user_agent=self.user_agent,
         )
 
         self.fulcra_credentials = credentials
@@ -1589,6 +1607,7 @@ class FulcraAPI(FulcraDataAccessMixin):
             }
         else:
             headers = {}
+        headers["User-Agent"] = self.user_agent
 
         if data is not None:
             headers["Content-Type"] = content_type
@@ -3066,7 +3085,11 @@ class FulcraAPI(FulcraDataAccessMixin):
         req = urllib.request.Request(
             upload_url,
             data=data,
-            headers={"Content-Length": file_size, "Content-Type": file_type},
+            headers={
+                "Content-Length": file_size,
+                "Content-Type": file_type,
+                "User-Agent": self.user_agent,
+            },
             method="POST",
         )
         upload_resp = urllib.request.urlopen(req)
