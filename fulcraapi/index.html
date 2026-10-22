@@ -2896,7 +2896,7 @@ making calls, and loading data.</p>
 
 
 <h3 id="fulcra_api.core.FulcraAPI.__init__" class="doc doc-heading">
-            <code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="n">oidc_domain</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">oidc_client_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">oidc_scope</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">oidc_audience</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">access_token</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">access_token_expiration</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">refresh_token</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">credentials</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">refresh_callback</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">credentials_store</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="fm">__init__</span><span class="p">(</span><span class="n">oidc_domain</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">oidc_client_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">oidc_scope</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">oidc_audience</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">access_token</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">access_token_expiration</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">refresh_token</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">credentials</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">refresh_callback</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">credentials_store</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">user_agent_extra</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
@@ -3079,6 +3079,26 @@ making calls, and loading data.</p>
 processes. Refreshes happen under its lock and are saved to
 it, and a token another process already refreshed is reused
 instead of spending the refresh token again.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>user_agent_extra</code>
+            </td>
+            <td>
+                  <code><span title="typing.Optional">Optional</span>[<span title="str">str</span>]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional. Product tokens to add after the
+library's own in the User-Agent header of every request, so
+Fulcra can tell your tool's traffic apart (e.g. "my-tool/1.0").
+Printable ASCII only; don't put anything identifying the user
+in it.</p>
               </div>
             </td>
             <td>
