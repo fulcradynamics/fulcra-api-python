@@ -6,10 +6,11 @@ import time
 import urllib.parse
 import urllib.request
 from urllib.error import HTTPError
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Optional, Tuple
 
 from .credentials import FulcraCredentials, jwt_expiration
+from .user_agent import default_user_agent
 
 # Seconds to wait for Auth0 before giving up on a request.
 TOKEN_REQUEST_TIMEOUT = 30
@@ -44,6 +45,7 @@ class FulcraOIDCProvider:
     client_id: str
     scope: str
     audience: str
+    user_agent: str = field(default_factory=default_user_agent)
 
     def authorize_via_device_flow(
         self,
@@ -150,6 +152,7 @@ class FulcraOIDCProvider:
         )
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": self.user_agent,
         }
 
         request = urllib.request.Request(
@@ -179,6 +182,7 @@ class FulcraOIDCProvider:
         body = urllib.parse.urlencode(payload)
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": self.user_agent,
         }
 
         request = urllib.request.Request(

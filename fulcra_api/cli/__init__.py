@@ -3,6 +3,7 @@ from typing import Any, Dict
 
 import click
 
+from .. import __version__
 from ..core import FulcraAPI
 from ..credentials import FulcraCredentials
 from ..oidc import FulcraAuthError, FulcraReauthRequired
@@ -98,7 +99,10 @@ def cli(ctx, beta):
     tolerate_unencodable_output(sys.stdout, sys.stderr)
     ensure_config_directory()
     creds: FulcraCredentials | None = load_creds()
-    kwargs: Dict[str, Any] = {"credentials_store": CREDS_STORE}
+    kwargs: Dict[str, Any] = {
+        "credentials_store": CREDS_STORE,
+        "user_agent_extra": f"fulcra-cli/{__version__}",
+    }
     if creds:
         kwargs["credentials"] = creds
 
