@@ -363,6 +363,61 @@ def data_type_list(
         click.echo(json.dumps(c))
 
 
+@data_type.command("add-fields", short_help="Add optional fields to a data type")
+@click.argument(
+    "data_type",
+    callback=resolve_data_type(default_to_authenticated=True),
+)
+@click.option(
+    "--fields",
+    "fields_schema",
+    type=str,
+    required=True,
+    help="JSON Schema of the fields to add, e.g. "
+    '\'{"properties": {"genre": {"type": "string"}}}\'',
+)
+@pass_fulcra_api
+@requires_auth
+def data_type_add_fields(fulcra_api: FulcraAPI, data_type: dict, fields_schema: str):
+    """
+    Add optional fields to one of your v1 Event or Metric data types.
+
+    DATA_TYPE: ID of the data type, <Event|Metric>/<UUID>.
+
+    The type's existing fields don't change. New fields can't be required,
+    because records already stored don't have them. To remove, rename or
+    retype a field, create a new data type instead.
+
+    \b
+    Example:
+    fulcra data-type add-fields Event/<UUID> \\
+      --fields '{"properties": {"release_year": {"type": "integer"}}}'
+    """
+    # data_type is the resolved catalog entry (see resolve_data_type)
+    type_id = data_type["id"]
+    if data_type.get("api_version") != "v1" or "/" not in type_id:
+        raise click.ClickException(
+            f"Fields can only be added to user-defined v1 data types "
+            f"(<Event|Metric>/<UUID>), not {type_id}."
+        )
+
+    try:
+        spec = data_type_management.add_fields(fulcra_api, data_type, fields_schema)
+    except ValueError as exc:
+        raise click.ClickException(str(exc))
+    except HTTPError as exc:
+        raise click.ClickException(
+            f"Failed to add fields to {type_id}: {error_message(exc)}"
+        )
+
+    click.echo(json.dumps(spec))
+    click.echo(
+        "Wait 5 minutes before recording values for the new fields: until then "
+        "they may be dropped without an error.",
+        err=True,
+    )
+
+
 @data_type.command("archive", short_help="Archive a user-defined data type")
 @click.argument(
     "data_type",
