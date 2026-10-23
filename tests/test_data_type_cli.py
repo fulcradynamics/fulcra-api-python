@@ -9,6 +9,7 @@ from click.testing import CliRunner
 import json
 
 from fulcra_api.cli.data_types import (
+    data_type_add_fields,
     data_type_archive,
     data_type_create,
     data_type_list,
@@ -509,3 +510,74 @@ def test_list_accepts_the_user_defined_category():
 def test_list_help_points_to_catalog():
     result = CliRunner().invoke(data_type_list, ["--help"])
     assert "fulcra catalog --user-defined" in result.output
+
+
+# --- add-fields --------------------------------------------------------------
+
+
+def test_add_fields_updates_the_schema_and_warns_about_the_wait():
+    client = _client()
+    type_id = f"Event/{uuid.uuid4()}"
+    schema = {"properties": {"title": {"type": "string"}}, "required": ["title"]}
+    client.resolve_data_type = lambda *a, **k: [
+        {"id": type_id, "api_version": "v1", "record_spec": {"schema": schema}}
+    ]
+    captured = {}
+    client.update_data_type = lambda base_type, id, body: (
+        captured.update(base_type=base_type, id=id, body=body) or {"id": type_id}
+    )
+
+    result = CliRunner().invoke(
+        data_type_add_fields,
+        [type_id, "--fields", '{"properties": {"year": {"type": "integer"}}}'],
+        obj=client,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["base_type"] == "Event"
+    assert json.loads(captured["body"]["record_spec"]["schema"]) == {
+        "properties": {"title": {"type": "string"}, "year": {"type": "integer"}},
+        "required": ["title"],
+    }
+    assert json.loads(result.stdout) == {"id": type_id}
+    assert "Wait 5 minutes" in result.stderr
+
+
+def test_add_fields_refuses_annotations():
+    client = _client()
+    type_id = f"MomentAnnotation/{uuid.uuid4()}"
+    client.resolve_data_type = lambda *a, **k: [
+        {"id": type_id, "api_version": "v1alpha1"}
+    ]
+    client.update_data_type = lambda *a: pytest.fail("must not update")
+
+    result = CliRunner().invoke(
+        data_type_add_fields,
+        [type_id, "--fields", '{"properties": {"y": {"type": "string"}}}'],
+        obj=client,
+    )
+
+    assert result.exit_code != 0
+    assert "user-defined v1" in result.output
+
+
+def test_add_fields_refuses_changes_to_existing_fields():
+    client = _client()
+    type_id = f"Event/{uuid.uuid4()}"
+    client.resolve_data_type = lambda *a, **k: [
+        {
+            "id": type_id,
+            "api_version": "v1",
+            "record_spec": {"schema": {"properties": {"title": {"type": "string"}}}},
+        }
+    ]
+    client.update_data_type = lambda *a: pytest.fail("must not update")
+
+    result = CliRunner().invoke(
+        data_type_add_fields,
+        [type_id, "--fields", '{"properties": {"title": {"type": "integer"}}}'],
+        obj=client,
+    )
+
+    assert result.exit_code != 0
+    assert "already has title" in result.output

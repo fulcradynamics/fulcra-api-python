@@ -509,3 +509,101 @@ def test_has_category_treats_both_user_defined_names_as_one():
     assert dtm.has_category(renamed, "user_defined")
     assert not dtm.has_category(renamed, "base_type")
     assert dtm.has_category({"categories": ["base_type"]}, "base_type")
+
+
+# --- add fields --------------------------------------------------------------
+
+_BASE_PROPS = {
+    name: {"type": "string"} for name in ("id", "start_time", "end_time", "tags", "sources")
+}
+
+
+def _stored(base_type: str, own: dict, required: list[str]) -> dict:
+    """A catalog entry whose stored schema merges base and custom fields."""
+    properties = {**_BASE_PROPS, **own}
+    if base_type == "Metric":
+        properties.update(value={"type": "number"}, unit={"type": "string"})
+    schema = {"type": "object", "title": "RecordSchema", "properties": properties}
+    if required:
+        schema["required"] = required
+    return {
+        "id": f"{base_type}/{uuid.UUID(int=1)}",
+        "api_version": "v1",
+        "record_spec": {"schema": json.dumps(schema)},
+    }
+
+
+def test_add_fields_sends_existing_and_new_custom_fields():
+    client = offline_client()
+    captured = capture_request(client, response=b'{"id": "Event/x"}')
+    entry = _stored("Event", {"title": {"type": "string"}}, ["title"])
+
+    dtm.add_fields(client, entry, '{"properties": {"year": {"type": "integer"}}}')
+
+    assert captured["path"] == f"/input/v1/data_type/Event/{uuid.UUID(int=1)}"
+    assert captured["method"] == "PUT"
+    assert json.loads(captured["data"]["record_spec"]["schema"]) == {
+        "properties": {"title": {"type": "string"}, "year": {"type": "integer"}},
+        "required": ["title"],
+    }
+
+
+def test_add_fields_leaves_metric_base_fields_to_the_server():
+    client = offline_client()
+    captured = capture_request(client)
+    entry = _stored("Metric", {"b": {"type": "integer"}}, ["value"])
+
+    dtm.add_fields(client, entry, {"properties": {"c": {"type": "string"}}})
+
+    assert json.loads(captured["data"]["record_spec"]["schema"]) == {
+        "properties": {"b": {"type": "integer"}, "c": {"type": "string"}},
+    }
+
+
+def test_add_fields_fetches_the_schema_when_the_entry_lacks_it():
+    client = offline_client()
+    captured = capture_request(client)
+    entry = _stored("Event", {"title": {"type": "string"}}, [])
+    schema = entry.pop("record_spec")["schema"]
+    client.v1_catalog_schema = lambda **kwargs: json.loads(schema)
+
+    dtm.add_fields(client, entry, {"properties": {"year": {"type": "integer"}}})
+
+    assert set(json.loads(captured["data"]["record_spec"]["schema"])["properties"]) == {
+        "title",
+        "year",
+    }
+
+
+@pytest.mark.parametrize(
+    "fields, message",
+    [
+        ({"properties": {"title": {"type": "integer"}}}, "already has title"),
+        ({"properties": {"start_time": {"type": "string"}}}, "already has start_time"),
+        (
+            {"properties": {"year": {"type": "integer"}}, "required": ["year"]},
+            "must be optional",
+        ),
+        ({"properties": {"y": {}}, "allOf": []}, "remove allOf"),
+        ({"properties": {}}, "under \"properties\""),
+    ],
+)
+def test_add_fields_refuses_anything_but_new_optional_fields(fields, message):
+    client = offline_client()
+    captured = capture_request(client)
+    entry = _stored("Event", {"title": {"type": "string"}}, ["title"])
+
+    with pytest.raises(ValueError, match=message):
+        dtm.add_fields(client, entry, fields)
+    assert captured == {}
+
+
+def test_add_fields_refuses_non_v1_ids():
+    client = offline_client()
+
+    with pytest.raises(ValueError):
+        dtm.add_fields(
+            client,
+            {"id": "MomentAnnotation/abc", "record_spec": {"schema": "{}"}},
+            {"properties": {"y": {"type": "string"}}},
+        )
