@@ -1,8 +1,8 @@
 """High-level operations for managing v1 custom data types.
 
 This module sits above the transport layer (the client classes in ``core``) and
-below any front-end (the CLI, the MCP server). It orchestrates create / archive /
-restore of v1 custom data types (Event / Metric): it builds the request bodies
+below any front-end (the CLI, the MCP server). It orchestrates create / add fields /
+archive / restore of v1 custom data types (Event / Metric): it builds the request bodies
 the API  expects and returns plain data, so front-ends don't each
 re-implement that logic.
 
@@ -14,6 +14,11 @@ import json
 from uuid import UUID
 
 V1_BASE_TYPES = ("Event", "Metric")
+
+# Fields every record of a v1 base type has; a custom type's own fields are
+# the rest of its schema
+_EVENT_FIELDS = frozenset({"id", "start_time", "end_time", "tags", "sources"})
+V1_BASE_FIELDS = {"Event": _EVENT_FIELDS, "Metric": _EVENT_FIELDS | {"value", "unit"}}
 
 # The v1alpha1 base types a user-defined annotation is built on
 ANNOTATION_BASE_TYPES = (
@@ -351,12 +356,75 @@ def restore_data_type(source, base_type: str, data_type_id: str) -> dict:
     return source.update_data_type(base_type, data_type_id, {"deprecated": False})
 
 
-def _schema_json(fields_schema: dict | str) -> str:
-    """Normalize a JSON Schema into the JSON *string* record_spec.schema expects.
+def add_fields(source, data_type: dict, new_fields: dict | str) -> dict:
+    """Add optional fields to a v1 custom data type, keeping its existing ones.
 
-    The API stores the additional-fields schema as JSON text, so a dict is
-    serialized and a string is validated and re-serialized.
+    ``data_type`` is the type's catalog entry (it carries the current schema).
+    Only additions are allowed: a new field may not reuse an existing name or
+    be required, since records already stored don't have it. Removing,
+    renaming or retyping fields would leave existing records out of step with
+    the type, so this function never sends such a change.
+
+    The API replaces a type's whole custom-fields schema on update, so this
+    reads the current fields, appends the new ones and sends the result.
+
+    Returns the updated data type's spec.
     """
+    base_type, type_uuid = parse_v1_shorthand(data_type.get("id", ""))
+    added = _parse_fields_schema(new_fields)
+    if added.get("required"):
+        raise ValueError(
+            "New fields must be optional: records already stored don't have them. "
+            'Leave "required" out.'
+        )
+    unsupported = set(added) - {"type", "properties", "required"}
+    if unsupported:
+        raise ValueError(
+            'Only new fields under "properties" can be added; '
+            f"remove {', '.join(sorted(unsupported))}."
+        )
+
+    current = (data_type.get("record_spec") or {}).get("schema")
+    if current is None:
+        current = source.v1_catalog_schema(
+            data_type=data_type["id"],
+            api_version="v1",
+            fulcra_userid=data_type.get("fulcra_userid"),
+        )
+    if isinstance(current, str):
+        current = json.loads(current)
+    if not isinstance(current, dict) or not isinstance(
+        current.get("properties"), dict
+    ):
+        raise ValueError(f"Could not read the current fields of {data_type['id']}.")
+
+    existing = current["properties"]
+    clashes = sorted(name for name in added["properties"] if name in existing)
+    if clashes:
+        raise ValueError(
+            f"{data_type['id']} already has {', '.join(clashes)}. Existing fields "
+            "can't be changed; create a new data type for that."
+        )
+
+    # The stored schema includes the base type's fields, which the server adds
+    # back itself; send only the type's own fields
+    base_fields = V1_BASE_FIELDS[base_type]
+    properties = {
+        name: spec for name, spec in existing.items() if name not in base_fields
+    }
+    properties.update(added["properties"])
+    fragment: dict = {"properties": properties}
+    required = [f for f in current.get("required") or [] if f not in base_fields]
+    if required:
+        fragment["required"] = required
+
+    return source.update_data_type(
+        base_type, type_uuid, {"record_spec": {"schema": json.dumps(fragment)}}
+    )
+
+
+def _parse_fields_schema(fields_schema: dict | str) -> dict:
+    """Parse and check a custom-fields JSON Schema fragment."""
     if isinstance(fields_schema, str):
         try:
             parsed = json.loads(fields_schema)
@@ -374,7 +442,16 @@ def _schema_json(fields_schema: dict | str) -> str:
             'Fields schema must define the fields to add under "properties", e.g. '
             '{"properties": {"mood": {"type": "string"}}}.'
         )
-    return json.dumps(parsed)
+    return parsed
+
+
+def _schema_json(fields_schema: dict | str) -> str:
+    """Normalize a JSON Schema into the JSON *string* record_spec.schema expects.
+
+    The API stores the additional-fields schema as JSON text, so a dict is
+    serialized and a string is validated and re-serialized.
+    """
+    return json.dumps(_parse_fields_schema(fields_schema))
 
 
 # Truthy/falsy strings accepted for a boolean annotation value. Mirrors the set
