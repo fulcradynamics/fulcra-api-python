@@ -363,6 +363,116 @@ def data_type_list(
         click.echo(json.dumps(c))
 
 
+@data_type.command("update", short_help="Update a data type's name or description")
+@click.argument("data_type")
+@click.option("-n", "--name", callback=reject_blank, help="Replacement name.")
+@click.option("-d", "--description", help="Replacement description; use '' to clear.")
+@click.option(
+    "--expected-description",
+    help="Require this current description (ignores whitespace differences).",
+)
+@pass_fulcra_api
+def data_type_update(fulcra_api, data_type, name, description, expected_description):
+    """Update metadata of an owned, active v1 Event/<UUID> or Metric/<UUID>.
+
+    Omitted fields are preserved. No schemas, records, shares or archive state
+    are changed. The description guard is not atomic compare-and-swap.
+    Only verified=true confirms independent readback. On an uncertain result,
+    reconcile with the catalog before another write.
+    """
+    try:
+        base, type_uuid = data_type_management.parse_v1_shorthand(data_type)
+        if data_type != f"{base}/{type_uuid}":
+            raise ValueError(
+                "Use the exact canonical Event/<UUID> or Metric/<UUID> ID."
+            )
+    except ValueError as exc:
+        raise click.BadParameter(str(exc), param_hint="DATA_TYPE") from exc
+    changes = {
+        k: v
+        for k, v in {"name": name, "description": description}.items()
+        if v is not None
+    }
+    if not changes:
+        raise click.UsageError("Provide --name and/or --description.")
+    _update_metadata(
+        fulcra_api, data_type, base, type_uuid, changes, expected_description
+    )
+
+
+@requires_auth
+def _update_metadata(
+    fulcra_api, data_type, base, type_uuid, changes, expected_description
+):
+    own = fulcra_api.get_fulcra_userid()
+
+    def read_owned():
+        rows = fulcra_api.v1_catalog(data_type=data_type, fulcra_userid=own)
+        if len(rows) != 1:
+            raise ValueError("Missing or ambiguous owned data type.")
+        entry = rows[0]
+        if (
+            not own
+            or entry.get("id") != data_type
+            or entry.get("fulcra_userid") != own
+            or entry.get("api_version") != "v1"
+            or entry.get("recordable") is not True
+            or entry.get("deprecated")
+            or entry.get("deleted_at")
+        ):
+            raise ValueError("An active owned recordable v1 data type is required.")
+        return entry
+
+    try:
+        before = read_owned()
+    except Exception as exc:
+        raise click.ClickException(
+            f"Could not verify owned metadata: {error_message(exc)}"
+        ) from exc
+    if (
+        expected_description is not None
+        and (before.get("description") or "").split() != expected_description.split()
+    ):
+        raise click.ClickException(
+            "Description changed; reread before deciding whether to update."
+        )
+    try:
+        # The SDK sends a partial PUT; do not resend schema or archive fields.
+        fulcra_api.update_data_type(base, type_uuid, changes)
+        after = read_owned()
+        preserved = (
+            "id",
+            "fulcra_userid",
+            "api_version",
+            "name",
+            "description",
+            "record_spec",
+            "deprecated",
+            "deleted_at",
+            "recordable",
+            "tags",
+        )
+        if any(after.get(k) != changes.get(k, before.get(k)) for k in preserved):
+            raise ValueError("Metadata readback differs.")
+    except Exception:
+        click.echo(
+            json.dumps(
+                dict(
+                    status="uncertain",
+                    verified=False,
+                    data_type=data_type,
+                    reason="Write or independent readback failed; reconcile before another write.",
+                )
+            )
+        )
+        raise click.exceptions.Exit(1)
+    click.echo(
+        json.dumps(
+            dict(status="updated", verified=True, data_type=data_type, **changes)
+        )
+    )
+
+
 @data_type.command("add-fields", short_help="Add optional fields to a data type")
 @click.argument(
     "data_type",
