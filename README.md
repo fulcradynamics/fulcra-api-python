@@ -33,8 +33,7 @@ fulcra record Event/<UUID> --summary="Ship the beta on Friday"
 fulcra get-records Event/<UUID> "1 week"
 
 # Update only the name and/or description of an owned, active Event or Metric
-fulcra data-type update Event/<UUID> --name "Project decisions" \
-    --expected-description "Decisions made in project meetings"
+fulcra data-type update Event/<UUID> --name "Project decisions"
 
 # Keep files (notes, memory, exports) with full version history
 fulcra file upload notes.md /projects/beta/notes.md
