@@ -36,13 +36,22 @@ def build_v1_promql(
 
     Otherwise encodes the window as a range vector anchored at the end time
     (``Type[<duration>s] @ <end_unix_ts>``), which the v1 records endpoint
-    evaluates as records overlapping [start_time, end_time).
+    evaluates as records overlapping [start_time, end_time). Pre-epoch endpoints
+    use an epoch anchor plus offset to avoid the backend's negative-time getter.
     """
     selector = f'{{__name__="{data_type_id}"}}' if "/" in data_type_id else data_type_id
     if latest:
         return selector
     duration = max(1, int((end_time - start_time).total_seconds()))
-    return f"{selector}[{duration}s] @ {int(end_time.timestamp())}"
+    timestamp = int(end_time.timestamp())
+    if timestamp < 0:
+        # The backend's timestamp getter panics on negative anchors. An epoch
+        # anchor plus offset preserves the window without that conversion.
+        # Split long offsets to avoid the parser's uint32 seconds-component limit.
+        days, seconds = divmod(-timestamp, 86400)
+        offset = (f"{days}d" if days else "") + (f"{seconds}s" if seconds else "")
+        return f"{selector}[{duration}s] @ 0 offset {offset}"
+    return f"{selector}[{duration}s] @ {timestamp}"
 
 
 def _owner_scope(source, data_type: dict):
