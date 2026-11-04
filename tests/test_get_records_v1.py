@@ -8,7 +8,7 @@ from click.testing import CliRunner
 from fulcra_api.cli.commands import get_records
 from fulcra_api.cli.utils import http_error_detail
 
-from .conftest import offline_client
+from .conftest import capture_request, offline_client
 
 # 2024-06-01 -> 2024-06-02 UTC: 86400s window anchored at the end unix time.
 DAY_RANGE = ["2024-06-01T00:00:00Z", "2024-06-02T00:00:00Z"]
@@ -109,6 +109,26 @@ def test_v1_user_defined_type_is_queried_by_name_matcher():
     assert result.exit_code == 0, result.output
     assert captured["query"] == f'{{__name__="{USER_TYPE}"}}[86400s] @ 1717286400'
     assert result.output.splitlines() == ['{"foo": "bar"}']
+
+
+def test_v1_historical_shared_records_use_safe_query():
+    client = _v1_client(
+        [_entry(id=USER_TYPE, record_type="event", fulcra_userid="sharer")]
+    )
+    captured = capture_request(client, response=b'{"kind": "message"}\n')
+    result = CliRunner().invoke(
+        get_records,
+        [USER_TYPE, "1801-01-01T00:00:00Z", "1901-01-01T00:00:00Z"],
+        obj=client,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert captured["path"] == "/data/v1/records"
+    assert captured["query"] == {
+        "q": f'{{__name__="{USER_TYPE}"}}[3155673600s] @ 0 offset 25202d',
+        "fulcra_userid": "sharer",
+    }
+    assert result.output.splitlines() == ['{"kind": "message"}']
 
 
 def test_v1_keeps_field_types_in_output():

@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+import promql_parser
 
 from fulcra_api.records import build_v1_promql, get_records
 
@@ -63,6 +64,30 @@ def test_promql_user_defined_type_uses_a_name_matcher():
 
 def test_promql_latest_user_defined_type_is_a_bare_name_matcher():
     assert build_v1_promql(USER_TYPE, latest=True) == USER_TYPE_SELECTOR
+
+
+@pytest.mark.parametrize(
+    "start,end",
+    [
+        ("0001-01-01T00:00:00+00:00", "0101-01-01T00:00:00+00:00"),
+        ("1801-01-01T00:00:00+00:00", "1901-01-01T00:00:00+00:00"),
+        ("1900-01-01T00:00:00+00:00", "1901-01-01T12:34:56+00:00"),
+        ("1969-12-30T00:00:00+00:00", "1969-12-31T23:59:59+00:00"),
+        ("1969-12-30T00:00:00+00:00", "1970-01-01T00:59:59+01:00"),
+        ("1969-12-31T00:00:00+00:00", "1970-01-01T00:00:00+00:00"),
+        ("1969-12-31T00:00:00+00:00", "2026-01-01T00:00:00+00:00"),
+    ],
+)
+def test_promql_historical_windows_preserve_parsed_bounds(start, end):
+    start, end = datetime.fromisoformat(start), datetime.fromisoformat(end)
+    query = build_v1_promql(USER_TYPE, start, end)
+    parsed = promql_parser.parse(query)
+    selector = parsed.vector_selector
+    # Negative anchors panic when the Rust binding converts them to datetime.
+    assert "@ -" not in query
+    parsed_end = selector.at.at - (selector.offset or timedelta())
+    assert parsed_end == end
+    assert parsed_end - parsed.range == start
 
 
 # --- get_records dispatch ----------------------------------------------------
