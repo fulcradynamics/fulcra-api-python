@@ -10,12 +10,12 @@ from ..credentials import FulcraCredentials
 from ..oidc import FulcraAuthError, FulcraReauthRequired
 from .auth import auth
 from .commands import (
+    apple_location_updates,
+    apple_location_visits,
     catalog,
     data_updates,
     get_records,
     google_location_updates,
-    apple_location_updates,
-    apple_location_visits,
     list_apple_workouts,
     list_calendar_events,
     list_calendars,
@@ -96,7 +96,7 @@ class FulcraGroup(click.Group):
     default=DEFAULT_CONFIG_PATH,
     show_default="~/.config/fulcra",
     envvar="FULCRA_CONFIG_PATH",
-    help="Directory holding the login (credentials.json). Use a separate one per Fulcra account. Also set by FULCRA_CONFIG_PATH.",
+    help="Override default configuration/credentials path. Also set by FULCRA_CONFIG_PATH.",
 )
 @click.pass_context
 def cli(ctx, beta, config_path):
