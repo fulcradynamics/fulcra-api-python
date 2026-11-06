@@ -116,7 +116,7 @@ def login(
     approval. --wait keeps the waiting behavior instead.
 
     Credentials are saved to credentials.json in the config directory
-    (~/.config/fulcra unless --config-dir or FULCRA_CONFIG_DIR says otherwise).
+    (~/.config/fulcra unless --config-path or FULCRA_CONFIG_PATH says otherwise).
     """
 
     if get_auth_url and device_code is not None:

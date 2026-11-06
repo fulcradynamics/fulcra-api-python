@@ -91,21 +91,21 @@ class FulcraGroup(click.Group):
 @click.group(cls=FulcraGroup)
 @click.option("--beta", is_flag=True, default=False, help="Enable beta features")
 @click.option(
-    "--config-dir",
+    "--config-path",
     type=click.Path(file_okay=False, path_type=pathlib.Path),
     default=DEFAULT_CONFIG_PATH,
     show_default="~/.config/fulcra",
-    envvar="FULCRA_CONFIG_DIR",
-    help="Directory holding the login (credentials.json). Use a separate one per Fulcra account. Also set by FULCRA_CONFIG_DIR.",
+    envvar="FULCRA_CONFIG_PATH",
+    help="Directory holding the login (credentials.json). Use a separate one per Fulcra account. Also set by FULCRA_CONFIG_PATH.",
 )
 @click.pass_context
-def cli(ctx, beta, config_dir):
+def cli(ctx, beta, config_path):
     """Command line interface for authenticating and interacting with the Fulcra Life API.
 
     Sub-commands return JSON data by default for convienent piping into tools like `jq` for parsing and filtering.
     """
     tolerate_unencodable_output(sys.stdout, sys.stderr)
-    store = credentials_store(config_dir)
+    store = credentials_store(config_path)
     creds: FulcraCredentials | None = store.load()
     kwargs: Dict[str, Any] = {
         "credentials_store": store,

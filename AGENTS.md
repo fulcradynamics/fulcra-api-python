@@ -50,7 +50,7 @@ Every interface uses OAuth2 and never asks the agent to handle a password: the u
 
 ### Shell-first agents (CLI)
 
-Logging in takes two steps, because a person has to approve it in a browser while you wait. Credentials are then cached in `~/.config/fulcra/credentials.json`, so later commands don't need to log in again. To keep several accounts logged in at once, give each its own directory with `FULCRA_CONFIG_DIR=<dir>` (or `fulcra --config-dir <dir> <command>`).
+Logging in takes two steps, because a person has to approve it in a browser while you wait. Credentials are then cached in `~/.config/fulcra/credentials.json`, so later commands don't need to log in again. To keep several accounts logged in at once, give each its own directory with `FULCRA_CONFIG_PATH=<dir>` (or `fulcra --config-path <dir> <command>`).
 
 ```sh
 uvx fulcra-api auth login                                # prints a URL, a code and a device code, then exits

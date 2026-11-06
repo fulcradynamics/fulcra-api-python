@@ -55,9 +55,9 @@ pass_fulcra_api = click.make_pass_decorator(FulcraAPI)
 DEFAULT_CONFIG_PATH = pathlib.Path.home() / ".config" / "fulcra"
 
 
-def credentials_store(config_dir: pathlib.Path) -> CredentialsFile:
-    config_dir.mkdir(parents=True, exist_ok=True)
-    return CredentialsFile(config_dir / "credentials.json")
+def credentials_store(config_path: pathlib.Path) -> CredentialsFile:
+    config_path.mkdir(parents=True, exist_ok=True)
+    return CredentialsFile(config_path / "credentials.json")
 
 
 def save_creds(store: CredentialsFile, creds: FulcraCredentials):

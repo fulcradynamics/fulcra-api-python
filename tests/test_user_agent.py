@@ -143,7 +143,7 @@ def test_cli_adds_its_own_token(monkeypatch, tmp_path):
     )
 
     result = CliRunner().invoke(
-        cli_module.cli, ["--config-dir", str(tmp_path), "user-info"]
+        cli_module.cli, ["--config-path", str(tmp_path), "user-info"]
     )
 
     assert result.exit_code == 0, result.output
