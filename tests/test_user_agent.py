@@ -11,6 +11,7 @@ from click.testing import CliRunner
 import fulcra_api.cli as cli_module
 from fulcra_api import __version__
 from fulcra_api.core import FulcraAPI
+from fulcra_api.credentials_store import CredentialsFile
 from fulcra_api.oidc import FulcraOIDCProvider
 from fulcra_api.user_agent import build_user_agent, default_user_agent
 
@@ -124,7 +125,7 @@ def test_oidc_provider_defaults_to_library_user_agent():
     assert provider.user_agent == LIBRARY
 
 
-def test_cli_adds_its_own_token(monkeypatch):
+def test_cli_adds_its_own_token(monkeypatch, tmp_path):
     created: list[dict] = []
 
     # Commands look the client up by type, so this has to be a FulcraAPI.
@@ -137,12 +138,13 @@ def test_cli_adds_its_own_token(monkeypatch):
             return {"userid": "me"}
 
     monkeypatch.setattr(cli_module, "FulcraAPI", RecordingAPI)
-    monkeypatch.setattr(cli_module, "ensure_config_directory", lambda: None)
-    monkeypatch.setattr(
-        cli_module, "load_creds", lambda: offline_client().fulcra_credentials
+    CredentialsFile(tmp_path / "credentials.json").save(
+        offline_client().fulcra_credentials
     )
 
-    result = CliRunner().invoke(cli_module.cli, ["user-info"])
+    result = CliRunner().invoke(
+        cli_module.cli, ["--config-path", str(tmp_path), "user-info"]
+    )
 
     assert result.exit_code == 0, result.output
     assert created[0]["user_agent_extra"] == f"fulcra-cli/{__version__}"

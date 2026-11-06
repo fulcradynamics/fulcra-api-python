@@ -115,7 +115,8 @@ def login(
     `fulcra-api auth login --device-code <DEVICE CODE>`, which waits for their
     approval. --wait keeps the waiting behavior instead.
 
-    Credentials are persisted on the filesystem at ~/.config/fulcra/credentials.json
+    Credentials are saved to credentials.json in the config directory
+    (~/.config/fulcra unless --config-path or FULCRA_CONFIG_PATH says otherwise).
     """
 
     if get_auth_url and device_code is not None:
@@ -155,7 +156,7 @@ def login(
 
         click.echo("✅ Authorization successful!")
 
-        save_creds(creds)
+        save_creds(fulcra_api.credentials_store, creds)
         return
 
     def prompt(device_code: str, uri: str, code: str):
@@ -181,7 +182,7 @@ def login(
 
     click.echo("✅ Authorization successful!")
 
-    save_creds(creds)
+    save_creds(fulcra_api.credentials_store, creds)
 
 
 @auth.command("print-access-token", short_help="Print Fulcra oauth2 access token")
