@@ -1,3 +1,4 @@
+import pathlib
 import sys
 from typing import Any, Dict
 
@@ -34,9 +35,8 @@ from .record import delete_records, record
 from .share import share
 from .tags import tag
 from .utils import (
-    CREDS_STORE,
-    ensure_config_directory,
-    load_creds,
+    DEFAULT_CONFIG_PATH,
+    credentials_store,
     pass_fulcra_api,
     tolerate_unencodable_output,
 )
@@ -90,17 +90,25 @@ class FulcraGroup(click.Group):
 
 @click.group(cls=FulcraGroup)
 @click.option("--beta", is_flag=True, default=False, help="Enable beta features")
+@click.option(
+    "--config-dir",
+    type=click.Path(file_okay=False, path_type=pathlib.Path),
+    default=DEFAULT_CONFIG_PATH,
+    show_default="~/.config/fulcra",
+    envvar="FULCRA_CONFIG_DIR",
+    help="Directory holding the login (credentials.json). Use a separate one per Fulcra account. Also set by FULCRA_CONFIG_DIR.",
+)
 @click.pass_context
-def cli(ctx, beta):
+def cli(ctx, beta, config_dir):
     """Command line interface for authenticating and interacting with the Fulcra Life API.
 
     Sub-commands return JSON data by default for convienent piping into tools like `jq` for parsing and filtering.
     """
     tolerate_unencodable_output(sys.stdout, sys.stderr)
-    ensure_config_directory()
-    creds: FulcraCredentials | None = load_creds()
+    store = credentials_store(config_dir)
+    creds: FulcraCredentials | None = store.load()
     kwargs: Dict[str, Any] = {
-        "credentials_store": CREDS_STORE,
+        "credentials_store": store,
         "user_agent_extra": f"fulcra-cli/{__version__}",
     }
     if creds:

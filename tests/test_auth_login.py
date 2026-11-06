@@ -37,7 +37,9 @@ def client(monkeypatch):
     client.oidc.authorize_via_device_flow.side_effect = authorize
     client.oidc.poll_for_token.return_value = "creds"
     saved = []
-    monkeypatch.setattr(auth_module, "save_creds", saved.append)
+    monkeypatch.setattr(
+        auth_module, "save_creds", lambda store, creds: saved.append(creds)
+    )
     monkeypatch.setattr(auth_module.webbrowser, "open_new_tab", lambda uri: None)
     client.saved = saved
     return client

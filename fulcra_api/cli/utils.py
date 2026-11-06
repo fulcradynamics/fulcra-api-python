@@ -52,25 +52,17 @@ def error_message(exc: Exception) -> str:
 # Create a pass decorator for FulcraAPI to enable type hints in subcommands
 pass_fulcra_api = click.make_pass_decorator(FulcraAPI)
 
-CONFIG_PATH = pathlib.Path.home() / ".config" / "fulcra"
-CREDS_FILE = pathlib.Path(CONFIG_PATH / "credentials.json")
-CREDS_STORE = CredentialsFile(CREDS_FILE)
+DEFAULT_CONFIG_PATH = pathlib.Path.home() / ".config" / "fulcra"
 
 
-def ensure_config_directory():
-    try:
-        CONFIG_PATH.mkdir(parents=True, exist_ok=True)
-    except FileExistsError:
-        pass
+def credentials_store(config_dir: pathlib.Path) -> CredentialsFile:
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return CredentialsFile(config_dir / "credentials.json")
 
 
-def load_creds() -> FulcraCredentials | None:
-    return CREDS_STORE.load()
-
-
-def save_creds(creds: FulcraCredentials):
-    with CREDS_STORE.lock():
-        CREDS_STORE.save(creds)
+def save_creds(store: CredentialsFile, creds: FulcraCredentials):
+    with store.lock():
+        store.save(creds)
 
 
 def requires_auth(f):
