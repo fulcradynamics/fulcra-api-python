@@ -363,6 +363,51 @@ def data_type_list(
         click.echo(json.dumps(c))
 
 
+@data_type.command("update", short_help="Update a data type's name or description")
+@click.argument(
+    "data_type",
+    callback=resolve_data_type(default_to_authenticated=True),
+)
+@click.option("-n", "--name", callback=reject_blank, help="Replacement name.")
+@click.option("-d", "--description", help="Replacement description; use '' to clear.")
+@pass_fulcra_api
+@requires_auth
+def data_type_update(
+    fulcra_api: FulcraAPI, data_type: dict, name: str | None, description: str | None
+):
+    """Update the name and/or description of one of your v1 data types.
+
+    DATA_TYPE: ID of the data type, <Event|Metric>/<UUID>.
+
+    Omitted fields are preserved. Use --description '' to clear the description.
+    """
+    changes = {
+        k: v
+        for k, v in {"name": name, "description": description}.items()
+        if v is not None
+    }
+    if not changes:
+        raise click.UsageError("Provide --name and/or --description.")
+
+    type_id = data_type["id"]
+    if data_type.get("api_version") != "v1" or "/" not in type_id:
+        raise click.ClickException(
+            "Metadata can only be updated for user-defined v1 data types "
+            f"(<Event|Metric>/<UUID>), not {type_id}."
+        )
+    try:
+        base, type_uuid = data_type_management.parse_v1_shorthand(type_id)
+        spec = fulcra_api.update_data_type(base, type_uuid, changes)
+    except ValueError as exc:
+        raise click.ClickException(str(exc))
+    except HTTPError as exc:
+        raise click.ClickException(
+            f"Failed to update data type {type_id}: {error_message(exc)}"
+        )
+
+    click.echo(json.dumps(spec))
+
+
 @data_type.command("add-fields", short_help="Add optional fields to a data type")
 @click.argument(
     "data_type",
