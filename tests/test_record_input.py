@@ -77,8 +77,8 @@ def _client():
     client.validate_records = lambda *a, **k: []
     sent = {}
 
-    def fake_record(data_type, records, api_version):
-        sent.update(data_type=data_type, records=records)
+    def fake_record(data_type, records, api_version, delivery=None):
+        sent.update(data_type=data_type, records=records, delivery=delivery)
         return {"upload_id": "upload-1"}
 
     client.record_data_type = fake_record

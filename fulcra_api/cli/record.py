@@ -4,8 +4,8 @@ from urllib.error import HTTPError
 
 import click
 
+from fulcra_api import records as records_lib
 from fulcra_api.core import FulcraAPI
-from fulcra_api.record_validation import is_unknown_fields_error, unknown_fields
 
 from .utils import error_message, pass_fulcra_api, requires_auth, resolve_data_type
 
@@ -274,99 +274,35 @@ def record(
         if not records:
             raise click.ClickException("No valid records found in input")
 
-        # v1 types (e.g. "Event/<uuid>") go directly to that endpoint, 
-        # but v1alpha1 go to the base type endpoint.
-        target_type = data_type["id"]
-        annotation_source = None
-        if "/" in data_type["id"] and data_type["api_version"] != "v1":
-            target_type, annotation_uuid = data_type["id"].split("/", maxsplit=1)
-            annotation_source = (
-                f"com.fulcradynamics.annotation.{annotation_uuid.lower()}"
+        try:
+            result = records_lib.record(
+                fulcra_api,
+                data_type,
+                records,
+                tags=tags,
+                sources=["com.fulcradynamics.cli", *sources],
+                validate=not no_validate,
             )
-
-        # Resolve tag names to UUIDs
-        tag_ids = []
-        if tags:
-            resolved_tags = fulcra_api.create_tags(list(tags))
-            tag_ids = [t["id"] for t in resolved_tags]
-
-        # Build sources list: CLI source, --source options, then annotation source
-        sources_to_add = ["com.fulcradynamics.cli"] + list(sources)
-        if annotation_source:
-            sources_to_add.append(annotation_source)
-
-        # Apply --tag and --source options to all records
-        for record in records:
-            # Add tags: filter duplicates from record, then append our tags
-            if tag_ids:
-                record_tags = record.get("tags", [])
-                # Remove any tags from record that we're about to add
-                record_tags = [t for t in record_tags if t not in tag_ids]
-                # Append option tags
-                record_tags.extend(tag_ids)
-                record["tags"] = record_tags
-
-            # Add sources: filter duplicates from record, then append our sources
-            if sources_to_add:
-                record_sources = record.get("sources", [])
-                # Remove any sources from record that we're about to add
-                record_sources = [s for s in record_sources if s not in sources_to_add]
-                # Append CLI source, options, and annotation source
-                record_sources.extend(sources_to_add)
-                record["sources"] = record_sources
-
-        # Validate records against schema if requested
-        if not no_validate:
-            try:
-                validation_errors = fulcra_api.validate_records(
-                    data_type=data_type["id"],
-                    records=records,
-                    api_version=data_type["api_version"],
+        except records_lib.SchemaNotFoundError as exc:
+            raise click.ClickException(f"{exc} Use --no-validate to skip validation")
+        except HTTPError as exc:
+            if exc.code == 422:
+                raise click.ClickException(
+                    f"The record was rejected: {error_message(exc)}"
                 )
+            raise
+        except ValueError as exc:
+            raise click.ClickException(str(exc))
 
-                # Add warnings for unknown fields / other validation errors.
-                errors = [e for e in validation_errors if not is_unknown_fields_error(e[2])]
-                if errors:
-                    idx, error_msg, _ = errors[0]
-                    raise click.ClickException(
-                        f"Validation error in record {idx + 1}: {error_msg}"
-                    )
-                warned = set()
-                for idx, _, error in validation_errors:
-                    for field in unknown_fields(error):
-                        if field in warned:
-                            continue
-                        warned.add(field)
-                        declared = ", ".join(sorted(error.schema.get("properties", {})))
-                        click.echo(
-                            f"Warning: record {idx + 1}: field {field!r} isn't part of "
-                            f"{data_type['id']} and will be dropped; its fields are: "
-                            f"{declared}",
-                            err=True,
-                        )
-            except HTTPError as exc:
-                if exc.code == 404:
-                    raise click.ClickException(
-                        f"Schema not found for {data_type['id']}. "
-                        "Use --no-validate to skip validation"
-                    )
-                else:
-                    raise click.ClickException(
-                        f"Failed to fetch schema: {error_message(exc)}"
-                    )
+        for warning in result.get("warnings", []):
+            click.echo(f"Warning: {warning}", err=True)
 
-        response = fulcra_api.record_data_type(
-            data_type=target_type, records=records, api_version=data_type["api_version"]
-        )
-
-        # Print summary
-        upload_id = response["upload_id"]
-        num_records = len(records)
+        num_records = result["record_count"]
         click.echo(
             f"Recorded {num_records} record{'s' if num_records != 1 else ''} "
-            f"to {target_type}"
+            f"to {result['data_type']}"
         )
-        click.echo(f"Upload ID: {upload_id}")
+        click.echo(f"Upload ID: {result['upload_id']}")
 
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8")

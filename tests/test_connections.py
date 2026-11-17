@@ -78,6 +78,7 @@ class FakeFulcra(FulcraAPI):
         self.unreadable = set()
         self.validation_errors = []
         self.sent = []
+        self.deliveries = []
 
     def get_fulcra_userid(self):
         return ME
@@ -99,8 +100,9 @@ class FakeFulcra(FulcraAPI):
     def validate_records(self, data_type, records, api_version="v1alpha1", **kwargs):
         return self.validation_errors
 
-    def record_data_type(self, data_type, records, api_version):
+    def record_data_type(self, data_type, records, api_version, delivery=None):
         self.sent.append((data_type, records, api_version))
+        self.deliveries.append(delivery)
         return {"upload_id": "upload-1"}
 
 
@@ -266,6 +268,7 @@ def test_send_records_the_message_on_your_channel():
     )
     [(data_type, [record], api_version)] = fulcra.sent
     assert (data_type, api_version) == (MY_CHANNEL, "v1")
+    assert fulcra.deliveries == ["immediate"]
     assert record == {
         "id": result["id"],
         "sender": "alice-claude",
