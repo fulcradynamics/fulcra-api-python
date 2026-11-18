@@ -1,6 +1,6 @@
 [project]
 name = "fulcra-api"
-version = "0.1.59"
+version = "0.1.60"
 description = "Python client library for Context by Fulcra"
 authors = [{ name = "Brandon Creighton", email = "brandon@fulcradynamics.com" }]
 requires-python = ">= 3.11"
@@ -46,7 +46,7 @@ test = [
     "fulcra-api[pandas]",
     "promql-parser>=0.10,<0.12",
 ]
-dev = ["black>=24.3.0,<27"]
+dev = ["black>=26.10.1,<27"]
 
 [tool.uv]
 default-groups = "all"

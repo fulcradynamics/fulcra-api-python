@@ -89,6 +89,9 @@ class FulcraGroup(click.Group):
 
 
 @click.group(cls=FulcraGroup)
+# Named after the package, not the entry point, so `fulcra` and `fulcra-api`
+# print the same line. Eager: it exits before any credentials are loaded.
+@click.version_option(__version__, prog_name="fulcra-api")
 @click.option("--beta", is_flag=True, default=False, help="Enable beta features")
 @click.option(
     "--config-path",
