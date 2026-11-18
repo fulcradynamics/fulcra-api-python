@@ -129,7 +129,7 @@ recent = records.get_records(fulcra, entry, day_ago, datetime.datetime.now(datet
 
 ## Command-Line Interface
 
-Installing the `fulcra-api` package provides a `fulcra` command (also available as `fulcra-api`; agents usually run it as `uvx fulcra-api`). Sub-commands print JSON, mostly one object per line, designed for piping into tools like `jq`.
+Installing the `fulcra-api` package provides a `fulcra` command (also available as `fulcra-api`; agents usually run it as `uvx fulcra-api`). Sub-commands print JSON, mostly one object per line, designed for piping into tools like `jq`. `fulcra --version` prints the installed version (`fulcra-api, version X.Y.Z`), so a script can check whether a newer option is available before using it.
 
 ```sh
 fulcra auth login                       # one-time device auth; credentials are cached
