@@ -121,9 +121,12 @@ builds = data_type_management.create_data_type(
     },
 )
 
-# Record into it, and read it back (records are readable within about a minute)
-fulcra.record_data_type(builds["id"], [{"repo": "fulcra-api-python", "seconds": 312}], api_version="v1")
+# Record into it, and read it back. records.record checks the records against the
+# type's schema first, and delivers a single record of a v1 type immediately
+# (processed right away, and webhooks fire); several records are batched (readable
+# within about a minute).
 [entry] = fulcra.resolve_data_type(builds["id"])
+records.record(fulcra, entry, [{"repo": "fulcra-api-python", "seconds": 312}])
 recent = records.get_records(fulcra, entry, day_ago, datetime.datetime.now(datetime.timezone.utc))
 ```
 

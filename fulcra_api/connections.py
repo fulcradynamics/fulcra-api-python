@@ -433,7 +433,8 @@ def send_agent_message(
         _, message_text, _ = errors[0]
         raise ValueError(f"{channel} doesn't take this message: {message_text}")
 
-    response = source.record_data_type(channel, [record], "v1")
+    # One message: deliver it right away, so the recipient's webhooks fire now.
+    response = source.record_data_type(channel, [record], "v1", delivery="immediate")
     return {
         "id": record["id"],
         "channel": channel,

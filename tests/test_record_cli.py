@@ -18,8 +18,13 @@ def _client(entry):
     client.validate_records = lambda *a, **k: []
     sent = {}
 
-    def fake_record(data_type, records, api_version):
-        sent.update(data_type=data_type, records=records, api_version=api_version)
+    def fake_record(data_type, records, api_version, delivery=None):
+        sent.update(
+            data_type=data_type,
+            records=records,
+            api_version=api_version,
+            delivery=delivery,
+        )
         return {"upload_id": "upload-1"}
 
     client.record_data_type = fake_record
@@ -49,6 +54,8 @@ def test_v1_user_defined_type_records_go_to_its_full_id(type_id, record_type):
     # not the base type, which would store them as plain Event/Metric records
     assert sent["data_type"] == type_id
     assert sent["api_version"] == "v1"
+    # one v1 record is delivered immediately
+    assert sent["delivery"] == "immediate"
     # v1 types aren't linked by an annotation source
     assert not any(
         s.startswith("com.fulcradynamics.annotation.")
@@ -65,6 +72,8 @@ def test_v1alpha1_annotation_records_go_to_the_base_type_with_its_source():
 
     assert result.exit_code == 0, result.output
     assert sent["data_type"] == "NumericAnnotation"
+    # immediate delivery is v1-only
+    assert sent["delivery"] is None
     assert sent["records"][0]["value"] == 75.5
     assert f"com.fulcradynamics.annotation.{TYPE_UUID}" in sent["records"][0]["sources"]
     assert "Recorded 1 record to NumericAnnotation" in result.output
@@ -329,3 +338,39 @@ def test_no_validate_skips_every_check():
     assert result.exit_code == 0, result.output
     assert "Warning" not in result.output
     assert _fields(sent) == [{"start_time": "garbage", "mod": "typo"}]
+
+
+# --- delivery -----------------------------------------------------------------
+
+
+def test_several_v1_records_are_batched():
+    client, sent = _event_client()
+
+    result = CliRunner().invoke(
+        record, [USER_TYPE], obj=client, input='{"mood": "a"}\n{"mood": "b"}\n'
+    )
+
+    assert result.exit_code == 0, result.output
+    assert sent["delivery"] is None
+    assert "Recorded 2 records" in result.output
+
+
+def test_one_piped_v1_record_is_delivered_immediately():
+    client, sent = _event_client()
+
+    result = CliRunner().invoke(record, [USER_TYPE], obj=client, input='[{"mood": "a"}]')
+
+    assert result.exit_code == 0, result.output
+    assert sent["delivery"] == "immediate"
+
+
+def test_several_records_from_a_file_are_batched(tmp_path):
+    client, sent = _event_client()
+    path = tmp_path / "records.jsonl"
+    path.write_text('{"mood": "a"}\n{"mood": "b"}\n{"mood": "c"}\n')
+
+    result = CliRunner().invoke(record, [USER_TYPE, "-f", str(path)], obj=client)
+
+    assert result.exit_code == 0, result.output
+    assert sent["delivery"] is None
+    assert "Recorded 3 records" in result.output

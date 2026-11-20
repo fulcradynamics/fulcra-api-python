@@ -1,4 +1,4 @@
-"""High-level record-fetching operations.
+"""High-level record operations: fetching and recording.
 
 This module sits above the transport layer (the client classes in ``core``) and
 below any front-end (the CLI, the MCP server). It orchestrates *which* endpoint
@@ -12,9 +12,11 @@ plain ``ValueError`` -- no front-end-specific error types.
 
 import json
 from datetime import datetime
+from urllib.error import HTTPError
 from uuid import UUID
 
 from fulcra_api.core import FulcraGroupParticipant
+from fulcra_api.record_validation import is_unknown_fields_error, unknown_fields
 
 
 def build_v1_promql(
@@ -165,3 +167,150 @@ def _as_records(resp, jsonl: bool = False) -> list[dict]:
     if isinstance(resp, bytes):
         resp = json.loads(resp)
     return resp
+
+
+class SchemaNotFoundError(ValueError):
+    """The data type's record schema couldn't be found, so records can't be checked."""
+
+
+class RecordValidationError(ValueError):
+    """A record doesn't match its data type's schema.
+
+    ``index`` is the 0-based position of the first failing record.
+    """
+
+    def __init__(self, index: int, message: str):
+        super().__init__(f"Validation error in record {index + 1}: {message}")
+        self.index = index
+        self.message = message
+
+
+def record(
+    source,
+    data_type: dict,
+    records: list[dict],
+    *,
+    tags=(),
+    sources=(),
+    validate: bool = True,
+    delivery: str | None = None,
+) -> dict:
+    """
+    Record records of one resolved catalog entry.
+
+    Routes a user-configured annotation (v1alpha1 ``<Base Type>/<UUID>``) to its
+    base type with an annotation source, resolves tag names to tag ids, merges
+    tags and sources into every record (modifying them in place), checks the
+    records against the data type's schema, and uploads them.
+
+    Params:
+        source: A FulcraAPI to record through.
+        data_type: A resolved catalog entry (see FulcraAPI.resolve_data_type).
+        records: The records to record.
+        tags: Tag names to add to every record.
+        sources: Sources to add to every record, in order, after any it has.
+        validate: Check the records against the data type's schema first.
+        delivery: "immediate", "batch", or None to choose: immediate for a
+            single record of a v1 data type, batch otherwise.
+
+    Returns:
+        ``{"upload_id", "data_type", "record_count", "delivery", "warnings"}``,
+        where ``data_type`` is the type the records were sent to and
+        ``warnings`` lists fields that aren't part of the data type and will be
+        dropped.
+
+    Raises:
+        ValueError: No records, or immediate delivery asked for more than one
+            record or a non-v1 data type.
+        RecordValidationError: A record doesn't match the schema.
+        SchemaNotFoundError: The data type has no schema to validate against.
+        HTTPError: Any other API failure.
+    """
+    if not records:
+        raise ValueError("No records to record.")
+
+    api_version = data_type["api_version"]
+    if delivery is None:
+        delivery = "immediate" if api_version == "v1" and len(records) == 1 else "batch"
+    elif delivery == "immediate":
+        if api_version != "v1":
+            raise ValueError(
+                "Immediate delivery is only supported for v1 data types, "
+                f"not {data_type['id']} ({api_version})."
+            )
+        if len(records) != 1:
+            raise ValueError(
+                f"Immediate delivery takes exactly one record; got {len(records)}."
+            )
+    elif delivery != "batch":
+        raise ValueError(f"delivery must be 'batch' or 'immediate', not {delivery!r}")
+
+    # v1 types (e.g. "Event/<uuid>") go directly to that endpoint, but v1alpha1
+    # annotations go to their base type, marked with an annotation source.
+    target_type = data_type["id"]
+    sources_to_add = list(sources)
+    if "/" in data_type["id"] and api_version != "v1":
+        target_type, annotation_uuid = data_type["id"].split("/", maxsplit=1)
+        sources_to_add.append(f"com.fulcradynamics.annotation.{annotation_uuid.lower()}")
+
+    tag_ids = [t["id"] for t in source.create_tags(list(tags))] if tags else []
+
+    # Remove from each record what we're about to add, then append ours.
+    for rec in records:
+        if tag_ids:
+            existing = [t for t in rec.get("tags", []) if t not in tag_ids]
+            rec["tags"] = existing + tag_ids
+        if sources_to_add:
+            existing = [s for s in rec.get("sources", []) if s not in sources_to_add]
+            rec["sources"] = existing + sources_to_add
+
+    warnings = []
+    if validate:
+        warnings = _validate(source, data_type, records)
+
+    # Batch is the server's default, so only immediate is spelled out.
+    response = source.record_data_type(
+        target_type,
+        records,
+        api_version,
+        delivery="immediate" if delivery == "immediate" else None,
+    )
+    return {
+        "upload_id": response.get("upload_id"),
+        "data_type": target_type,
+        "record_count": len(records),
+        "delivery": delivery,
+        "warnings": warnings,
+    }
+
+
+def _validate(source, data_type: dict, records: list[dict]) -> list[str]:
+    """Check records against the schema; return warnings for unknown fields."""
+    try:
+        validation_errors = source.validate_records(
+            data_type["id"], records, api_version=data_type["api_version"]
+        )
+    except HTTPError as exc:
+        if exc.code == 404:
+            raise SchemaNotFoundError(f"Schema not found for {data_type['id']}.")
+        raise
+
+    errors = [e for e in validation_errors if not is_unknown_fields_error(e[2])]
+    if errors:
+        index, message, _ = errors[0]
+        raise RecordValidationError(index, message)
+
+    # Unknown fields don't stop the upload: the record is kept without them.
+    warnings = []
+    warned = set()
+    for index, _, error in validation_errors:
+        for field in unknown_fields(error):
+            if field in warned:
+                continue
+            warned.add(field)
+            declared = ", ".join(sorted(error.schema.get("properties", {})))
+            warnings.append(
+                f"record {index + 1}: field {field!r} isn't part of "
+                f"{data_type['id']} and will be dropped; its fields are: {declared}"
+            )
+    return warnings

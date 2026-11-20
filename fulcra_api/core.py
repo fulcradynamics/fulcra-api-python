@@ -2884,10 +2884,15 @@ class FulcraAPI(FulcraDataAccessMixin):
         return json.loads(resp)
 
     def record_data_type(
-        self, data_type: str, records: List[dict], api_version: str
+        self,
+        data_type: str,
+        records: List[dict],
+        api_version: str,
+        *,
+        delivery: str | None = None,
     ) -> dict:
         """
-        Record data for a Fulcra data type using batch ingestion.
+        Record data for a Fulcra data type.
 
         Requires a valid access token.
 
@@ -2895,9 +2900,18 @@ class FulcraAPI(FulcraDataAccessMixin):
             data_type: The Fulcra data type to record (e.g., "NumericAnnotation", "MomentAnnotation")
             records: List of record dictionaries (schema depends on data_type)
             api_version: API version to use (default: "v1alpha1")
+            delivery: How the server delivers the records. None (the default) or
+                "batch" queues them for batch ingestion. "immediate" takes exactly
+                one record of a v1 data type: the server validates it up front
+                (rejecting an invalid record with a 422) and delivers it straight
+                to processing and to user-facing events such as webhooks.
 
         Returns:
             Dictionary containing the upload_id
+
+        Raises:
+            ValueError: If delivery is "immediate" and there isn't exactly one record,
+                or delivery isn't one of the values above.
 
         Example:
             records = [
@@ -2907,10 +2921,22 @@ class FulcraAPI(FulcraDataAccessMixin):
             response = client.record_data_type("NumericAnnotation", records)
             print(response["upload_id"])
         """
+        query = {"api_version": api_version}
+        if delivery is not None:
+            if delivery not in ("batch", "immediate"):
+                raise ValueError(
+                    f"delivery must be 'batch' or 'immediate', not {delivery!r}"
+                )
+            if delivery == "immediate" and len(records) != 1:
+                raise ValueError(
+                    "Immediate delivery takes exactly one record; "
+                    f"got {len(records)}."
+                )
+            query["delivery"] = delivery
         resp = self.fulcra_api(
             f"/ingest/v1/record/{data_type}",
             method="POST",
-            query={"api_version": api_version},
+            query=query,
             data=records,
             content_type="application/x-jsonl",
         )
