@@ -8412,14 +8412,14 @@ Examples:
 
 
 <h3 id="fulcra_api.core.FulcraAPI.record_data_type" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">record_data_type</span><span class="p">(</span><span class="n">data_type</span><span class="p">,</span> <span class="n">records</span><span class="p">,</span> <span class="n">api_version</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">record_data_type</span><span class="p">(</span><span class="n">data_type</span><span class="p">,</span> <span class="n">records</span><span class="p">,</span> <span class="n">api_version</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">delivery</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h3>
 
 
     <div class="doc doc-contents ">
 
-        <p>Record data for a Fulcra data type using batch ingestion.</p>
+        <p>Record data for a Fulcra data type.</p>
 <p>Requires a valid access token.</p>
 
 
@@ -8482,6 +8482,26 @@ Examples:
                 <em>required</em>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>delivery</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>How the server delivers the records. None (the default) or
+"batch" queues them for batch ingestion. "immediate" takes exactly
+one record of a v1 data type: the server validates it up front
+(rejecting an invalid record with a 422) and delivers it straight
+to processing and to user-facing events such as webhooks.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -8502,6 +8522,30 @@ Examples:
             <td>
               <div class="doc-md-description">
                 <p>Dictionary containing the upload_id</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Raises:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code><span title="ValueError">ValueError</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If delivery is "immediate" and there isn't exactly one record,
+or delivery isn't one of the values above.</p>
               </div>
             </td>
           </tr>
